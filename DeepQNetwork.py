@@ -57,3 +57,4 @@ class DeepQNetwork(ActionValueInterface):
     net.caffenet.ReleaseImageData()
     return activations
 
+
