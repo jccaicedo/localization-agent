@@ -27,8 +27,8 @@ print 'Setting up Experiment'
 experiment = Experiment(task, agent)
 i = 0
 print 'Main Loop'
-while True:
-  experiment.doInteractions(100)
+while i < 1:
+  experiment.doInteractions(10000)
   agent.learn()
   agent.reset()
   print 'Epoch',i

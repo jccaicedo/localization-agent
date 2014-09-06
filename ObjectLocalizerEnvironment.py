@@ -10,7 +10,7 @@ import Image
 import utils as cu
 
 MAX_CANDIDATES_PER_IMAGE = 5
-MIN_POSITIVE_OVERLAP = 0.2
+MIN_POSITIVE_OVERLAP = 0.5 # COVERAGE MEASURE
 
 class ObjectLocalizerEnvironment(Environment, Named):
   
@@ -70,7 +70,7 @@ class ObjectLocalizerEnvironment(Environment, Named):
           ngc += 1
     self.pos = ImageBoxIndex(pos,True)
     self.neg = ImageBoxIndex(neg,True)
-    self.probNeg = max(float(psc)/float(ngc),0.1)
+    self.probNeg = max(float(psc)/float(ngc),0.05)
     print 'Positives:',psc,'Negatives:',ngc
 
   def getExample(self):

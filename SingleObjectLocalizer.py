@@ -62,8 +62,12 @@ class SingleObjectLocalizer():
     self.prevBox = [x for x in self.nextBox]
     self.nextBox[coordinate] += direction*delta
 
-    if self.nextBox[coordinate] < 0 and self.nextBox[coordinate] < -delta:
+    '''if self.nextBox[coordinate] < 0 and self.nextBox[coordinate] < -delta:
       self.nextBox[coordinate] = -delta
     if self.nextBox[coordinate] > limit and self.nextBox[coordinate] - limit > delta:
-      self.nextBox[coordinate] = limit + delta
+      self.nextBox[coordinate] = limit + delta'''
+    if self.nextBox[coordinate] < 0: 
+      self.nextBox[coordinate] = 0
+    if self.nextBox[coordinate] >= limit:
+      self.nextBox[coordinate] = limit - 1
 
