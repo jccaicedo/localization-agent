@@ -52,8 +52,9 @@ class ObjectLocalizationAgent():
     self.action = None
     self.reward = None
     self.memory = []
+    self.controller.loadNetwork()
 
   def learn(self):
     if self.learner != None:
-      self.learner.learn(self.memory)
+      self.learner.learn(self.memory, self.controller)
 

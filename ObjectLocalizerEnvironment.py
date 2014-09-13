@@ -9,8 +9,7 @@ import random
 import Image
 import utils as cu
 
-MAX_CANDIDATES_PER_IMAGE = 5
-MIN_POSITIVE_OVERLAP = 0.5 # COVERAGE MEASURE
+import RLConfig as config
 
 class ObjectLocalizerEnvironment(Environment, Named):
   
@@ -18,7 +17,8 @@ class ObjectLocalizerEnvironment(Environment, Named):
     self.imageDir = imgDir
     self.candidates = cu.loadBoxIndexFile(candidatesFile)
     self.mode = mode
-    self.terminalCounts = 0 
+    self.terminalCounts = 0
+    self.episodeMoves = 0
 
     if mode == 'Training':
       self.balanceTrainingExamples()
@@ -29,14 +29,17 @@ class ObjectLocalizerEnvironment(Environment, Named):
   def performAction(self, action):
     #print 'ObjectLocalizerEnvironment::performAction(',action,')'
     self.terminalCounts = 0
+    self.episodeMoves = 0
     for i in range(len(self.state)):
       prevAction = self.state[i].lastAction
       self.state[i].performAction( action[i] )
       if prevAction <= 1 or action[i] <= 1:
         self.terminalCounts += 1
+      if len(self.state[0].history) > self.episodeMoves:
+        self.episodeMoves = len(self.state[0].history)
 
   def updatePostReward(self):
-    if len(self.state) == self.terminalCounts:
+    if len(self.state) == self.terminalCounts or self.episodeMoves >= config.MAX_MOVES_ALLOWED:
       self.loadNextEpisode()
       
   def getSensors(self):
@@ -51,16 +54,17 @@ class ObjectLocalizerEnvironment(Environment, Named):
     self.visibleImage = Image.open(self.imageDir + '/' + self.imgName + '.jpg')
     size = self.visibleImage.size
     self.state = [ SingleObjectLocalizer(size, box[0:4]) for box in self.state ]
-    if MAX_CANDIDATES_PER_IMAGE != 0:
+    if config.MAX_CANDIDATES_PER_IMAGE != 0:
       random.shuffle(self.state)
-      self.state = self.state[0:MAX_CANDIDATES_PER_IMAGE]
+      self.state = self.state[0:config.MAX_CANDIDATES_PER_IMAGE]
+    print 'New Episode:',self.imgName,'Boxes:',len(self.state),'Terminals:',self.terminalCounts,'Moves:',self.episodeMoves
 
   def balanceTrainingExamples(self):
     pos, neg = {},{}
     psc, ngc = 0,0
     for k in self.candidates.keys():
       for box in self.candidates[k]:
-        if box[5] > MIN_POSITIVE_OVERLAP:
+        if box[5] > config.MIN_POSITIVE_OVERLAP:
           try: pos[k].append(box)
           except: pos[k] = [box]
           psc += 1

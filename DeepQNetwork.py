@@ -4,57 +4,67 @@ __author__ = "Juan C. Caicedo, caicedo@illinois.edu"
 from pybrain.rl.learners.valuebased.interface import ActionValueInterface
 from caffe import imagenet
 import Image
+import os
 import utils as cu
 import numpy as np
 
+import RLConfig as config
+
 class DeepQNetwork(ActionValueInterface):
 
-  actions = 10
-  batchSize = 50
-  imageSize = 256
-  contextPad = 16
+  networkFile = config.networkDir + config.SNAPSHOOT_PREFIX + '_iter_' + str(config.trainingIterationsPerBatch)
 
   def __init__(self):
     self.net = None
+    print self.networkFile
+    if os.path.exists(self.networkFile):
+      self.loadNetwork()
 
-  def loadNetwork(self, modelFile, networkFile, meanImage, cropSize, imgsDir):
-    self.net = imagenet.ImageNetClassifier(modelFile, networkFile, IMAGE_DIM=imgDim, CROPPED_DIM=cropSize, MEAN_IMAGE=meanImage)
+  def releaseNetwork(self):
+    if self.net != None:
+      del self.net
+      self.net = None
+
+  def loadNetwork(self):
+    modelFile = config.networkDir + 'deploy.prototxt'
+    meanImage = config.MEAN_IMAGE_PICKLE
+    self.net = imagenet.ImageNetClassifier(modelFile, self.networkFile, IMAGE_DIM=config.imageSize, CROPPED_DIM=config.cropSize, MEAN_IMAGE=meanImage)
     self.net.caffenet.set_phase_test()
     self.net.caffenet.set_mode_gpu()
-    self.imgsDir = imgsDir
-    self.imgDim = imgDim
-    self.cropSize = cropSize
-    self.meanImage = meanImage
+    self.meanImage = self.net._IMAGENET_MEAN.swapaxes(1, 2).swapaxes(0, 1).astype('float32')
     
   def getMaxAction(self, state):
-    activations = self.getActionValues(state)
-    return np.argmax(activations, 1)
+    values = self.getActionValues(state)
+    return np.argmax(values, 1)
 
   def getActionValues(self, state):
     imgName = state[0]
     boxes = []
     for s in state[1]:
-      boxes.append(s.nextBox)
-    n = len(boxes)
+      boxes.append( map(int, s.nextBox) )
     if self.net == None:
-      return np.random.random([n, self.actions])
+      return np.random.random([len(boxes), config.outputActions])
+    else:
+      return self.getActivations(config.imageDir + '/' + imgName + '.jpg', boxes)
 
-    activations = cu.emptyMatrix( [n, self.actions] )
-    numBatches = (n + self.batchSize - 1) / self.batchSize
-    boxes += [ [0,0,0,0] for x in range(numBatches * self.batchSize - n) ]
+  def getActivations(self, imagePath, boxes):
+    n = len(boxes)
+    activations = cu.emptyMatrix( [n, config.outputActions] )
+    numBatches = (n + config.deployBatchSize - 1) / config.deployBatchSize
+    boxes += [ [0,0,0,0] for x in range(numBatches * config.deployBatchSize - n) ]
 
-    dims = net.caffenet.InitializeImage(self.imgsDir + '/' + imgName, self.imgDim, self.meanImage, self.cropSize)
+    dims = self.net.caffenet.InitializeImage(imagePath, config.imageSize, self.meanImage, config.cropSize)
     for k in range(numBatches):
-      s, f = k * self.batchSize, (k + 1) * self.batchSize
-      e = self.batchSize if f <= n else n - s
+      s, f = k * config.deployBatchSize, (k + 1) * config.deployBatchSize
+      e = config.deployBatchSize if f <= n else n - s
       # Forward this batch
-      net.caffenet.ForwardRegions(boxes[s:f], self.contextPad)
-      outputs =  net.caffenet.blobs
+      self.net.caffenet.ForwardRegions(boxes[s:f], config.contextPad)
+      outputs =  self.net.caffenet.blobs
       f = n if f > n else f
       # Collect outputs
-      activations[s:f,:] = outputs['prob'].data[0:e,:,:,:].reshape([e,self.actions])
+      activations[s:f,:] = outputs['prob'].data[0:e,:,:,:].reshape([e,config.outputActions])
     # Release image data
-    net.caffenet.ReleaseImageData()
+    self.net.caffenet.ReleaseImageData()
     return activations
 
 
