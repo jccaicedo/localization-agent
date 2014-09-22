@@ -1,4 +1,3 @@
-print 'Starting'
 from pybrain.rl.agents import LearningAgent
 from pybrain.rl.learners import Q, SARSA
 from pybrain.rl.experiments import Experiment

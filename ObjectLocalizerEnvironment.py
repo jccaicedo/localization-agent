@@ -11,19 +11,35 @@ import utils as cu
 
 import RLConfig as config
 
+import MemoryUsage
+
+def loadBoxesFile(filename, threshold):
+  gt = [x.split() for x in open(filename)]
+  images = {}
+  for k in gt:
+    record = map(float,k[1:])
+    if record[4] < threshold: continue
+    try:
+      images[k[0]] += [ map(float,k[1:]) ]
+    except:
+      images[k[0]] = [ map(float,k[1:]) ]
+  return images
+
 class ObjectLocalizerEnvironment(Environment, Named):
   
   def __init__(self, imgDir, candidatesFile, mode):
     self.imageDir = imgDir
-    self.candidates = cu.loadBoxIndexFile(candidatesFile)
+    candidates = loadBoxesFile(candidatesFile, -2.0)
+   
     self.mode = mode
     self.terminalCounts = 0
     self.episodeMoves = 0
 
     if mode == 'Training':
-      self.balanceTrainingExamples()
+      self.balanceTrainingExamples(candidates)
     else:
-      self.imageIndex = ImageBoxIndex(self.candidates, False)
+      self.imageIndex = ImageBoxIndex(candidates, False)
+    print 'Dataset ready:','{:5.2f}'.format(MemoryUsage.memory()/(1024**3)),'GB'
     self.loadNextEpisode()
 
   def performAction(self, action):
@@ -59,12 +75,12 @@ class ObjectLocalizerEnvironment(Environment, Named):
       self.state = self.state[0:config.MAX_CANDIDATES_PER_IMAGE]
     print 'New Episode:',self.imgName,'Boxes:',len(self.state),'Terminals:',self.terminalCounts,'Moves:',self.episodeMoves
 
-  def balanceTrainingExamples(self):
+  def balanceTrainingExamples(self, candidates):
     pos, neg = {},{}
     psc, ngc = 0,0
-    for k in self.candidates.keys():
-      for box in self.candidates[k]:
-        if box[5] > config.MIN_POSITIVE_OVERLAP:
+    for k in candidates.keys():
+      for box in candidates[k]:
+        if box[5] > config.MIN_POSITIVE_OVERLAP: # and box[6] >= 1.0:
           try: pos[k].append(box)
           except: pos[k] = [box]
           psc += 1
@@ -72,6 +88,7 @@ class ObjectLocalizerEnvironment(Environment, Named):
           try: neg[k].append(box)
           except: neg[k] = [box]
           ngc += 1
+
     self.pos = ImageBoxIndex(pos,True)
     self.neg = ImageBoxIndex(neg,True)
     self.probNeg = max(float(psc)/float(ngc),0.05)
@@ -100,7 +117,6 @@ class ImageBoxIndex():
       random.shuffle(self.index)
     else:
       self.index.sort()
-    print len(self.index)
 
   def getImage(self):
     if self.pointer < len(self.index):
