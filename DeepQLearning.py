@@ -22,7 +22,7 @@ class DeepQLearning(ValueBasedLearner):
     ValueBasedLearner.__init__(self)
     self.alpha = alpha
     self.gamma = gamma
-    self.netManager = cnm.CaffeNetworkManagement(config.networkDir)
+    self.netManager = cnm.CaffeNetworkManagement(config.get('networkDir'))
 
   def learn(self, data, controller):
     images = []
@@ -52,7 +52,7 @@ class DeepQLearning(ValueBasedLearner):
     self.dataset = []
     
   def dropRecords(self, rec, total, new):
-    if total > config.replayMemorySize:
+    if total > config.geti('replayMemorySize'):
       drop = 0
       while drop < new:
         for k in rec.keys():
@@ -61,11 +61,11 @@ class DeepQLearning(ValueBasedLearner):
     return rec
 
   def mergeDatasetAndRecords(self, train, val):
-    numTrain = len(self.dataset)*(1 - config.percentOfValidation)
-    numVal = len(self.dataset)*config.percentOfValidation
+    numTrain = len(self.dataset)*(1 - config.getf('percentOfValidation'))
+    numVal = len(self.dataset)*config.getf('percentOfValidation')
     random.shuffle( self.dataset )
     for i in range(len(self.dataset)):
-      imgPath = config.imageDir + self.dataset[i][0] + '.jpg'
+      imgPath = config.get('imageDir') + self.dataset[i][0] + '.jpg'
       # record format: Action, reward, discountedMaxQ, x1, y1, x2, y2,
       record = [self.dataset[i][10], self.dataset[i][11], 0.0] + self.dataset[i][1:5]
 

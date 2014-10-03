@@ -41,7 +41,7 @@ class ObjectLocalizationAgent():
     assert self.reward == None
 
     self.reward = r
-    self.cumReward += sum(r)
+    self.cumReward += sum(r)/float(len(r))
     for i in range(len(self.observation)):
       # Memory format: image box action reward time observations
       self.action[i] = self.observation[i].lastAction
@@ -53,6 +53,8 @@ class ObjectLocalizationAgent():
     self.reward = None
     self.memory = []
     self.controller.loadNetwork()
+    print 'Accumulated reward:',self.cumReward
+    self.cumReward = 0
 
   def learn(self):
     if self.learner != None:

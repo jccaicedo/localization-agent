@@ -34,6 +34,6 @@ for category in aeroplane bicycle bird boat bottle bus car cat chair cow diningt
   #time python detector.py $modelType $modelFile"."$iterations $testList $featuresDir $featuresExt $NMSThresholdTest $scoreThreshold $resultsFile
   python evaluation.py OV0.5 $testGroundTruth $resultsFile $resultsFile".result"
   python evaluation.py TOPK0.5 $testGroundTruth $resultsFile $resultsFile".result_topk"
-  python evaluation.py ROV50 $testGroundTruth $resultsFile $resultsFile".result_iou"
+  python evaluation.py ROV50 $testGroundTruth $resultsFile $resultsFile".result_rov"
 
 done

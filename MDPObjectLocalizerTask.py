@@ -8,7 +8,7 @@ import libDetection as det
 class MDPObjectLocalizerTask(Task):
 
   minAcceptableIoU = 0.7
-  maxRejectableIoU = 0.0
+  maxRejectableIoU = 0.2
 
   def __init__(self, environment, groundTruthFile):
     Task.__init__(self, environment)
@@ -44,16 +44,16 @@ class MDPObjectLocalizerTask(Task):
       # Previous image-box pair has been accepted
       maxIoU, idx = self.matchBoxes(sensor.prevBox, gt)
       if maxIoU >= self.minAcceptableIoU:
-        return 5.0
+        return 1.0 #5.0
       else:
-        return -5.0
+        return -1.0 #-5.0
     else:
       # Previous image-box pair has been rejected
       maxIoU, idx = self.matchBoxes(sensor.prevBox, gt)
       if maxIoU <= self.maxRejectableIoU:
-        return 3.0
+        return 1.0 #3.0
       else:
-        return -3.0
+        return -1.0 #-3.0
 
   def performAction(self, action):
     #print 'MDPObjectLocalizerTask::performAction(',action,')'

@@ -9,7 +9,7 @@ class CaffeNetworkManagement():
   
   def __init__(self, workingDir):
     self.directory = workingDir
-    self.step = config.trainingIterationsPerBatch
+    self.step = config.geti('trainingIterationsPerBatch')
     self.readCheckpoint()
     self.writeSolverFile(self.step)
 
@@ -29,10 +29,10 @@ class CaffeNetworkManagement():
   def doNetworkTraining(self):
     if self.checkpoint == 0:
       # launch finetuning
-      self.runNetworkTuning(config.PRETRAINED_MODEL)
+      self.runNetworkTuning(config.get('pretrainedModel'))
     else:
       # Resume training
-      self.runNetworkTuning(config.SNAPSHOOT_PREFIX+'_iter_'+str(self.step))
+      self.runNetworkTuning(config.get('snapshotPrefix')+'_iter_'+str(self.step))
 
     self.checkpoint += self.step
     self.writeCheckpoint()
@@ -43,13 +43,13 @@ class CaffeNetworkManagement():
     out.write('test_net: "val.prototxt"\n')
     out.write('test_iter: 100\n')
     out.write('test_interval: 1000\n')
-    out.write('base_lr: 0.001\n')
+    out.write('base_lr: 0.00001\n')
     out.write('lr_policy: "step"\n')
-    out.write('gamma: 0.1\n')
+    out.write('gamma: 0.15\n')
     out.write('stepsize: 20000\n')
     out.write('display: 20\n')
     out.write('max_iter: ' + str(maxIter) + '\n')
-    out.write('momentum: 0.9\n')
+    out.write('momentum: 0.0\n')
     out.write('weight_decay: 0.0005\n')
     out.write('snapshot: 100\n')
     out.write('snapshot_prefix: "finetune_network_train"\n')
@@ -93,21 +93,21 @@ class CaffeNetworkManagement():
     my_env = os.environ.copy()
     my_env['GLOG_logtostderr']='1'
     my_env['GLOG_minloglevel']='0'
-    monitorFile = self.directory + '/' + config.SNAPSHOOT_PREFIX+'_iter_'+str(self.checkpoint+self.step)+'.solverstate'
+    monitorFile = self.directory + '/' + config.get('snapshotPrefix')+'_iter_'+str(self.checkpoint+self.step)+'.solverstate'
     p = subprocess.Popen(args, env=my_env, cwd=self.directory)
     while not os.path.isfile(monitorFile):
       time.sleep(10)
     p.terminate()
     if self.checkpoint > 0:
-      os.remove(self.directory + '/' + config.SNAPSHOOT_PREFIX+'_iter_'+str(self.checkpoint)+'.solverstate')
-      os.remove(self.directory + '/' + config.SNAPSHOOT_PREFIX+'_iter_'+str(self.checkpoint))
+      os.remove(self.directory + '/' + config.get('snapshotPrefix')+'_iter_'+str(self.checkpoint)+'.solverstate')
+      os.remove(self.directory + '/' + config.get('snapshotPrefix')+'_iter_'+str(self.checkpoint))
     return
 
   def runNetworkTuning(self, pretrained):
     my_env = os.environ.copy()
     my_env['GLOG_logtostderr']='1'
     my_env['GLOG_minloglevel']='0'
-    args = [config.TOOLS + '/finetune_net.bin', config.SOLVER_FILE, pretrained]
+    args = [config.get('tools') + '/finetune_net.bin', config.get('solverFile'), pretrained]
     p = subprocess.Popen(args, env=my_env, cwd=self.directory)
     p.wait()
     return

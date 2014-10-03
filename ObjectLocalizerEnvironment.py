@@ -55,7 +55,7 @@ class ObjectLocalizerEnvironment(Environment, Named):
         self.episodeMoves = len(self.state[0].history)
 
   def updatePostReward(self):
-    if len(self.state) == self.terminalCounts or self.episodeMoves >= config.MAX_MOVES_ALLOWED:
+    if len(self.state) == self.terminalCounts or self.episodeMoves >= config.geti('maxMovesAllowed'):
       self.loadNextEpisode()
       
   def getSensors(self):
@@ -70,9 +70,9 @@ class ObjectLocalizerEnvironment(Environment, Named):
     self.visibleImage = Image.open(self.imageDir + '/' + self.imgName + '.jpg')
     size = self.visibleImage.size
     self.state = [ SingleObjectLocalizer(size, box[0:4]) for box in self.state ]
-    if config.MAX_CANDIDATES_PER_IMAGE != 0:
+    if config.geti('maxCandidatesPerImage') != 0:
       random.shuffle(self.state)
-      self.state = self.state[0:config.MAX_CANDIDATES_PER_IMAGE]
+      self.state = self.state[0: config.geti('maxCandidatesPerImage')]
     print 'New Episode:',self.imgName,'Boxes:',len(self.state),'Terminals:',self.terminalCounts,'Moves:',self.episodeMoves
 
   def balanceTrainingExamples(self, candidates):
@@ -80,7 +80,7 @@ class ObjectLocalizerEnvironment(Environment, Named):
     psc, ngc = 0,0
     for k in candidates.keys():
       for box in candidates[k]:
-        if box[5] > config.MIN_POSITIVE_OVERLAP: # and box[6] >= 1.0:
+        if box[5] > config.getf('minPositiveOverlap'): # and box[6] >= 1.0:
           try: pos[k].append(box)
           except: pos[k] = [box]
           psc += 1

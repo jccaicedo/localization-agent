@@ -18,13 +18,13 @@ from ObjectLocalizationAgent import ObjectLocalizationAgent
 
 
 print 'Starting Environment'
-environment = ObjectLocalizerEnvironment(config.get('imageDir'), config.get('candidatesFile'), 'Training')
+environment = ObjectLocalizerEnvironment(config.get('imageDir'), config.get('testFile'), 'Testing')
 print 'Initializing DeepQNetwork'
 controller = DeepQNetwork()
-print 'Initializing Q Learner'
-learner = DeepQLearning()
+#print 'Initializing Q Learner'
+#learner = DeepQLearning()
 print 'Preparing Agent'
-agent = ObjectLocalizationAgent(controller, learner)
+agent = ObjectLocalizationAgent(controller)
 print 'Configuring Task'
 task = MDPObjectLocalizerTask(environment, config.get('groundTruth'))
 print 'Setting up Experiment'
