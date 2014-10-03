@@ -66,15 +66,19 @@ if __name__ == "__main__":
   ious = []
 
   for img in groundTruthBoxes.keys():
-    im = Image.open(params['imageDir'] + '/' + img + '.jpg')
+    print img
+    name = img.split('/')[1]
+    if not os.path.isfile(params['imageDir'] + '/' + name + '.JPEG'): continue
+    im = Image.open(params['imageDir'] + '/' + name + '.JPEG')
     w,h = im.size
-    projections[img] = {}
+    try: p = projections[img]
+    except: projections[img] = {}
     for gt in groundTruthBoxes[img]:
       scaleBoxes = getBestFitBoxes(gt, w, h, cropSize)
       for b in scaleBoxes:
         b = map(int,b)
         projections[img][ ' '.join(map(str,b[0:4])) ] = 1 # add the best box to the index
-        im.crop(b[0:4]).save(params['outputDir']+img+'_'+'_'.join(map(str,b[0:4])) + '_pr.jpg')
+        #im.crop(b[0:4]).save(params['outputDir']+img+'_'+'_'.join(map(str,b[0:4])) + '_pr.jpg')
         #im.crop(map(int,gt)).save(params['outputDir']+img+'_GT_'+'_'.join(map(str,map(int,gt))) + '.jpg')
       
   out = open(params['outputDir'] + '/boxes_file.txt','w')

@@ -32,7 +32,7 @@ def loadDetections(detectionsData):
     if d[0].endswith('.jpg'):
       d[0] = re.sub(r'(.+/){0,1}(.+).jpg',r'\2',d[0])
     data = [d[0], float(d[1])] + map(float,d[2:])
-    #if float(d[1]) > -2.0:
+    #if float(d[1]) < -1.0: continue
     detections.append(data)
   # Sort Detections by decreasing confidence
   detections.sort(key=lambda x:x[1], reverse=True)
@@ -45,6 +45,7 @@ def loadMaxDetectionsPerImage(detectionsData,maxDetections):
     if d[0].endswith('.jpg'):
       d[0] = re.sub(r'(.+/){0,1}(.+).jpg',r'\2',d[0])
     data = [d[0], float(d[1])] + map(float,d[2:])
+    #if float(d[1]) < -2.0: continue
     try: imageCounts[d[0]].append(data)
     except: imageCounts[d[0]] = [data]
 
