@@ -35,6 +35,7 @@ class DeepQNetwork(ActionValueInterface):
     
   def getMaxAction(self, state):
     values = self.getActionValues(state)
+    #terminalScores = values[:,0:2]
     return np.argmax(values, 1)
 
   def getActionValues(self, state):

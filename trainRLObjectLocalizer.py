@@ -16,7 +16,6 @@ from DeepQLearning import DeepQLearning
 from MDPObjectLocalizerTask import MDPObjectLocalizerTask
 from ObjectLocalizationAgent import ObjectLocalizationAgent
 
-
 print 'Starting Environment'
 environment = ObjectLocalizerEnvironment(config.get('imageDir'), config.get('candidatesFile'), 'Training')
 print 'Initializing DeepQNetwork'

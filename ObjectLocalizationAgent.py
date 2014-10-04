@@ -1,6 +1,7 @@
 __author__ = "Juan C. Caicedo, caicedo@illinois.edu"
 
 from pybrain.rl.agents.logging import LoggingAgent
+import numpy as np
 
 #class ObjectLocalizationAgent(LoggingAgent):
 class ObjectLocalizationAgent():
@@ -29,11 +30,11 @@ class ObjectLocalizationAgent():
     assert self.reward == None
     self.t += 1
 
-    self.action = self.controller.getMaxAction( [self.image, self.observation] )
-    #if self.learning:
-    #  self.lastaction = self.learner.explore(self.lastobs, self.lastaction)
-    #print 'ObjectLocalizationAgent::getAction(',self.action,')'
-    return self.action
+    #self.action = self.controller.getMaxAction( [self.image, self.observation] )
+    values = self.controller.getActionValues( [self.image, self.observation] )
+    self.action = np.argmax(values, 1)
+
+    return self.action, values
 
   def giveReward(self, r):
     assert self.observation != None

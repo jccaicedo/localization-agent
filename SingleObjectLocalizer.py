@@ -23,11 +23,15 @@ class SingleObjectLocalizer():
     self.imgHeight = imgSize[1]
     self.lastAction = float("inf")
     self.history = []
+    self.terminalScore = 0.0
 
-  def performAction(self, action):
-    #print 'SingleObjectLocalizer::performAction(',action,')'
+  def performAction(self, action, values):
     ## Terminal States
-    if self.lastAction == self.ACCEPT or self.lastAction == self.REJECT:
+    if self.lastAction == self.ACCEPT:
+      self.terminalScore = values[self.lastAction]
+      return self.lastAction
+    if self.lastAction == self.REJECT:
+      self.terminalScore = -values[self.lastAction]
       return self.lastAction
     ## Adjust the current box
     elif action == self.EXPAND_TOP:    self.adjustCurrentBox(-1, 'y', 1)
@@ -44,6 +48,7 @@ class SingleObjectLocalizer():
       print 'Unknown action',action
       return
     self.lastAction = action
+    self.terminalScore = values[0] - values[1] # Q0 - Q1
     self.history.append(action)
     return self.lastAction
       
@@ -62,10 +67,6 @@ class SingleObjectLocalizer():
     self.prevBox = [x for x in self.nextBox]
     self.nextBox[coordinate] += direction*delta
 
-    '''if self.nextBox[coordinate] < 0 and self.nextBox[coordinate] < -delta:
-      self.nextBox[coordinate] = -delta
-    if self.nextBox[coordinate] > limit and self.nextBox[coordinate] - limit > delta:
-      self.nextBox[coordinate] = limit + delta'''
     if self.nextBox[coordinate] < 0: 
       self.nextBox[coordinate] = 0
     if self.nextBox[coordinate] >= limit:
