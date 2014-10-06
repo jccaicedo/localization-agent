@@ -12,6 +12,7 @@ import utils as cu
 import RLConfig as config
 
 import MemoryUsage
+import copy
 
 def loadBoxesFile(filename, threshold):
   gt = [x.split() for x in open(filename)]
@@ -20,9 +21,9 @@ def loadBoxesFile(filename, threshold):
     record = map(float,k[1:])
     if record[4] < threshold: continue
     try:
-      images[k[0]] += [ map(float,k[1:]) ]
+      images[k[0]] += [ record ]
     except:
-      images[k[0]] = [ map(float,k[1:]) ]
+      images[k[0]] = [ record ]
   return images
 
 class ObjectLocalizerEnvironment(Environment, Named):
@@ -33,6 +34,7 @@ class ObjectLocalizerEnvironment(Environment, Named):
     self.mode = mode
     self.terminalCounts = 0
     self.episodeMoves = 0
+    self.imgName = None
     self.state = None
     self.moreEpisodes = True
 
@@ -73,7 +75,7 @@ class ObjectLocalizerEnvironment(Environment, Named):
 
     self.visibleImage = Image.open(self.imageDir + '/' + self.imgName + '.jpg')
     size = self.visibleImage.size
-    self.state = [ SingleObjectLocalizer(size, box[0:4]) for box in self.state ]
+    self.state = [ SingleObjectLocalizer(size, box[0:4], box[4]) for box in self.state ]
     if config.geti('maxCandidatesPerImage') != 0 and self.mode == "Training":
       random.shuffle(self.state)
       self.state = self.state[0: config.geti('maxCandidatesPerImage')]
@@ -107,7 +109,7 @@ class ObjectLocalizerEnvironment(Environment, Named):
         self.imgName, self.state = self.pos.getImage()
         self.pos.moveToNextImage()
     else:
-      self.imageIndex.recordState( self.state )
+      self.imageIndex.recordState( self.imgName, self.state )
       self.imgName, self.state = self.imageIndex.getImage()
       self.moreEpisodes = self.imageIndex.moveToNextImage()
 
@@ -134,7 +136,7 @@ class ImageBoxIndex():
   def getImage(self):
     if self.pointer < len(self.index):
       name = self.index[self.pointer]
-      return name, self.data[name]
+      return name, copy.deepcopy(self.data[name])
     else:
       return None,None
 
@@ -148,9 +150,8 @@ class ImageBoxIndex():
       return False
     return True
 
-  def recordState(self, state):
+  def recordState(self, img, state):
     if state == None: return
-    img = self.index[self.pointer]
     rec = {'boxes':[], 'history':[]}
     for i in range(len(state)):
       finalBox = map(int, state[i].nextBox)

@@ -83,7 +83,8 @@ class CaffeNetworkManagement():
       out.write(str(len(records[k])) + '\n')
       for d in records[k]:
         out.write(str(int(d[0])) + ' ' + "{:5.3f}".format(d[1])+ ' ' + "{:5.3f}".format(d[2]) + ' ')
-        out.write(' '.join(map(str, map(int, d[3:]))) + '\n')
+        out.write(' '.join(map(str, map(int, d[3:7]))) + ' ' + ' '.join(map("{:5.3f}".format, d[7:-1])) )
+        out.write(' ' + str(int(d[-1])) + '\n')
         j += 1
       i += 1
     out.close()

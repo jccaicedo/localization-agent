@@ -33,7 +33,7 @@ print 'Main Loop'
 while i < config.geti('maximumEpochs'):
   experiment.doInteractions(int(config.get('numInteractions')))
   agent.learn()
-  agent.reset()
+  #agent.reset()
   print 'Epoch',i
   i += 1
 

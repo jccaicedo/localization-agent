@@ -29,7 +29,7 @@ class MDPObjectLocalizerTask(Task):
   def computeReward(self, gt, sensor):
     if sensor.lastAction > 1:
       # Localizing object with current image-box
-      maxIoU_0, idx_0 = self.matchBoxes(sensor.prevBox, gt)
+      maxIoU_0, idx_0 = self.matchBoxes(sensor.currBox, gt)
       maxIoU_1, idx_1 = self.matchBoxes(sensor.nextBox, gt)
       #if idx_0 != idx_1: print 'Focused object has changed'
       if maxIoU_1 >= 0 and maxIoU_0 >= 0:
@@ -41,15 +41,15 @@ class MDPObjectLocalizerTask(Task):
       else:
         return -1.0
     elif sensor.lastAction == 0:
-      # Previous image-box pair has been accepted
-      maxIoU, idx = self.matchBoxes(sensor.prevBox, gt)
+      # Current image-box pair has been accepted
+      maxIoU, idx = self.matchBoxes(sensor.currBox, gt)
       if maxIoU >= self.minAcceptableIoU:
         return 1.0 #5.0
       else:
         return -1.0 #-5.0
     else:
-      # Previous image-box pair has been rejected
-      maxIoU, idx = self.matchBoxes(sensor.prevBox, gt)
+      # Current image-box pair has been rejected
+      maxIoU, idx = self.matchBoxes(sensor.currBox, gt)
       if maxIoU <= self.maxRejectableIoU:
         return 1.0 #3.0
       else:

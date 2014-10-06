@@ -1,8 +1,9 @@
 __author__ = "Juan C. Caicedo, caicedo@illinois.edu"
 
-class SingleObjectLocalizer():
+adjustingPercent = 0.1
+scoreDiscount = 0.05
 
-  adjustingPercent = 0.1
+class SingleObjectLocalizer():
   
   # Actions
   ACCEPT         = 0
@@ -16,9 +17,11 @@ class SingleObjectLocalizer():
   REDUCE_LEFT    = 8
   REDUCE_RIGHT   = 9
   
-  def __init__(self, imgSize, initialBox):
+  def __init__(self, imgSize, initialBox, score):
     self.prevBox = initialBox
+    self.currBox = initialBox
     self.nextBox = initialBox
+    self.prevScore = self.currScore = score
     self.imgWidth = imgSize[0]
     self.imgHeight = imgSize[1]
     self.lastAction = float("inf")
@@ -58,13 +61,14 @@ class SingleObjectLocalizer():
         coordinate : 0,1,2,3
     '''
     if axis == 'x':
-      delta = (self.nextBox[2] - self.nextBox[0]) * self.adjustingPercent
+      delta = (self.nextBox[2] - self.nextBox[0]) * adjustingPercent
       limit = self.imgWidth
     else:
-      delta = (self.nextBox[3] - self.nextBox[1]) * self.adjustingPercent
+      delta = (self.nextBox[3] - self.nextBox[1]) * adjustingPercent
       limit = self.imgHeight
 
-    self.prevBox = [x for x in self.nextBox]
+    self.prevBox = [x for x in self.currBox]
+    self.currBox = [x for x in self.nextBox]
     self.nextBox[coordinate] += direction*delta
 
     if self.nextBox[coordinate] < 0: 
@@ -72,3 +76,23 @@ class SingleObjectLocalizer():
     if self.nextBox[coordinate] >= limit:
       self.nextBox[coordinate] = limit - 1
 
+    self.prevScore = self.currScore
+    self.currScore = self.currScore - scoreDiscount
+
+  def getNormalizedBox(self, box):
+    return [box[0]/self.imgWidth, box[1]/self.imgHeight, box[2]/self.imgWidth, box[3]/self.imgHeight]
+
+  def normNextBox(self):
+    return self.getNormalizedBox(self.nextBox)
+
+  def normCurrBox(self):
+    return self.getNormalizedBox(self.currBox)
+
+  def normPrevBox(self):
+    return self.getNormalizedBox(self.prevBox)
+
+  def prevAction(self):
+    if len(self.history) <= 1:
+      return -1
+    else:
+      return self.history[-2]

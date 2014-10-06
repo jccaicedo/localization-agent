@@ -28,8 +28,8 @@ class DeepQLearning(ValueBasedLearner):
     images = []
     hash = {}
     for d in data:
-      images.append(d[0])
-      key = '_'.join(map(str, d[0:-2]))
+      images.append(d['img'])
+      key = d['img'] + '_'.join(map(str, d['box'])) + '_' + str(d['A']) + '_' + str(d['R'])
       try:
         exists = hash[key]
       except:
@@ -37,7 +37,7 @@ class DeepQLearning(ValueBasedLearner):
         hash[key] = True
         print 'State',d
     self.updateTrainingDatabase(controller)
-    self.netManager.doNetworkTraining()
+    #self.netManager.doNetworkTraining()
 
   def updateTrainingDatabase(self, controller):
     trainRecs, numTrain = self.netManager.readTrainingDatabase('training.txt')
@@ -65,9 +65,11 @@ class DeepQLearning(ValueBasedLearner):
     numVal = len(self.dataset)*config.getf('percentOfValidation')
     random.shuffle( self.dataset )
     for i in range(len(self.dataset)):
-      imgPath = config.get('imageDir') + self.dataset[i][0] + '.jpg'
+      imgPath = config.get('imageDir') + self.dataset[i]['img'] + '.jpg'
       # record format: Action, reward, discountedMaxQ, x1, y1, x2, y2,
-      record = [self.dataset[i][10], self.dataset[i][11], 0.0] + self.dataset[i][1:5]
+      record = [self.dataset[i]['A'], self.dataset[i]['R'], 0.0] + self.dataset[i]['box']
+      record += [ self.dataset[i]['Sp'] ] + self.dataset[i]['Xp'] + [ self.dataset[i]['Sn']] + self.dataset[i]['Xn']
+      record += [ self.dataset[i]['Ap'] ]
 
       if i < numTrain:
         try: 
@@ -89,7 +91,7 @@ class DeepQLearning(ValueBasedLearner):
       imSize = Image.open(img).size
       boxes = []
       for i in range(len(records[img])):
-        ol = sol.SingleObjectLocalizer(imSize, records[img][i][3:])
+        ol = sol.SingleObjectLocalizer(imSize, records[img][i][3:7])
         ol.performAction(records[img][i][0])
         boxes.append( map(int, ol.nextBox) )
       maxQ = np.max( controller.getActivations(img, boxes), 1 )
