@@ -68,7 +68,7 @@ class DeepQLearning(ValueBasedLearner):
       imgPath = config.get('imageDir') + self.dataset[i]['img'] + '.jpg'
       # record format: Action, reward, discountedMaxQ, x1, y1, x2, y2,
       record = [self.dataset[i]['A'], self.dataset[i]['R'], 0.0] + self.dataset[i]['box']
-      record += [ self.dataset[i]['Sp'] ] + self.dataset[i]['Xp'] + [ self.dataset[i]['Sn']] + self.dataset[i]['Xn']
+      record += [ self.dataset[i]['Sp'] ] + self.dataset[i]['Xp'] + [ self.dataset[i]['Sc']] + self.dataset[i]['Xc']
       record += [ self.dataset[i]['Ap'] ]
 
       if i < numTrain:
@@ -89,12 +89,13 @@ class DeepQLearning(ValueBasedLearner):
       return records
     for img in records.keys():
       imSize = Image.open(img).size
-      boxes = []
+      states = []
       for i in range(len(records[img])):
-        ol = sol.SingleObjectLocalizer(imSize, records[img][i][3:7])
-        ol.performAction(records[img][i][0])
-        boxes.append( map(int, ol.nextBox) )
-      maxQ = np.max( controller.getActivations(img, boxes), 1 )
+        ol = sol.SingleObjectLocalizer(imSize, records[img][i][3:7], records[img][i][12])
+        ol.recoverState(records[img][i])
+        ol.performAction(records[img][i][0], [0,0])
+        states.append(ol)
+      maxQ = np.max( controller.getActivations( [img, states] ), 1 )
       for i in range(len(maxQ)):
         if records[img][i][0] > 1: # Not a terminal action
           records[img][i][2] = self.gamma*maxQ[i]

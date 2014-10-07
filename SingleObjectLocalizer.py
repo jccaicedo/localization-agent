@@ -30,11 +30,7 @@ class SingleObjectLocalizer():
 
   def performAction(self, action, values):
     ## Terminal States
-    if self.lastAction == self.ACCEPT:
-      self.terminalScore = values[self.lastAction]
-      return self.lastAction
-    if self.lastAction == self.REJECT:
-      self.terminalScore = -values[self.lastAction]
+    if self.lastAction == self.ACCEPT or self.lastAction == self.REJECT:
       return self.lastAction
     ## Adjust the current box
     elif action == self.EXPAND_TOP:    self.adjustCurrentBox(-1, 'y', 1)
@@ -45,13 +41,15 @@ class SingleObjectLocalizer():
     elif action == self.REDUCE_BOTTOM: self.adjustCurrentBox(-1, 'y', 3)
     elif action == self.REDUCE_LEFT:   self.adjustCurrentBox( 1, 'x', 0)
     elif action == self.REDUCE_RIGHT:  self.adjustCurrentBox(-1, 'x', 2)
-    elif action == self.ACCEPT or action == self.REJECT:
-      pass
+    ## Update terminal score
+    if action == self.ACCEPT:
+      self.terminalScore = values[self.ACCEPT]
+    elif action == self.REJECT:
+      self.terminalScore = -values[self.REJECT]
     else:
-      print 'Unknown action',action
-      return
+      self.terminalScore = values[0] - values[1] # Q0 - Q1
+    ## Record action in history
     self.lastAction = action
-    self.terminalScore = values[0] - values[1] # Q0 - Q1
     self.history.append(action)
     return self.lastAction
       
@@ -96,3 +94,19 @@ class SingleObjectLocalizer():
       return -1
     else:
       return self.history[-2]
+
+  def recoverState(self, record):
+    # 0:Action 1:Reward 2:MaxNextQ 3:x1 4:y1 5:x2 6:y2 7:Sp 8:npx1 9:npy1 10:npx2 11:npy2 12:Sc 13:ncx1 14:ncy1 15:ncx2 16:ncy2 17:PrevAction
+    self.prevBox = [record[8]*self.imgWidth, record[9]*self.imgHeight, record[10]*self.imgWidth, record[11]*self.imgHeight ]
+    self.currBox = record[3:7]
+    self.nextBox = record[3:7]
+    self.prevScore = record[7]
+    self.currScore = record[12]
+    self.lastAction = record[0]
+    if record[17] != -1: # An action was performed previously
+      self.history = [record[17]]
+    if record[0] > 1:    # Last action is not a terminal state
+      self.history.append(record[0])
+    elif record[0] != record[17]: # Last action is a terminal state, but previous is not
+      self.history.append(record[0])
+

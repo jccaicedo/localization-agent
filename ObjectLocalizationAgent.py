@@ -46,8 +46,8 @@ class ObjectLocalizationAgent():
     for i in range(len(self.observation)):
       # Memory format: image box action reward time observations
       self.action[i] = self.observation[i].lastAction
-      state = {'img': self.image, 'Xp': self.observation[i].normPrevBox(), 'Xn': self.observation[i].normCurrBox(),
-               'Sp': self.observation[i].prevScore, 'Sn': self.observation[i].currScore, 'Ap': self.observation[i].prevAction(),
+      state = {'img': self.image, 'Xp': self.observation[i].normPrevBox(), 'Xc': self.observation[i].normCurrBox(),
+               'Sp': self.observation[i].prevScore, 'Sc': self.observation[i].currScore, 'Ap': self.observation[i].prevAction(),
                'A': self.action[i], 'R': self.reward[i], 'box':self.observation[i].currBox, 't':self.t}
       self.memory.append(state)
 
