@@ -35,9 +35,9 @@ class DeepQLearning(ValueBasedLearner):
       except:
         self.dataset.append(d)
         hash[key] = True
-        print 'State',d
+        #print 'State',d
     self.updateTrainingDatabase(controller)
-    #self.netManager.doNetworkTraining()
+    self.netManager.doNetworkTraining()
 
   def updateTrainingDatabase(self, controller):
     trainRecs, numTrain = self.netManager.readTrainingDatabase('training.txt')
