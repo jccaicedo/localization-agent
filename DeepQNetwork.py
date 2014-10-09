@@ -7,8 +7,12 @@ import Image
 import os
 import utils as cu
 import numpy as np
+import random
 
 import RLConfig as config
+
+EXPLORE = 0
+EXPLOIT = 1
 
 class DeepQNetwork(ActionValueInterface):
 
@@ -16,6 +20,7 @@ class DeepQNetwork(ActionValueInterface):
 
   def __init__(self):
     self.net = None
+    self.epsilon = -1
     print self.networkFile
     if os.path.exists(self.networkFile):
       self.loadNetwork()
@@ -39,7 +44,7 @@ class DeepQNetwork(ActionValueInterface):
 
   def getActionValues(self, state):
     imgName = state[0]
-    if self.net == None:
+    if self.net == None or self.exploreOrExploit() == EXPLORE:
       return np.random.random([len(state[1]), config.geti('outputActions')])
     else:
       boxes = []
@@ -78,3 +83,11 @@ class DeepQNetwork(ActionValueInterface):
     self.net.caffenet.ReleaseImageData()
     return activations
 
+  def setEpsilonGreedy(self, epsilon):
+    self.epsilon = epsilon
+
+  def exploreOrExploit(self):
+    if self.epsilon > 0:
+      if random.random() < self.epsilon:
+        return EXPLORE
+    return EXPLOIT

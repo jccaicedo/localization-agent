@@ -163,7 +163,7 @@ class ImageBoxIndex():
     out1 = open(outputFile, 'w')
     out2 = open(outputFile+'.moves', 'w')
     for img in self.terminalStates.keys():
-      for k in range(len(self.terminalStates)):
+      for k in range(len(self.terminalStates[img]['boxes'])):
         box = self.terminalStates[img]['boxes'][k]
         hist = self.terminalStates[img]['history'][k]
         finalBox = ' '.join(map(str, box[0:4]))

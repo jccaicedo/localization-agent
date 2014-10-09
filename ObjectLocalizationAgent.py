@@ -30,7 +30,6 @@ class ObjectLocalizationAgent():
     assert self.reward == None
     self.t += 1
 
-    #self.action = self.controller.getMaxAction( [self.image, self.observation] )
     values = self.controller.getActionValues( [self.image, self.observation] )
     self.action = np.argmax(values, 1)
 

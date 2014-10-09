@@ -46,7 +46,7 @@ class DeepQLearning(ValueBasedLearner):
     valRecs = self.dropRecords(valRecs, numVal, len(self.dataset))
     trainRecs, valRecs = self.mergeDatasetAndRecords(trainRecs, valRecs)
     trainRecs = self.computeNextMaxQ(controller, trainRecs)
-    valRecs = self.computeNextMaxQ(controller, valRecs)
+    #valRecs = self.computeNextMaxQ(controller, valRecs)
     self.trainingSamples = self.netManager.saveDatabaseFile(trainRecs, 'training.txt')
     self.netManager.saveDatabaseFile(valRecs, 'validation.txt')
     self.dataset = []
@@ -90,12 +90,13 @@ class DeepQLearning(ValueBasedLearner):
     for img in records.keys():
       imSize = Image.open(img).size
       states = []
+      imName = img.split('/')[-1].replace('.jpg','') # Extract image name only from the full image path
       for i in range(len(records[img])):
         ol = sol.SingleObjectLocalizer(imSize, records[img][i][3:7], records[img][i][12])
         ol.recoverState(records[img][i])
         ol.performAction(records[img][i][0], [0,0])
         states.append(ol)
-      maxQ = np.max( controller.getActivations( [img, states] ), 1 )
+      maxQ = np.max( controller.getActionValues( [imName, states] ), 1 ) 
       for i in range(len(maxQ)):
         if records[img][i][0] > 1: # Not a terminal action
           records[img][i][2] = self.gamma*maxQ[i]
