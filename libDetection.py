@@ -133,6 +133,29 @@ def showDetections(image, boxes, scores, fill=False, outputFile=None):
   else:
     plt.savefig(outputFile, bbox_inches='tight')
 
+def showObjectLayout(image, boxes, scores, fill=False, outputFile=None):
+  import matplotlib.pyplot as plt
+  import matplotlib.image as mpimg
+  from matplotlib.patches import Rectangle
+
+  img=mpimg.imread(image)
+  (X,Y,C) = img.shape
+  plt.clf()
+  imgplot = plt.imshow(img,origin='lower')
+  currentAxis = plt.gca()
+  alph = 2.0/float(len(boxes)) if len(boxes) > 1 else 0.1
+  colors = [ "#00FF00", "#FF0000" ] + [ "#0000FF" for i in range(len(boxes) - 2) ]
+  for j in range(len(boxes)):
+    b = map(float,boxes[j][0:])
+    if fill:
+      currentAxis.add_patch(Rectangle((b[0], X-b[1]), b[2]-b[0], b[1]-b[3], linewidth=0.0, fill=True, color=c,alpha=alph))
+    #currentAxis.annotate("{:10.2f}".format(scores[j]), xy=(b[0],X-b[1]),color='white')
+    currentAxis.add_patch(Rectangle((b[0], X-b[1]), b[2]-b[0], b[1]-b[3], linewidth=2.0, fill=False, color=colors[j]))
+  if outputFile == None:
+    plt.show()
+  else:
+    plt.savefig(outputFile, bbox_inches='tight')
+
 
 def showBestMatches(image, boxes, scores, groundTruth):
   import matplotlib.pyplot as plt

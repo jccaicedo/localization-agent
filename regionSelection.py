@@ -3,23 +3,33 @@ import utils as cu
 import libDetection as det
 import numpy as np
 from dataProcessor import processData
+import Image
 
 # Windows that contain a ground truth box
-def big(box,gt):
+def big(box, gt, a=1.0, b=0.3, c=0.2, imgName=None):
   ov = det.overlap(box,gt)
   iou = det.IoU(box,gt)
-  return ov >= 1.0 and iou < 0.5
+  return ov >= a and iou <= b and iou >= c
 
 # Windows that pass the PASCAL criteria
-def tight(box,gt):
+def tight(box, gt, a=0.9, imgName=None):
   iou = det.IoU(box,gt)
-  return iou >= 0.8
+  return iou >= a
 
 # Windows inside a bounding box
-def inside(box,gt):
+def inside(box, gt, a=1.0, b=0.3, c=0.2, imgName=None):
   ov = det.overlap(gt,box)
   iou = det.IoU(box,gt)
-  return ov >= 1.0 and iou <= 0.4 and iou >= 0.2
+  segmentationMask = False
+  if imgName != None and os.path.exists(imgName):
+    im = Image.open(imgName)
+    h = im.crop(map(int,gt)).histogram()
+    h[0] = h[255] = -1
+    objID = np.argmax(h) # Find the dominant object in the ground truth box
+    gtArea = float(h[objID])
+    h = im.crop(map(int,box)).histogram()
+    segmentationMask = h[objID]/gtArea > 0.3 # Region covers at least 30% of ground truth area
+  return segmentationMask and ov >= a and iou <= b and iou >= c
 
 # Background windows
 def background(box,gt):
@@ -31,6 +41,7 @@ class RegionSelector():
   def __init__(self,groundTruths,operator):
     self.groundTruths = groundTruths
     self.operator = operator
+    self.masksPath = '/home/caicedo/data/pascal07/VOCdevkit/VOC2007/SegmentationObject/'
 
   def run(self,img,features,bboxes):
     if not img in self.groundTruths.keys():
@@ -41,7 +52,7 @@ class RegionSelector():
       box = map(float,b[1:])
       match = False
       for gt in self.groundTruths[img]:
-        match = self.operator(box,gt)
+        match = self.operator(box,gt,imgName=self.masksPath+img+'.png')
         if match:
           break
       if match:
@@ -68,7 +79,7 @@ def selectRegions(imageList, featuresDir, groundTruths, outputDir, featExt, cate
       outputFile.write(box[0] + ' ' + ' '.join(map(str,map(int,box[1:]))) + '\n')
     i += r[0].shape[0]
   outputFile.close()
-  cu.saveMatrixNoCompression(featureMatrix,outputDir + '/' + category + '.' + featExt)
+  cu.saveMatrix(featureMatrix,outputDir + '/' + category + '.' + featExt)
   print 'Total of',nBoxes,'positive examples collected for',category
 
 if __name__ == "__main__":
