@@ -3,14 +3,14 @@ __author__ = "Juan C. Caicedo, caicedo@illinois.edu"
 import os
 import random
 import Image
-#import CaffeNetworkManagement as cnm
+import CaffeMultiLayerPerceptronManagement as cnm
 import SingleObjectLocalizer as sol
 import RLConfig as config
 import numpy as np
 
 from pybrain.rl.learners.valuebased.valuebased import ValueBasedLearner
 
-class DeepQLearning(ValueBasedLearner):
+class QLearning(ValueBasedLearner):
 
   offPolicy = True
   batchMode = True
@@ -22,21 +22,24 @@ class DeepQLearning(ValueBasedLearner):
     ValueBasedLearner.__init__(self)
     self.alpha = alpha
     self.gamma = gamma
-    #self.netManager = cnm.CaffeNetworkManagement(config.networkDir)
+    self.netManager = cnm.CaffeMultiLayerPerceptronManagement(config.get('networkDir'))
 
   def learn(self, data, controller):
     images = []
     hash = {}
+    print 'MEMORY SIZE:',len(data)
     for d in data:
+      #print d
       images.append(d[0])
       key = '_'.join(map(str, d[0:-2]))
       try:
         exists = hash[key]
       except:
-        self.dataset.append(d)
-        hash[key] = True
-        print 'State',d
-    #self.updateTrainingDatabase(controller)
+        if d[0] != -1:
+          self.dataset.append(d)
+          hash[key] = True
+        #print 'State',d
+    self.updateTrainingDatabase(controller)
     #self.netManager.doNetworkTraining()
 
   def updateTrainingDatabase(self, controller):
@@ -46,38 +49,29 @@ class DeepQLearning(ValueBasedLearner):
     valRecs = self.dropRecords(valRecs, numVal, len(self.dataset))
     trainRecs, valRecs = self.mergeDatasetAndRecords(trainRecs, valRecs)
     trainRecs = self.computeNextMaxQ(controller, trainRecs)
-    valRecs = self.computeNextMaxQ(controller, valRecs)
+    #valRecs = self.computeNextMaxQ(controller, valRecs)
     self.trainingSamples = self.netManager.saveDatabaseFile(trainRecs, 'training.txt')
     self.netManager.saveDatabaseFile(valRecs, 'validation.txt')
     self.dataset = []
     
   def dropRecords(self, rec, total, new):
-    if total > config.replayMemorySize:
-      drop = 0
-      while drop < new:
-        for k in rec.keys():
-          rec[k].pop(0)
-          drop += 1
+    random.shuffle(rec)
+    end = min( config.geti('replayMemorySize') - new, total )
+    rec = rec[0:end]
     return rec
 
   def mergeDatasetAndRecords(self, train, val):
-    numTrain = len(self.dataset)*(1 - config.percentOfValidation)
-    numVal = len(self.dataset)*config.percentOfValidation
+    numTrain = len(self.dataset)*(1 - config.getf('percentOfValidation'))
+    numVal = len(self.dataset)*config.getf('percentOfValidation')
     random.shuffle( self.dataset )
     for i in range(len(self.dataset)):
-      imgPath = config.imageDir + self.dataset[i][0] + '.jpg'
-      # record format: Action, reward, discountedMaxQ, x1, y1, x2, y2,
-      record = [self.dataset[i][10], self.dataset[i][11], 0.0] + self.dataset[i][1:5]
+      # record format: Action, reward, discountedMaxQ, all_state_features
+      record = [self.dataset[i][1], self.dataset[i][-1], 0.0] + self.dataset[i][3:-1]
 
       if i < numTrain:
-        try: 
-          train[imgPath].append(record)
-        except: 
-          train[imgPath] = [ record ]
+        train.append(record)
       else:
-        try: val[imgPath].append(record)
-        except: 
-          val[imgPath] = [ record ]
+        val.append(record)
 
     return train, val
 
@@ -85,7 +79,7 @@ class DeepQLearning(ValueBasedLearner):
     print 'Computing discounted reward for all memory samples'
     if controller.net == None:
       return records
-    for img in records.keys():
+    '''for img in records.keys():
       imSize = Image.open(img).size
       boxes = []
       for i in range(len(records[img])):
@@ -97,5 +91,5 @@ class DeepQLearning(ValueBasedLearner):
         if records[img][i][0] > 1: # Not a terminal action
           records[img][i][2] = self.gamma*maxQ[i]
         else:
-          records[img][i][2] = 0.0
+          records[img][i][2] = 0.0'''
     return records

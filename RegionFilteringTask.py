@@ -18,23 +18,28 @@ class RegionFilteringTask(Task):
     img, state = self.env.getSensors()
     gt = self.getGroundTruth(img)
     rewards = []
-    for s in state:
-      r = self.computeReward(gt, s)
-      rewards.append(r)
+    #for s in state:
+    r = self.computeReward(gt, state)
+    rewards.append(r)
     self.env.updatePostReward()
     #actions = [x.lastAction for x in state]
     #print 'MDPObjectLocalizerTask::getReward(',img, actions, rewards,')'
     return rewards
 
   def computeReward(self, gt, sensor):
-    #FIRST: Make sure sensor includes bounding boxes of action!!
-    #SECOND: Go throuhg each bounding box and figure out if one of them covers an object
-    #THIRD: Move on faster
-    if sensor.lastAction > 1:
+    print 'RegionFilteringTask::computeReward',sensor['lastAction'],sensor['boxes']
+    if sensor['lastAction'] > 1:
       # Localizing object with current image-box
-      maxIoU_0, idx_0 = self.matchBoxes(sensor.prevBox, gt)
-      maxIoU_1, idx_1 = self.matchBoxes(sensor.nextBox, gt)
+      maxIoU_0, idx_0 = self.matchBoxes(sensor['rootBox'], gt)
+      maxIoU_1, idx_1 = -1,-1
+      # Find the box with best IoU with ground truth object
+      for box in sensor['boxes']:
+        iou, idx = self.matchBoxes(box, gt)
+        if iou > maxIoU_1:
+          maxIoU_1 = iou
+          idx_1 = idx
       #if idx_0 != idx_1: print 'Focused object has changed'
+      # Consider giving rewards proportional to improvement in IoU
       if maxIoU_1 >= 0 and maxIoU_0 >= 0:
         diff = maxIoU_1 - maxIoU_0
         if diff > 0:
@@ -43,16 +48,16 @@ class RegionFilteringTask(Task):
           return -1.0
       else:
         return -1.0
-    elif sensor.lastAction == 0:
-      # Previous image-box pair has been accepted
-      maxIoU, idx = self.matchBoxes(sensor.prevBox, gt)
+    elif sensor['lastAction'] == 0:
+      # Root box has been accepted
+      maxIoU, idx = self.matchBoxes(sensor['rootBox'], gt)
       if maxIoU >= self.minAcceptableIoU:
         return 5.0
       else:
         return -5.0
     else:
-      # Previous image-box pair has been rejected
-      maxIoU, idx = self.matchBoxes(sensor.prevBox, gt)
+      # Root box has been rejected
+      maxIoU, idx = self.matchBoxes(sensor['rootBox'], gt)
       if maxIoU <= self.maxRejectableIoU:
         return 3.0
       else:

@@ -38,16 +38,16 @@ class LayoutHandler():
     self.frame = map(int,frame)
 
   def performAction(self, action):
-    if   action == self.ACCEPT:             return
-    elif action == self.REJECT:             return
-    elif action == self.EXPAND_VERY_FAR:    self.expand(0.1, 0.3)
-    elif action == self.EXPAND_FAR:         self.expand(0.3, 0.5)
-    elif action == self.EXPAND_CLOSE:       self.expand(0.5, 0.7)
-    elif action == self.EXPAND_VERY_CLOSE:  self.expand(0.7, 0.9)
-    elif action == self.SPLIT_VERY_FAR:     self.split(0.1, 0.3)
-    elif action == self.SPLIT_FAR:          self.split(0.3, 0.5)
-    elif action == self.SPLIT_CLOSE:        self.split(0.5, 0.7)
-    elif action == self.SPLIT_VERY_CLOSE:   self.split(0.7, 0.9)
+    if   action == self.ACCEPT:             return None
+    elif action == self.REJECT:             return None
+    elif action == self.EXPAND_VERY_FAR:    return self.expand(0.1, 0.3)
+    elif action == self.EXPAND_FAR:         return self.expand(0.3, 0.5)
+    elif action == self.EXPAND_CLOSE:       return self.expand(0.5, 0.7)
+    elif action == self.EXPAND_VERY_CLOSE:  return self.expand(0.7, 0.9)
+    elif action == self.SPLIT_VERY_FAR:     return self.split(0.1, 0.3)
+    elif action == self.SPLIT_FAR:          return self.split(0.3, 0.5)
+    elif action == self.SPLIT_CLOSE:        return self.split(0.5, 0.7)
+    elif action == self.SPLIT_VERY_CLOSE:   return self.split(0.7, 0.9)
 
   def selectBox(self, boxIdx):
     self.selectedBox = boxIdx

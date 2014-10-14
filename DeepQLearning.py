@@ -3,7 +3,7 @@ __author__ = "Juan C. Caicedo, caicedo@illinois.edu"
 import os
 import random
 import Image
-import CaffeNetworkManagement as cnm
+import CaffeConvNetManagement as cnm
 import SingleObjectLocalizer as sol
 import RLConfig as config
 import numpy as np
@@ -22,7 +22,7 @@ class DeepQLearning(ValueBasedLearner):
     ValueBasedLearner.__init__(self)
     self.alpha = alpha
     self.gamma = gamma
-    self.netManager = cnm.CaffeNetworkManagement(config.get('networkDir'))
+    self.netManager = cnm.CaffeConvNetManagement(config.get('networkDir'))
 
   def learn(self, data, controller):
     images = []

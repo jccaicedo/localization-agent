@@ -44,7 +44,7 @@ class QNetwork(ActionValueInterface):
     #for s in state[1]:
     #  boxes.append( map(int, s.nextBox) )
     if self.net == None:
-      return np.random.random([state.shape[0], config.outputActions])
+      return np.random.random([state.shape[0], 10])
     else:
       pass
       #return self.getActivations(config.imageDir + '/' + imgName + '.jpg', boxes)

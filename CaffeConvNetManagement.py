@@ -5,7 +5,7 @@ import Image
 
 import RLConfig as config
 
-class CaffeNetworkManagement():
+class CaffeConvNetManagement():
   
   def __init__(self, workingDir):
     self.directory = workingDir
