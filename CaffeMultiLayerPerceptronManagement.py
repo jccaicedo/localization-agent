@@ -47,11 +47,11 @@ class CaffeMultiLayerPerceptronManagement():
     out.write('lr_policy: "step"\n')
     out.write('gamma: 0.15\n')
     out.write('stepsize: 20000\n')
-    out.write('display: 20\n')
+    out.write('display: 10\n')
     out.write('max_iter: ' + str(maxIter) + '\n')
     out.write('momentum: 0.9\n')
     out.write('weight_decay: 0.0005\n')
-    out.write('snapshot: 100\n')
+    out.write('snapshot: ' + str(maxIter) + '\n')
     out.write('snapshot_prefix: "multilayer_qlearner"\n')
     out.close()
 

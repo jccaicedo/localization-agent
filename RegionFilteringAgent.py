@@ -23,8 +23,12 @@ class RegionFilteringAgent():
     self.observation = obs[1]
     self.action = None
     self.reward = None
+    self.nextMaxQ = 0.0
     if 'NewImage' in self.observation.keys():
       self.obsQueue = []
+      self.newImage = True
+    else:
+      self.newImage = False
     print 'Agent::integrateObservation'
 
   def getAction(self):
@@ -64,9 +68,6 @@ class RegionFilteringAgent():
       action1ofk = [0 for a in range(outputs)]
       action1ofk[self.observation['lastAction']] = 1.0
       Z[:,rec:rec+outputs] = np.tile(action1ofk, (boxes,1))
-      # 8. Time to live
-      #Z[:,-1] = float(self.t) #/20 #config.MAX_STEPS_ALLOWED
-      print Z.shape
 
       values = self.controller.getActionValues( Z )
       actions = np.argmax(values, 1)
@@ -74,6 +75,12 @@ class RegionFilteringAgent():
       for i in range(actions.shape[0]):
         self.obsQueue.append( [self.observation['indexes'][i], actions[i], maxValues[i]] + Z[i,:].tolist() )
       self.obsQueue.sort(key=lambda x: x[2], reverse=True)
+
+    if len(self.memory) > 0 and not self.newImage:
+      print ' + Adding ',maxQForMemoryReplay,' to Memory Replay:',len(self.memory)
+      self.memory[-1][-1] = maxQForMemoryReplay
+    else:
+      print ' + Memory replay:',len(self.memory),'unchanged'
 
     print 'AgentQueue=>',[x[0] for x in self.obsQueue]
     if len(self.obsQueue) > 0:
@@ -93,7 +100,7 @@ class RegionFilteringAgent():
 
     # Replay Memory Format: boxIndex action maxValue features[62] reward
     if self.action != 'terminate':
-      self.memory.append( self.action + r )
+      self.memory.append( {'S0':self.action + r, 'S1':None} )
 
   def reset(self):
     print 'Agent::reset'

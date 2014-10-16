@@ -1,24 +1,22 @@
 __author__ = "Juan C. Caicedo, caicedo@illinois.edu"
 
-#from pybrain.rl.learners.valuebased import ActionValueInterface
 from pybrain.rl.learners.valuebased.interface import ActionValueInterface
-#from caffe import imagenet
-#import Image
+import caffe
 import os
 import utils as cu
 import numpy as np
 
-#import RLConfig as config
+import RLConfig as config
 
 class QNetwork(ActionValueInterface):
 
-  #networkFile = config.networkDir + config.SNAPSHOOT_PREFIX + '_iter_' + str(config.trainingIterationsPerBatch)
+  networkFile = config.get('networkDir') + config.get('snapshotPrefix') + '_iter_' + config.get('trainingIterationsPerBatch')
 
   def __init__(self):
     self.net = None
-    '''print self.networkFile
+    print self.networkFile
     if os.path.exists(self.networkFile):
-      self.loadNetwork()'''
+      self.loadNetwork()
 
   def releaseNetwork(self):
     if self.net != None:
@@ -26,48 +24,48 @@ class QNetwork(ActionValueInterface):
       self.net = None
 
   def loadNetwork(self):
-    return
-    '''modelFile = config.networkDir + 'deploy.prototxt'
-    meanImage = config.MEAN_IMAGE_PICKLE
-    self.net = imagenet.ImageNetClassifier(modelFile, self.networkFile, IMAGE_DIM=config.imageSize, CROPPED_DIM=config.cropSize, MEAN_IMAGE=meanImage)
-    self.net.caffenet.set_phase_test()
-    self.net.caffenet.set_mode_gpu()
-    self.meanImage = self.net._IMAGENET_MEAN.swapaxes(1, 2).swapaxes(0, 1).astype('float32')'''
+    modelFile = config.get('networkDir') + 'deploy.prototxt'
+    self.net = caffe.Net(modelFile, self.networkFile)
+    self.net.set_phase_test()
+    self.net.set_mode_gpu()
     
   def getMaxAction(self, state):
     values = self.getActionValues(state)
     return np.argmax(values, 1)
 
   def getActionValues(self, state):
-    #imgName = state[0]
-    #boxes = []
-    #for s in state[1]:
-    #  boxes.append( map(int, s.nextBox) )
     if self.net == None:
       return np.random.random([state.shape[0], 10])
     else:
-      pass
-      #return self.getActivations(config.imageDir + '/' + imgName + '.jpg', boxes)
+      return self.getActivations(state)
 
-  def getActivations(self, imagePath, boxes):
-    return None
-    '''n = len(boxes)
-    activations = cu.emptyMatrix( [n, config.outputActions] )
-    numBatches = (n + config.deployBatchSize - 1) / config.deployBatchSize
-    boxes += [ [0,0,0,0] for x in range(numBatches * config.deployBatchSize - n) ]
+  def getActivations(self, state):
+    n = state.shape[0]
+    activations = cu.emptyMatrix( [n, config.geti('outputActions')] )
+    numBatches = (n + config.geti('deployBatchSize') - 1) / config.geti('deployBatchSize')
 
-    dims = self.net.caffenet.InitializeImage(imagePath, config.imageSize, self.meanImage, config.cropSize)
-    for k in range(numBatches):
-      s, f = k * config.deployBatchSize, (k + 1) * config.deployBatchSize
-      e = config.deployBatchSize if f <= n else n - s
+    if n >= config.geti('deployBatchSize'):
+      for k in range(numBatches):
+        s, f = k * config.geti('deployBatchSize'), (k + 1) * config.geti('deployBatchSize')
+        e = config.geti('deployBatchSize') if f <= n else n - s
+        # Forward this batch
+        out = [np.zeros((config.geti('deployBatchSize'), config.geti('outputActions'), 1, 1), dtype=np.float32)]
+        inp = [ np.zeros( [config.geti('deployBatchSize'), state.shape[1], 1, 1], dtype=np.float32 ) ]
+        inp[0][:,:,0,0] = state[s:f]
+        self.net.Forward( inp, out )
+        outputs =  self.net.blobs
+        f = n if f > n else f
+        # Collect outputs
+        activations[s:f,:] = outputs['prob'].data[0:e,:,:,:].reshape([e,config.geti('outputActions')])
+    else:
       # Forward this batch
-      self.net.caffenet.ForwardRegions(boxes[s:f], config.contextPad)
-      outputs =  self.net.caffenet.blobs
-      f = n if f > n else f
+      out = [np.zeros((config.geti('deployBatchSize'), config.geti('outputActions'), 1, 1), dtype=np.float32)]
+      inp = [ np.zeros( [config.geti('deployBatchSize'), state.shape[1], 1, 1], dtype=np.float32 ) ]
+      inp[0][0:n,:,0,0] = state[0:n]
+      self.net.Forward( inp, out )
+      outputs =  self.net.blobs
       # Collect outputs
-      activations[s:f,:] = outputs['prob'].data[0:e,:,:,:].reshape([e,config.outputActions])
-    # Release image data
-    self.net.caffenet.ReleaseImageData()
-    return activations'''
-
+      activations[0:n,:] = outputs['prob'].data[0:n,:,:,:].reshape([n,config.geti('outputActions')])
+     
+    return activations
 
