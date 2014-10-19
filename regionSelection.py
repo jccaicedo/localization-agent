@@ -6,13 +6,13 @@ from dataProcessor import processData
 import Image
 
 # Windows that contain a ground truth box
-def big(box, gt, a=1.0, b=0.3, c=0.2, imgName=None):
+def big(box, gt, a=0.9, b=0.3, c=0.2, imgName=None):
   ov = det.overlap(box,gt)
   iou = det.IoU(box,gt)
   return ov >= a and iou <= b and iou >= c
 
 # Windows that pass the PASCAL criteria
-def tight(box, gt, a=0.9, imgName=None):
+def tight(box, gt, a=0.6, imgName=None):
   iou = det.IoU(box,gt)
   return iou >= a
 
@@ -20,15 +20,15 @@ def tight(box, gt, a=0.9, imgName=None):
 def inside(box, gt, a=1.0, b=0.3, c=0.2, imgName=None):
   ov = det.overlap(gt,box)
   iou = det.IoU(box,gt)
-  segmentationMask = False
-  if imgName != None and os.path.exists(imgName):
+  segmentationMask = True
+  '''if imgName != None and os.path.exists(imgName):
     im = Image.open(imgName)
     h = im.crop(map(int,gt)).histogram()
     h[0] = h[255] = -1
     objID = np.argmax(h) # Find the dominant object in the ground truth box
     gtArea = float(h[objID])
     h = im.crop(map(int,box)).histogram()
-    segmentationMask = h[objID]/gtArea > 0.3 # Region covers at least 30% of ground truth area
+    segmentationMask = h[objID]/gtArea > 0.3 # Region covers at least 30% of ground truth area'''
   return segmentationMask and ov >= a and iou <= b and iou >= c
 
 # Background windows
@@ -52,7 +52,7 @@ class RegionSelector():
       box = map(float,b[1:])
       match = False
       for gt in self.groundTruths[img]:
-        match = self.operator(box,gt,imgName=self.masksPath+img+'.png')
+        match = self.operator(box,gt) #,imgName=self.masksPath+img+'.png')
         if match:
           break
       if match:
