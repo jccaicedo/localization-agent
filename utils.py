@@ -118,13 +118,13 @@ def loadMatrixFromMultipleDirs(dirPrefix, filename, extension, index=False):
             m = np.concatenate( (m,q) )
     return m
 
-def loadBoxIndexFile(filename):
+def loadBoxIndexFile(filename, idx=1):
   gt = [x.split() for x in open(filename)]
   images = {}
   for k in gt:
     try:
-      images[k[0]] += [ map(float,k[1:]) ]
+      images[k[0]] += [ map(float,k[idx:]) ]
     except:
-      images[k[0]] = [ map(float,k[1:]) ]
+      images[k[0]] = [ map(float,k[idx:]) ]
   return images
 
