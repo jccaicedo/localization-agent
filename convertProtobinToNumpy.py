@@ -1,5 +1,6 @@
-import convert as c
+from caffe import convert as c
 import numpy as np
+import os,sys
 
 if len(sys.argv) < 3:
   print 'Use: convertProtobinToNumpy protobinFile numpyOutput'
