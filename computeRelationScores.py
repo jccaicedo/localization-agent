@@ -21,7 +21,8 @@ B = rcnnModel['integratedModel'][0,0]['B']
 C = [str(c[0][0]) for c in rcnnModel['integratedModel'][0,0]['classes'].tolist()]
 del rcnnModel
 
-from caffe import imagenet
+from caffe import wrapperv0
+
 MODEL_FILE = '/home/caicedo/workspace/rcnn/model-defs/rcnn_batch_256_output_fc7.old_format.prototxt'
 PRETRAINED = '/home/caicedo/workspace/rcnn/data/caffe_nets/finetune_voc_2012_train_iter_70k'
 IMG_DIM = 256
@@ -30,9 +31,9 @@ CONTEXT_PAD = 0
 batch = 50
 
 meanImage = '/home/caicedo/workspace/caffe/python/caffe/imagenet/ilsvrc_2012_mean.npy'
-net = imagenet.ImageNetClassifier(MODEL_FILE, PRETRAINED, IMAGE_DIM=IMG_DIM, CROPPED_DIM=CROP_SIZE, MEAN_IMAGE=meanImage)
-net.caffenet.set_phase_test()
+net = wrapperv0.ImageNetClassifier(MODEL_FILE, PRETRAINED, IMAGE_DIM=IMG_DIM, CROPPED_DIM=CROP_SIZE, MEAN_IMAGE=meanImage)
 net.caffenet.set_mode_gpu()
+net.caffenet.set_phase_test()
 
 ImageNetMean = net._IMAGENET_MEAN.swapaxes(1, 2).swapaxes(0, 1).astype('float32')
 
@@ -107,7 +108,7 @@ lap = toc('Reading boxes file:',startTime)
 #################################
 totalItems = len(bboxes)
 del(bboxes)
-layers = {'fc7': {'dim':4096,'idx':'fc7'}}
+layers = {'fc7': {'dim':4096,'idx':'fc7'}, 'pool5': {'dim':9216,'idx':'pool5'}}
 
 print 'Extracting features for',totalItems,'total images'
 indexFile = open(outFile,'w')
@@ -117,6 +118,9 @@ for name in images.keys():
   # Get window proposals
   feat = processImg(images[name], imgsDir+'/'+name+'.jpg', batch, layers)
   scores = np.dot(feat['fc7'], W) + B
+  print 'pool5',feat['pool5'].shape, np.sum(np.sum(feat['pool5']))
+  print 'fc7',feat['fc7'].shape, np.sum(np.sum(feat['fc7']))
+
   # Write the index file
   for i in range(len(images[name])):
     indexFile.write(images[name][i][4] + ' ')

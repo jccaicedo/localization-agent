@@ -31,10 +31,13 @@ def overlap(b1,b2):
     return 0
 
 def nonMaximumSuppression(boxes,scores,maxOverlap):
-  s = np.argsort(scores)
   if maxOverlap == 1.0:
     return [map(float,x[1:]) for x in boxes],scores
-  boxes = [map(float,boxes[t][1:]) for t in s]
+  s = np.argsort(scores)
+  if len(boxes[0]) > 4:
+    boxes = [map(float,boxes[t][1:]) for t in s]
+  elif len(boxes[0]) == 4:
+    boxes = [boxes[t] for t in s]
   scores = [scores[t] for t in s]
   filteredBoxes = []
   filteredScores = []
