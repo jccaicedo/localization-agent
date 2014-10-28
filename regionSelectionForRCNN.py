@@ -86,6 +86,6 @@ if __name__ == "__main__":
     groundTruth = cu.loadBoxIndexFile(params['groundTruthDir'] + '/' + f)
     records += selectRegions(proposals, groundTruth, category, big)
     records += selectRegions(proposals, groundTruth, category, inside)
-    #records += reformatGroundTruth(groundTruth, category)
+    records += reformatGroundTruth(groundTruth, category)
   saveResults(params['outputFile'], records)
 
