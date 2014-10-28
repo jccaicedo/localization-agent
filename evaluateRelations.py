@@ -170,6 +170,12 @@ def computePrecAt(tp,K):
     print '(',str(k),':',np.sum(tp[0:k])/float(k),')',
   print ''
 
+def bigOverlap(box, gt):
+  if ldet.overlap(box,gt) > 0.5 and ldet.IoU(box,gt) < 0.5:
+    return 1.0
+  else:
+    return 0.0
+
 # Main Program
 if __name__ == "__main__":
   params = cu.loadParams("overlap groundTruth detections output")
@@ -180,6 +186,7 @@ if __name__ == "__main__":
   if params['overlap'].startswith('big'):
     minOverlap = float(params['overlap'].replace('big',''))
     overlapMeasure = lambda x,y: np.exp( -( (1.0-ldet.overlap(x,y))**2 + (0.25-ldet.IoU(x,y))**2 ) )
+    #overlapMeasure = bigOverlap
   elif params['overlap'].startswith('tight'):
     minOverlap = float(params['overlap'].replace('tight',''))
     overlapMeasure = ldet.IoU
