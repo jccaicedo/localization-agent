@@ -5,11 +5,12 @@ import h5py
 import numpy as np
 import libDetection as det
 
-params = cu.loadParams('rcnnImdbFile MatlabScoresDir outputDir')
+params = cu.loadParams('rcnnImdbFile MatlabScoresDir outputDir doNMS')
 
 imdb = h5py.File(params['rcnnImdbFile'])
 print 'Images:',imdb['imdb']['image_ids']
 images = [u''.join(unichr(c) for c in imdb[o]) for o in imdb['imdb']['image_ids'][0]]
+doNMS = params['doNMS'] != 'noNMS'
 
 for f in os.listdir(params['MatlabScoresDir']):
   if f.endswith('.mat') and f.find('_boxes_') != -1:
@@ -22,9 +23,11 @@ for f in os.listdir(params['MatlabScoresDir']):
       img = str(images[i])
       boxes = [ box[0:4].tolist() for box in detections ]
       scores = [ box[-1] for box in detections ]
-      if len(boxes) == 0: continue
-      fb, fs = det.nonMaximumSuppression(boxes, scores, 0.3)
-      for j in range(len(fb)):
-        box = fb[j]
-        out.write(img + ' {:10.8f} {:.0f} {:.0f} {:.0f} {:.0f} 0\n'.format(fs[j], box[0], box[1], box[2], box[3]) )
+      if len(boxes) == 0: 
+        continue
+      if doNMS:
+        boxes, scores = det.nonMaximumSuppression(boxes, scores, 0.3)
+      for j in range(len(boxes)):
+        box = boxes[j]
+        out.write(img + ' {:10.8f} {:.0f} {:.0f} {:.0f} {:.0f} 0\n'.format(scores[j], box[0], box[1], box[2], box[3]) )
      
