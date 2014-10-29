@@ -7,25 +7,25 @@ import scipy.io
 ##################################
 # Parameter checking
 #################################
-if len(sys.argv) < 5:
-  print 'Use: extractFeaturesForRCNN.py bboxes imgsDir groundTruthFile outputDir'
+if len(sys.argv) < 7:
+  print 'Use: extractFeaturesForRCNN.py bboxes imgsDir groundTruthFile outputDir modelFile pretrainedNet'
   sys.exit()
 
 bboxes  = [ (x,x.split()) for x in open(sys.argv[1])]
 imgsDir = sys.argv[2]
 groundTruthFile = sys.argv[3]
 outDir = sys.argv[4]
+MODEL_FILE = sys.argv[5]
+PRETRAINED = sys.argv[6]
 
 from caffe import wrapperv0
 
-MODEL_FILE = '/home/caicedo/workspace/rcnn/model-defs/rcnn_batch_256_output_fc7.old_format.prototxt'
-PRETRAINED = '/home/caicedo/workspace/rcnn/data/caffe_nets/finetune_voc_2012_train_iter_70k'
 IMG_DIM = 256
 CROP_SIZE = 227
 CONTEXT_PAD = 0
-batch = 50
+batch = 200
 
-meanImage = '/home/caicedo/workspace/caffe/python/caffe/imagenet/ilsvrc_2012_mean.npy'
+meanImage = '/u/sciteam/caicedor/scratch/caffe/python/caffe/imagenet/ilsvrc_2012_mean.npy'
 net = wrapperv0.ImageNetClassifier(MODEL_FILE, PRETRAINED, IMAGE_DIM=IMG_DIM, CROPPED_DIM=CROP_SIZE, MEAN_IMAGE=meanImage)
 net.caffenet.set_mode_gpu()
 net.caffenet.set_phase_test()
@@ -36,15 +36,6 @@ ImageNetMean = net._IMAGENET_MEAN.swapaxes(1, 2).swapaxes(0, 1).astype('float32'
 # Functions
 #################################
 
-def getWindow(img, box):
-  dx = int( float(box[2]-box[0])*0.10 )
-  dy = int( float(box[3]-box[1])*0.10 )
-  x1 = max(box[0]-dx,0)
-  x2 = min(box[2]+dx,img.shape[1])
-  y1 = max(box[1]-dy,0)
-  y2 = min(box[3]+dy,img.shape[0])
-  return img[ y1:y2, x1:x2, : ]
-
 def processImg(info, filename, batchSize, layers):
   startTime = tic()
   allFeat = {}
@@ -53,7 +44,7 @@ def processImg(info, filename, batchSize, layers):
     allFeat[l] = emptyMatrix([n,layers[l]['dim']])
   numBatches = (n + batchSize - 1) / batchSize
   # Prepare boxes, make sure that extra rows are added to fill the last batch
-  boxes = [x[:-1] for x in info] + [ [0,0,0,0] for x in range(numBatches * batchSize - n) ]
+  boxes = [ [c for c in x[:-1]] for x in info] + [ [0,0,0,0] for x in range(numBatches * batchSize - n) ]
   # Initialize the image
   net.caffenet.InitializeImage(filename, IMG_DIM, ImageNetMean, CROP_SIZE)
   for k in range(numBatches):
@@ -163,7 +154,6 @@ for name in images.keys():
   except: gt = []
   [boxes.add(b) for b in gt]
   feat = processImg(boxes, imgsDir+'/'+name+'.jpg', batch, layers)
-  print 'pool5',feat['pool5'].shape, np.sum(np.sum(feat['pool5']))
   createAndSaveMatlabFile(boxes, feat['pool5'], gt, categories, outDir+'/'+name+'.mat')
 
 toc('Total processing time:',startTime)
