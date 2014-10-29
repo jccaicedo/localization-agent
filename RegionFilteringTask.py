@@ -7,64 +7,35 @@ import libDetection as det
 
 class RegionFilteringTask(Task):
 
-  minAcceptableIoU = 0.7
-  maxRejectableIoU = 0.0
+  minAcceptableIoU = 0.5
 
   def __init__(self, environment, groundTruthFile):
     Task.__init__(self, environment)
     self.groundTruth = cu.loadBoxIndexFile(groundTruthFile)
 
   def getReward(self):
-    img, state = self.env.getSensors()
-    gt = self.getGroundTruth(img)
-    rewards = []
-    #for s in state:
-    r = self.computeReward(gt, state)
-    rewards.append(r)
+    gt = self.getGroundTruth(env.db.image)
+    boxes = env.db.boxes[env.state.selectedIds].tolist()
+    reward = self.computeReward(gt, boxes)
     self.env.updatePostReward()
-    #actions = [x.lastAction for x in state]
-    #print 'MDPObjectLocalizerTask::getReward(',img, actions, rewards,')'
-    return rewards
+    return reward
 
-  def computeReward(self, gt, sensor):
-    print 'RegionFilteringTask::computeReward',sensor['lastAction'],sensor['boxes']
-    if sensor['lastAction'] > 1:
-      # Localizing object with current image-box
-      maxIoU_0, idx_0 = self.matchBoxes(sensor['rootBox'], gt)
-      maxIoU_1, idx_1 = -1,-1
-      # Find the box with best IoU with ground truth object
-      for box in sensor['boxes']:
-        iou, idx = self.matchBoxes(box, gt)
-        if iou > maxIoU_1:
-          maxIoU_1 = iou
-          idx_1 = idx
-      #if idx_0 != idx_1: print 'Focused object has changed'
-      # Consider giving rewards proportional to improvement in IoU
-      if maxIoU_1 >= 0 and maxIoU_0 >= 0:
-        diff = maxIoU_1 - maxIoU_0
-        if diff > 0:
-          return 1.0
-        else:
-          return -1.0
-      else:
-        return -1.0
-    elif sensor['lastAction'] == 0:
-      # Root box has been accepted
-      maxIoU, idx = self.matchBoxes(sensor['rootBox'], gt)
-      if maxIoU >= self.minAcceptableIoU:
-        return 5.0
-      else:
-        return -5.0
+  def computeReward(self, gt, state):
+    print 'RegionFilteringTask::computeReward'
+    iouScores = []
+    for b in state:
+      iou, idx = self.matchBoxes(b, gt)
+      iouScores.append(iou)
+    goodBoxes = len([s for s in iouScores if s > self.minAcceptableIoU])
+    maxIoU = max(iouScores)
+    if goodBoxes > 0:
+      return goodBoxes
+    elif maxIoU > 0:
+      return maxIoU
     else:
-      # Root box has been rejected
-      maxIoU, idx = self.matchBoxes(sensor['rootBox'], gt)
-      if maxIoU <= self.maxRejectableIoU:
-        return 3.0
-      else:
-        return -3.0
+      return -0.1
 
   def performAction(self, action):
-    #print 'MDPObjectLocalizerTask::performAction(',action,')'
     Task.performAction(self, action)
 
   def getGroundTruth(self, imageName):

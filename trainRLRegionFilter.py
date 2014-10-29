@@ -25,7 +25,7 @@ from RegionFilteringAgent import RegionFilteringAgent
 
 print 'Starting Environment'
 epsilon = 1.0
-environment = RegionFilteringEnvironment(config.get('listOfImages'), config.get('featuresDir'), 'Training')
+environment = RegionFilteringEnvironment(config.get('featuresDir'), 'training')
 print 'Initializing QNetwork'
 controller = QNetwork()
 #controller.setEpsilonGreedy(epsilon)

@@ -29,10 +29,7 @@ class QLearning(ValueBasedLearner):
     hash = {}
     print 'MEMORY SIZE:',len(data)
     for d in data:
-      images.append(d[0])
-      if d[0] != -1:
-        self.dataset.append(d)
-        #print 'State',d
+      self.dataset.append(d)
     self.updateTrainingDatabase(controller)
     self.netManager.doNetworkTraining()
 
@@ -60,7 +57,7 @@ class QLearning(ValueBasedLearner):
     random.shuffle( self.dataset )
     for i in range(len(self.dataset)):
       # record format: Action, reward, discountedMaxQ, all_state_features
-      record = [ self.dataset[i][1], self.dataset[i][-1], 0.0 ] + self.dataset[i][3:-1]
+      record = [ self.dataset[i]['A'], self.dataset[i]['R'], 0.0 ] + self.dataset[i]['O'].tolist()
 
       if i < numTrain:
         train.append(record)
