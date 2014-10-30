@@ -14,14 +14,16 @@ class RegionFilteringTask(Task):
     self.groundTruth = cu.loadBoxIndexFile(groundTruthFile)
 
   def getReward(self):
-    gt = self.getGroundTruth(env.db.image)
-    boxes = env.db.boxes[env.state.selectedIds].tolist()
+    gt = self.getGroundTruth(self.env.db.image)
+    boxes = self.env.db.boxes[self.env.state.selectedIds].tolist()
     reward = self.computeReward(gt, boxes)
     self.env.updatePostReward()
     return reward
 
   def computeReward(self, gt, state):
     print 'RegionFilteringTask::computeReward'
+    if len(state) == 0:
+      return -1
     iouScores = []
     for b in state:
       iou, idx = self.matchBoxes(b, gt)

@@ -21,6 +21,7 @@ class RegionFilteringAgent():
   def integrateObservation(self, obs):
     if obs['image'] != self.image:
       self.observation = np.zeros( (2,obs['state'].shape[0]) )
+      self.image = obs['image']
     self.observation[1,:] = self.observation[0,:]
     self.observation[0,:] = obs['state']
     self.action = None
@@ -35,7 +36,7 @@ class RegionFilteringAgent():
 
     print 'Agent::getAction'
 
-    obs = self.observation.reshape( (self.observation.shape[0]*self.observation.shape[1]))
+    obs = self.observation.reshape( (1,self.observation.shape[0]*self.observation.shape[1]) )
     values = self.controller.getActionValues(obs)
     self.action = np.argmax(values, 1)
 
@@ -56,6 +57,7 @@ class RegionFilteringAgent():
 
   def reset(self):
     print 'Agent::reset'
+    self.image = ''
     self.observation = None
     self.action = None
     self.reward = None

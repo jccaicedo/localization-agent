@@ -28,11 +28,11 @@ class CaffeMultiLayerPerceptronManagement():
 
   def doNetworkTraining(self):
     if self.checkpoint == 0:
+      # Start training
+      self.runNetworkTraining()
+    else:
       # launch finetuning
       self.runNetworkTuning(config.get('pretrainedModel'))
-    else:
-      # Resume training
-      self.runNetworkTuning(config.get('snapshotPrefix')+'_iter_'+str(self.step))
 
     self.checkpoint += self.step
     self.writeCheckpoint()
@@ -70,25 +70,20 @@ class CaffeMultiLayerPerceptronManagement():
     out.close()
     return len(records)
 
-  def runNetworkTraining(self, args):
+  def runNetworkTraining(self):
     my_env = os.environ.copy()
     my_env['GLOG_logtostderr']='1'
     my_env['GLOG_minloglevel']='0'
-    monitorFile = self.directory + '/' + config.get('snapshotPrefix')+'_iter_'+str(self.checkpoint+self.step)+'.solverstate'
+    args = [config.get('tools') + '/caffe','train','--solver=' + config.get('solverFile')]
     p = subprocess.Popen(args, env=my_env, cwd=self.directory)
-    while not os.path.isfile(monitorFile):
-      time.sleep(10)
-    p.terminate()
-    if self.checkpoint > 0:
-      os.remove(self.directory + '/' + config.get('snapshotPrefix')+'_iter_'+str(self.checkpoint)+'.solverstate')
-      os.remove(self.directory + '/' + config.get('snapshotPrefix')+'_iter_'+str(self.checkpoint))
+    p.wait()
     return
 
   def runNetworkTuning(self, pretrained):
     my_env = os.environ.copy()
     my_env['GLOG_logtostderr']='1'
     my_env['GLOG_minloglevel']='0'
-    args = [config.get('tools') + '/finetune_net.bin', config.get('solverFile'), pretrained]
+    args = [config.get('tools') + '/caffe','train','--solver=' + config.get('solverFile'), '--weights='+pretrained]
     p = subprocess.Popen(args, env=my_env, cwd=self.directory)
     p.wait()
     return

@@ -5,13 +5,30 @@ import PIL.ImageDraw as ImageDraw,PIL.Image as Image, PIL.ImageShow as ImageShow
 import time
 import utils as cu
 import libDetection as det
+import numpy as np
 
 SCALES = 10
 HORIZONTAL_BINS = 3
 VERTICAL_BINS = 3
+NUM_ACTIONS = 14
 NUM_BOXES = HORIZONTAL_BINS*VERTICAL_BINS
-NUM_ACTIONS = 10
 WORLD_SIZE = SCALES*HORIZONTAL_BINS*VERTICAL_BINS
+
+# ACTIONS
+EXPLORE_CURRENT_SCALE   = 0
+EXPLORE_ONE_SCALE_UP    = 1
+EXPLORE_ONE_SCALE_DOWN  = 2
+EXPLORE_TWO_SCALES_UP   = 3
+EXPLORE_TWO_SCALES_DOWN = 4
+GOTO_TOP_LEFT           = 5
+GOTO_TOP_CENTER         = 6
+GOTO_TOP_RIGHT          = 7
+GOTO_MIDDLE_LEFT        = 8
+GOTO_MIDDLE_CENTER      = 9
+GOTO_MIDDLE_RIGHT       = 10
+GOTO_BOTTOM_LEFT        = 11
+GOTO_BOTTOM_CENTER      = 12
+GOTO_BOTTOM_RIGHT       = 13
 
 class Box():
 
@@ -22,21 +39,6 @@ class Box():
 
 class LayoutHandler():
 
-  # ACTIONS
-  EXPLORE_CURRENT_SCALE   = 0
-  EXPLORE_ONE_SCALE_UP    = 1
-  EXPLORE_ONE_SCALE_DOWN  = 2
-  EXPLORE_TWO_SCALES_UP   = 3
-  EXPLORE_TWO_SCALES_DOWN = 4
-  GOTO_TOP_LEFT           = 5
-  GOTO_TOP_CENTER         = 6
-  GOTO_TOP_RIGHT          = 7
-  GOTO_MIDDLE_LEFT        = 8
-  GOTO_MIDDLE_CENTER      = 9
-  GOTO_MIDDLE_RIGHT       = 10
-  GOTO_BOTTOM_LEFT        = 11
-  GOTO_BOTTOM_CENTER      = 12
-  GOTO_BOTTOM_RIGHT       = 13
 
   def __init__(self, boxes):
     auxBoxes = []
@@ -80,7 +82,7 @@ class LayoutHandler():
     self.vertical = 0
     self.percentExplored = 0
     self.selectedIds = []
-    self.currentPosition = np.zeros( (SCALES, HORIZONTAL, VERTICAL) )
+    self.currentPosition = np.zeros( (SCALES, HORIZONTAL_BINS, VERTICAL_BINS) )
 
   def move(self, s, h, v):
     self.scale = s
@@ -114,7 +116,7 @@ class LayoutHandler():
     # 2D Plane exploration
     if self.actionChosen > EXPLORE_TWO_SCALES_DOWN: 
       ini = self.status[self.scale][self.horizontal][self.vertical]
-      end = min( ini + NUM+BOXES, len(self.layout[self.scale][self.horizontal][self.vertical]) )
+      end = min( ini + NUM_BOXES, len(self.layout[self.scale][self.horizontal][self.vertical]) )
       for i in range(ini, end):
         self.selectedIds.append(self.layout[self.scale][self.horizontal][self.vertical][i].id)
       self.status[self.scale][self.horizontal][self.vertical] = end

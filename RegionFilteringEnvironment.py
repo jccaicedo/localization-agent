@@ -18,7 +18,7 @@ class RegionFilteringEnvironment(Environment, Named):
   def __init__(self, featuresDir, mode):
     self.mode = mode
     if self.mode == 'training':
-      self.db = RelationsDB(featuresDir, randomize=True)
+      self.db = RelationsDB(featuresDir, randomize=False)
     else:
       self.db = RelationsDB(featuresDir, randomize=False)
     self.loadNextEpisode()
@@ -37,24 +37,21 @@ class RegionFilteringEnvironment(Environment, Named):
 
   def loadNextEpisode(self):
     print 'Environment::LoadNextEpisode'
-    self.db.loadNex()
+    self.db.loadNext()
     if self.db.image != '':
       print 'Image',self.db.image,'loaded in environment ({:4} boxes)'.format(self.db.boxes.shape[0])
       self.state = lh.LayoutHandler(self.db.boxes)
-      self.steps = 0
       self.performAction(0)
     else:
       print 'No more images available'
 
   def updatePostReward(self):
-    #TODO
-    if self.steps >= 20: #config.MAX_STEPS_ALLOWED:
-      self.loadNextEpisode()
+    pass
 
   def getSensors(self):
     # Build state representation:
     visibleRegions = self.db.scores[ self.state.selectedIds, :]
-    worldExplored = np.asarray(self.state.status).reshape( (lh.WORLD_SIZE) )
+    worldExplored = np.asarray(self.state.status).reshape( (lh.WORLD_SIZE) )/float(self.db.boxes.shape[0])
     currentLocation = self.state.currentPosition.reshape( (lh.WORLD_SIZE) )
     prevAction = np.zeros( (lh.NUM_ACTIONS) )
     prevAction[self.state.actionChosen] = lh.NUM_ACTIONS
@@ -65,6 +62,8 @@ class RegionFilteringEnvironment(Environment, Named):
       blanks = -10*np.ones( (blankAreas, visibleRegions.shape[1]) )
       visibleRegions = np.vstack( (visibleRegions, blanks) )
     visibleRegions = visibleRegions.reshape( (visibleRegions.shape[0]*visibleRegions.shape[1]) )
-    state = np.vstack( (visibleRegions, worldExplored, currentLocation, prevAction) )
+    visibleRegions = 1/(1+np.exp(-visibleRegions))
+    print 'State dimensionality:',visibleRegions.shape, worldExplored.shape, currentLocation.shape, prevAction.shape
+    state = np.hstack( (visibleRegions, worldExplored, currentLocation, prevAction) )
     return {'image':self.db.image, 'state':state}
      
