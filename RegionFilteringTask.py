@@ -17,11 +17,10 @@ class RegionFilteringTask(Task):
     gt = self.getGroundTruth(self.env.db.image)
     boxes = self.env.db.boxes[self.env.state.selectedIds].tolist()
     reward = self.computeReward(gt, boxes)
-    self.env.updatePostReward()
+    self.env.updatePostReward(reward)
     return reward
 
   def computeReward(self, gt, state):
-    print 'RegionFilteringTask::computeReward'
     if len(state) == 0:
       return -1
     iouScores = []
