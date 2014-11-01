@@ -3,6 +3,8 @@ __author__ = "Juan C. Caicedo, caicedo@illinois.edu"
 import RLConfig as config
 
 import numpy as np
+import scipy.io
+import MemoryUsage
 
 class RegionFilteringAgent():
 
@@ -10,110 +12,91 @@ class RegionFilteringAgent():
   observation = None
   action = None
   reward = None
-  cumReward = 0
   memory = []
-  t = 0
+  superMemory = {}
+  timer = 0
   
-  def __init__(self, qnet, learner=None):
+  def __init__(self, qnet, learner=None, persistMemory=True):
     self.controller = qnet
     self.learner = learner
-    self.obsQueue = []
+    self.avgReward = 0
+    self.receivedRewards = 0
+    self.persistMemory = persistMemory
 
   def integrateObservation(self, obs):
-    self.observation = obs[1]
+    if obs['image'] != self.image:
+      self.observation = np.zeros( (2,obs['state'].shape[0]) )
+      self.image = obs['image']
+      self.timer = 0
+      self.superMemory[self.image] = []
+    self.observation[1,:] = self.observation[0,:]
+    self.observation[0,:] = obs['state']
     self.action = None
     self.reward = None
-    self.nextMaxQ = 0.0
-    if 'NewImage' in self.observation.keys():
-      self.obsQueue = []
-      self.newImage = True
-    else:
-      self.newImage = False
-    print 'Agent::integrateObservation'
+    print 'Agent::integrateObservation => image',self.image
 
   def getAction(self):
     assert self.observation != None
     assert self.action == None
     assert self.reward == None
 
-    print 'Agent::getAction'
-
-    if "NoChange" not in self.observation.keys(): # Last movement did not produce a new observation
-      self.t += 1
-      relationScores = self.observation['features'].shape[1]
-      ims = self.observation['imgSize']
-      boxCoords = 4
-      area = 1
-      outputs = 10 # config.something
-      boxes = self.observation['features'].shape[0]
-      Z = np.zeros( (boxes, 2*relationScores + 2*(boxCoords + area) + outputs) ) 
-      ## INPUTS FOR THE NETWORK
-      ## 1. Normalized box coordinates
-      Z[:,0:boxCoords] = [ [b[0]/ims[0], b[1]/ims[1], b[2]/ims[0], b[3]/ims[1]] for b in self.observation['boxes'] ]
-      ## 2. Area of box relative to the whole image
-      Z[:,boxCoords] = self.observation['areas']
-      ## 3. Relation scores for the box
-      Z[:,boxCoords+area:boxCoords+area+relationScores] = self.observation['features']
-      ## 4. Box coordinates of previous box
-      rec = boxCoords + area + relationScores
-      rb = self.observation['rootBox']
-      rb = [rb[0]/ims[0], rb[1]/ims[1], rb[2]/ims[0], rb[3]/ims[1]]
-      Z[:,rec:rec+boxCoords] = np.tile( rb, (boxes,1))
-      # 5. Area of previous box
-      Z[:,rec+boxCoords:rec+boxCoords+area] = np.tile( self.observation['rootArea'], (boxes,1))
-      # 6. Previous box relation scores
-      Z[:,rec+boxCoords+area:rec+boxCoords+area+relationScores] = np.tile( self.observation['rootFeatures'][0,:], (boxes,1))
-      # 7. Encoding of previous action
-      rec += boxCoords + area + relationScores
-      action1ofk = [0 for a in range(outputs)]
-      action1ofk[self.observation['lastAction']] = 1.0
-      Z[:,rec:rec+outputs] = np.tile(action1ofk, (boxes,1))
-
-      values = self.controller.getActionValues( Z )
-      actions = np.argmax(values, 1)
-      maxValues = np.max(values, 1)
-      for i in range(actions.shape[0]):
-        self.obsQueue.append( [self.observation['indexes'][i], actions[i], maxValues[i]] + Z[i,:].tolist() )
-      self.obsQueue.sort(key=lambda x: x[2], reverse=True)
-
-    if len(self.memory) > 0 and not self.newImage:
-      print ' + Adding ',maxQForMemoryReplay,' to Memory Replay:',len(self.memory)
-      self.memory[-1][-1] = maxQForMemoryReplay
-    else:
-      print ' + Memory replay:',len(self.memory),'unchanged'
-
-    print 'AgentQueue=>',[x[0] for x in self.obsQueue]
-    if len(self.obsQueue) > 0:
-      self.action = self.obsQueue.pop(0)
-    else:
-      self.action = 'terminate'
-    return self.action
+    self.timer += 1
+    obs = self.observation.reshape( (1,self.observation.shape[0]*self.observation.shape[1]) )
+    values = self.controller.getActionValues(obs)
+    self.action = np.argmax(values, 1)[0]
+    v = values[0,self.action]
+    print 'Agent::getAction => action:',self.action, 'value:',v
+    return (self.action,float(v))
 
   def giveReward(self, r):
-    print 'Agent::giveReward=>',r
     assert self.observation != None
     assert self.action != None
     assert self.reward == None
 
-    self.reward = r
-    self.cumReward += sum(r)
+    obs = self.observation.reshape( (self.observation.shape[0]*self.observation.shape[1]))
 
-    # Replay Memory Format: boxIndex action maxValue features[62] reward
-    if self.action != 'terminate':
-      self.memory.append( {'S0':self.action + r, 'S1':None} )
+    self.reward = r
+    self.avgReward = (self.avgReward*self.receivedRewards + r)/(self.receivedRewards + 1)
+    self.receivedRewards += 1
+    experience = {'img':self.image, 't':self.timer, 'A':self.action, 'R':r, 'O':obs.tolist()}
+    self.memory.append( {'img':self.image, 't':self.timer, 'A':self.action, 'R':r, 'O':obs.tolist()} )
+    self.superMemory[self.image].append( experience )
+    print 'Agent::giveReward => ',r,self.avgReward
 
   def reset(self):
     print 'Agent::reset'
+    self.image = ''
     self.observation = None
     self.action = None
     self.reward = None
-    self.obsQueue = []
     self.memory = []
-    self.controller.loadNetwork()
-    self.t = 0
 
   def learn(self):
     print 'Agent:learn:'
+    self.saveMem()
     if self.learner != None:
-      self.learner.learn(self.memory, self.controller)
+      self.learner.learn(self.controller)
+      self.controller.loadNetwork()
+
+  def saveMem(self):
+    print 'Agent memory {:5.2f}'.format(MemoryUsage.memory()/(1024**3)),'GB','Images Stored:',len(self.superMemory)
+    return
+    if self.persistMemory:
+      # Check that the memory belongs only to one image
+      images = set([m['img'] for m in self.memory])
+      assert len(images) == 1
+      assert list(images)[0] == self.image
+
+      # Sort records by time
+      self.memory.sort(key=lambda x: x['t'])
+      N = len(self.memory)
+      # Collect records in matrices
+      time = np.array([m['t'] for m in self.memory]).reshape((N,1))
+      actions = np.array([m['A'] for m in self.memory]).reshape((N,1))
+      rewards = np.array([m['R'] for m in self.memory]).reshape((N,1))
+      observations = np.array([m['O'] for m in self.memory])
+      # Save records to disk
+      filename = config.get('trainMemory') + self.image + '.mat'
+      contents = {'time':time, 'actions':actions, 'observations':observations, 'rewards':rewards}
+      scipy.io.savemat(filename, contents, do_compression=True)
 

@@ -4,6 +4,7 @@ import numpy as np
 import random
 import pickle
 import re
+import MemoryUsage
 
 floatType = np.float32
 topHards = 20000
@@ -128,3 +129,5 @@ def loadBoxIndexFile(filename, idx=1):
       images[k[0]] = [ map(float,k[idx:]) ]
   return images
 
+def mem(msg):
+  print msg,'{:5.2f}'.format(MemoryUsage.memory()/(1024**3)),'GB'
