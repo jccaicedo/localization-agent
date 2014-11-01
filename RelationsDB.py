@@ -3,6 +3,7 @@ import utils as cu
 import MemoryUsage
 import numpy as np
 import scipy.io
+import cPickle as pickle
 import random
 from utils import tic, toc
 
@@ -34,6 +35,64 @@ class RelationsDB():
       self.boxes = []
       self.scores = []
       self.image = ''
+
+class CompactRelationsDB():
+
+  def __init__(self, dbDir, randomize):
+    if os.path.isfile(dbDir + '/db.cache'):
+      print 'Loading cached DB'
+      cache = scipy.io.loadmat(dbDir + '/db.cache')
+      index = pickle.load( open(dbDir + '/db.idx', 'rb') )
+      self.B = cache['B']
+      self.S = cache['S']
+      self.index = index
+      self.images = index.keys()
+    else:
+      rdbo = RelationsDB(dbDir, False)
+      self.B = np.zeros( ( 2500*len(rdbo.images), 4 ), np.float32 )
+      self.S = np.zeros( ( 2500*len(rdbo.images), 60), np.float32 )
+      self.images = [n.replace('.mat','') for n in rdbo.images]
+      self.index = dict( [ (n,{'s':0,'e':0}) for n in self.images ] )
+      pointer = 0
+      rdbo.loadNext()
+      while rdbo.image != '':
+        s = self.index[rdbo.image]['s'] = pointer
+        e = self.index[rdbo.image]['e'] = pointer + rdbo.boxes.shape[0]
+        self.B[s:e,:] = rdbo.boxes
+        self.S[s:e,:] = rdbo.scores
+        pointer = e
+        rdbo.loadNext()
+      self.B = self.B[0:pointer]
+      self.S = self.S[0:pointer]
+      scipy.io.savemat(dbDir + '/db.cache', {'B':self.B, 'S':self.S}, appendmat=False)
+      pickle.dump(self.index, open(dbDir + '/db.idx', 'wb'))
+
+    self.random = randomize
+    self.boxes = []
+    self.scores = []
+    self.image = ''
+    self.idx = 0
+    if randomize:
+      random.shuffle(self.images)
+    else:
+      self.images.sort()
+      
+  def loadNext(self):
+    if self.idx < len(self.images):
+      self.image = self.images[self.idx]
+      i = self.index[self.image]['s']
+      j = self.index[self.image]['e']
+      self.boxes = self.B[i:j,:]
+      self.scores = self.S[i:j,:]
+      self.idx += 1
+    elif self.random:
+      random.shuffle(self.images)
+      self.idx = 0
+      self.loadNext()
+    else:
+      self.image = ''
+      self.boxes = []
+      self.scores = []
 
 class DBBuilder():
 

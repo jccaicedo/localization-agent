@@ -13,27 +13,30 @@ class RegionFilteringAgent():
   action = None
   reward = None
   memory = []
-  superMemory = {}
   timer = 0
   
-  def __init__(self, qnet, learner=None, persistMemory=True):
+  def __init__(self, qnet, learner=None):
     self.controller = qnet
     self.learner = learner
     self.avgReward = 0
     self.receivedRewards = 0
-    self.persistMemory = persistMemory
+    self.replayMemory = None
+
+  def startReplayMemory(self, memoryImages, recordsPerImage, recordSize):
+    self.replayMemory = ReplayMemory(memoryImages, recordsPerImage, recordSize)
 
   def integrateObservation(self, obs):
     if obs['image'] != self.image:
-      self.observation = np.zeros( (2,obs['state'].shape[0]) )
+      self.observation = np.zeros( (2,obs['state'].shape[0]), np.float32 )
       self.image = obs['image']
       self.timer = 0
-      self.superMemory[self.image] = []
+      if self.replayMemory != None:
+        self.replayMemory.clear(self.image)
     self.observation[1,:] = self.observation[0,:]
     self.observation[0,:] = obs['state']
     self.action = None
     self.reward = None
-    print 'Agent::integrateObservation => image',self.image
+    #print 'Agent::integrateObservation => image',self.image
 
   def getAction(self):
     assert self.observation != None
@@ -45,7 +48,7 @@ class RegionFilteringAgent():
     values = self.controller.getActionValues(obs)
     self.action = np.argmax(values, 1)[0]
     v = values[0,self.action]
-    print 'Agent::getAction => action:',self.action, 'value:',v
+    #print 'Agent::getAction => action:',self.action, 'value:',v
     return (self.action,float(v))
 
   def giveReward(self, r):
@@ -53,15 +56,14 @@ class RegionFilteringAgent():
     assert self.action != None
     assert self.reward == None
 
-    obs = self.observation.reshape( (self.observation.shape[0]*self.observation.shape[1]))
-
     self.reward = r
     self.avgReward = (self.avgReward*self.receivedRewards + r)/(self.receivedRewards + 1)
     self.receivedRewards += 1
-    experience = {'img':self.image, 't':self.timer, 'A':self.action, 'R':r, 'O':obs.tolist()}
-    self.memory.append( {'img':self.image, 't':self.timer, 'A':self.action, 'R':r, 'O':obs.tolist()} )
-    self.superMemory[self.image].append( experience )
-    print 'Agent::giveReward => ',r,self.avgReward
+    if self.replayMemory != None:
+      obs = self.observation.reshape( (self.observation.shape[0]*self.observation.shape[1]))
+      self.replayMemory.add(self.image, self.timer, self.action, obs, self.reward)
+    print 'Agent::MemoryRecord => image:',self.image,'time:',self.timer,'action:',self.action,'reward',self.reward,'avgReward:',self.avgReward
+    #print 'Agent::giveReward => ',r,self.avgReward
 
   def reset(self):
     print 'Agent::reset'
@@ -73,30 +75,45 @@ class RegionFilteringAgent():
 
   def learn(self):
     print 'Agent:learn:'
-    self.saveMem()
-    if self.learner != None:
-      self.learner.learn(self.controller)
+    if self.learner != None and self.replayMemory != None:
+      self.learner.learn(self.replayMemory, self.controller)
       self.controller.loadNetwork()
 
-  def saveMem(self):
-    print 'Agent memory {:5.2f}'.format(MemoryUsage.memory()/(1024**3)),'GB','Images Stored:',len(self.superMemory)
-    return
-    if self.persistMemory:
-      # Check that the memory belongs only to one image
-      images = set([m['img'] for m in self.memory])
-      assert len(images) == 1
-      assert list(images)[0] == self.image
+class ReplayMemory():
 
-      # Sort records by time
-      self.memory.sort(key=lambda x: x['t'])
-      N = len(self.memory)
-      # Collect records in matrices
-      time = np.array([m['t'] for m in self.memory]).reshape((N,1))
-      actions = np.array([m['A'] for m in self.memory]).reshape((N,1))
-      rewards = np.array([m['R'] for m in self.memory]).reshape((N,1))
-      observations = np.array([m['O'] for m in self.memory])
-      # Save records to disk
-      filename = config.get('trainMemory') + self.image + '.mat'
-      contents = {'time':time, 'actions':actions, 'observations':observations, 'rewards':rewards}
-      scipy.io.savemat(filename, contents, do_compression=True)
+  def __init__(self, numImages, recordsPerImage, recordSize):
+    self.O = np.zeros( (numImages*recordsPerImage, recordSize), np.float32 )
+    self.A = np.zeros( (numImages*recordsPerImage, 1), np.int )
+    self.R = np.zeros( (numImages*recordsPerImage, 1), np.float32 )
+    self.numImages = numImages
+    self.recordsPerImage = recordsPerImage
+    self.index = {}
+    self.pointer = 0
+
+  def add(self, img, time, action, observation, reward):
+    try: 
+      key = self.index[img]
+    except: 
+      if self.pointer < self.O.shape[0]:
+        self.index[img] = self.pointer
+        self.pointer += self.recordsPerImage
+        key = self.index[img]
+      else:
+        print 'Error: More images than expected!!'
+    r = key + time - 1
+    self.A[r,0] = action
+    self.O[r,:] = observation
+    self.R[r,0] = reward
+
+  def clear(self, img):
+    try:
+      key = self.index[img]
+    except:
+      key = -1
+    if key > 0:
+      s = key
+      e = key + self.recordsPerImage
+      self.A[s:e,0] = 0
+      self.O[s:e,:] = 0
+      self.R[s:e,:] = 0
 

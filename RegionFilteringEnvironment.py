@@ -2,7 +2,7 @@ __author__ = "Juan C. Caicedo, caicedo@illinois.edu"
 
 from pybrain.utilities import Named
 from pybrain.rl.environments.environment import Environment
-from RelationsDB import RelationsDB
+from RelationsDB import RelationsDB, CompactRelationsDB
 
 import LayoutHandler as lh
 
@@ -20,9 +20,9 @@ class RegionFilteringEnvironment(Environment, Named):
     self.mode = mode
     self.testRecord = None
     if self.mode == 'train':
-      self.db = RelationsDB(featuresDir, randomize=True)
+      self.db = CompactRelationsDB(featuresDir, randomize=True)
     elif self.mode == 'test':
-      self.db = RelationsDB(featuresDir, randomize=False)
+      self.db = CompactRelationsDB(featuresDir, randomize=False)
     self.loadNextEpisode()
 
   def performAction(self, action):

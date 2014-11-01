@@ -25,48 +25,31 @@ class QLearning(ValueBasedLearner):
     self.gamma = config.getf('gammaDiscountReward')
     self.netManager = cnm.CaffeMultiLayerPerceptronManagement(config.get('networkDir'))
 
-  def learn(self, controller):
-    print '# Identify memory records stored by the agent'
+  def learn(self, memory, controller):
+    print '# Identify memory records stored by the agent',memory.O.shape, memory.A.shape,memory.R.shape
     recordSize = config.geti('trainInteractions')
-    memoryIndex = [f for f in os.listdir(config.get('trainMemory')) if f.endswith('.mat')]
-    memoryIndex.sort()
-    totalMemorySize = recordSize*len(memoryIndex)
+    totalMemorySize = memory.O.shape[0]
     replayMemorySize = config.geti('trainingIterationsPerBatch')*config.geti('trainingBatchSize')
 
-    print '# Select a random sample of records'
-    recordsToPull = [random.randint(0,totalMemorySize-1) for i in range(replayMemorySize)]
-    imageKey = lambda x: x/recordSize
-    recordKey = lambda x: int(recordSize*(x/float(recordSize) - x/recordSize))
-    recordsToPull = [ [imageKey(r),recordKey(r)] for r in recordsToPull]
-    records = {}
-    for r in recordsToPull:
-      try: records[r[0]].append( r[1] )
-      except: records[r[0]] = [ r[1] ]
-
-    print '# Read samples to build the training batch'
-    trainingSamples = []
-    for img in records.keys():
-      data = scipy.io.loadmat(config.get('trainMemory') + memoryIndex[img])
-      for key in records[img]:
-        if key == data['time'].shape[0]-1:
-          # Shift backward in time to see features in next state
-          key = data['time'].shape[0]-2 
-        state0 = data['observations'][key,:]
-        action = data['actions'][key,0]
-        reward = data['rewards'][key,0]
-        state1 = data['observations'][key+1,:]
-        trainingSamples.append( {'S0':state0, 'A':action, 'R':reward, 'S1':state1} )
-    
-    print '# Compute MaxNextQ for training records'
     if controller.net == None:
       maxNextQ = lambda x: 0.0
     else:
       maxNextQ = lambda x: np.max( controller.getActivations(x) )
+
+    print '# Select a random sample of records'
+    recordsToPull = [random.randint(0,totalMemorySize-1) for i in range(replayMemorySize)]
     trainingSet = []
-    for sample in trainingSamples:
-      discountedMaxNextQ = self.gamma*maxNextQ( sample['S1'].reshape((1,sample['S1'].shape[0],1,1)) )
-      trainingSet.append( [sample['A'], sample['R'], discountedMaxNextQ] + sample['S0'].tolist() )
-    
+    for r in recordsToPull:
+      if (r+1) % recordSize == 0:
+        # Shift backward in time to see features in next state
+        r = r - 1 
+      state0 = memory.O[r,:]
+      action = memory.A[r,0]
+      reward = memory.R[r,0]
+      state1 = memory.O[r+1,:]
+      discountedMaxNextQ = self.gamma*maxNextQ( state1.reshape((1,state1.shape[0],1,1)) )
+      trainingSet.append( [action, reward, discountedMaxNextQ] + state0.tolist() )
+
     print '# Save training set and start network update'
     self.netManager.saveDatabaseFile(trainingSet, 'training.txt')
     self.netManager.saveDatabaseFile(trainingSet[0:10], 'validation.txt')
