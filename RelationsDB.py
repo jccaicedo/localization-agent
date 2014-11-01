@@ -79,7 +79,7 @@ class DBBuilder():
   def saveDB(self, outputDir):
     for img in self.imgBoxes.keys():
       data = {'boxes':self.imgBoxes[img], 'scores':self.scores[img]}
-      scipy.io.savemat(data, outputDir+'/'+img+'.mat', do_compression=True)
+      scipy.io.savemat(outputDir+'/'+img+'.mat', data, do_compression=True)
     out = open(outputDir+'/categories.txt','w')
     for c in self.categories:
       out.write(c + '\n')

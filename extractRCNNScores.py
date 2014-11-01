@@ -13,9 +13,9 @@ images = [u''.join(unichr(c) for c in imdb[o]) for o in imdb['imdb']['image_ids'
 doNMS = params['doNMS'] != 'noNMS'
 
 for f in os.listdir(params['MatlabScoresDir']):
-  if f.endswith('.mat') and f.find('_boxes_') != -1:
+  if f.endswith('__all.mat') and f.find('_boxes_') != -1:
     nameParts = f.split('_')
-    out = open(params['outputDir'] + '/' + nameParts[0] + '_' + nameParts[1] + '_det.out', 'w')
+    out = open(params['outputDir'] + '/' + nameParts[0] + '_' + nameParts[1] + '.out', 'w')
     data = scipy.io.loadmat(params['MatlabScoresDir'] + '/' + f)
     print nameParts[0:2]
     for i in range(data['boxes'].shape[0]):
