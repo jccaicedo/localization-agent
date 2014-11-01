@@ -1,4 +1,4 @@
-from caffe import convert as c
+from caffe import io as c
 import numpy as np
 import os,sys
 
@@ -12,5 +12,5 @@ protoData.ParseFromString(f.read())
 f.close()
 array = c.blobproto_to_array(protoData)
 np.save(sys.argv[2],array[0].swapaxes(1, 0).swapaxes(2,1)[:, :, ::-1])
-A = np.load(sys.argv[2])
+A = np.load(sys.argv[2]+'.npy')
 print 'Final matrix shape:',A.shape
