@@ -6,9 +6,6 @@ import scipy.io
 import random
 from utils import tic, toc
 
-def mem(msg):
-  print msg,'{:5.2f}'.format(MemoryUsage.memory()/(1024**3)),'GB'
-
 class RelationsDB():
 
   def __init__(self, dbDir, randomize):
@@ -87,15 +84,15 @@ class DBBuilder():
 
 if __name__ == "__main__":
   params = cu.loadParams('scoresDirectory proposalsFile outputDir')
-  mem('Program started')
+  cu.mem('Program started')
   lap = tic()
   builder = DBBuilder(params['scoresDirectory'], params['proposalsFile'])
   lap = toc('Proposals loaded', lap)
-  mem('DB initialized')
+  cu.mem('DB initialized')
   builder.parseDir()
   lap = toc('Directory parsed', lap)
-  mem('All files read')
+  cu.mem('All files read')
   builder.saveDB(params['outputDir'])
   lap = toc('Database saved', lap)
-  mem('Program ends')
+  cu.mem('Program ends')
 

@@ -4,6 +4,7 @@ import RLConfig as config
 
 import numpy as np
 import scipy.io
+import MemoryUsage
 
 class RegionFilteringAgent():
 
@@ -12,6 +13,7 @@ class RegionFilteringAgent():
   action = None
   reward = None
   memory = []
+  superMemory = {}
   timer = 0
   
   def __init__(self, qnet, learner=None, persistMemory=True):
@@ -26,6 +28,7 @@ class RegionFilteringAgent():
       self.observation = np.zeros( (2,obs['state'].shape[0]) )
       self.image = obs['image']
       self.timer = 0
+      self.superMemory[self.image] = []
     self.observation[1,:] = self.observation[0,:]
     self.observation[0,:] = obs['state']
     self.action = None
@@ -55,7 +58,9 @@ class RegionFilteringAgent():
     self.reward = r
     self.avgReward = (self.avgReward*self.receivedRewards + r)/(self.receivedRewards + 1)
     self.receivedRewards += 1
+    experience = {'img':self.image, 't':self.timer, 'A':self.action, 'R':r, 'O':obs.tolist()}
     self.memory.append( {'img':self.image, 't':self.timer, 'A':self.action, 'R':r, 'O':obs.tolist()} )
+    self.superMemory[self.image].append( experience )
     print 'Agent::giveReward => ',r,self.avgReward
 
   def reset(self):
@@ -74,6 +79,8 @@ class RegionFilteringAgent():
       self.controller.loadNetwork()
 
   def saveMem(self):
+    print 'Agent memory {:5.2f}'.format(MemoryUsage.memory()/(1024**3)),'GB','Images Stored:',len(self.superMemory)
+    return
     if self.persistMemory:
       # Check that the memory belongs only to one image
       images = set([m['img'] for m in self.memory])
