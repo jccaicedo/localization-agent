@@ -19,7 +19,6 @@ class RegionFilteringAgent():
     self.controller = qnet
     self.learner = learner
     self.avgReward = 0
-    self.receivedRewards = 0
     self.replayMemory = None
 
   def startReplayMemory(self, memoryImages, recordsPerImage, recordSize):
@@ -36,7 +35,6 @@ class RegionFilteringAgent():
     self.observation[0,:] = obs['state']
     self.action = None
     self.reward = None
-    #print 'Agent::integrateObservation => image',self.image
 
   def getAction(self):
     assert self.observation != None
@@ -48,7 +46,6 @@ class RegionFilteringAgent():
     values = self.controller.getActionValues(obs)
     self.action = np.argmax(values, 1)[0]
     v = values[0,self.action]
-    #print 'Agent::getAction => action:',self.action, 'value:',v
     return (self.action,float(v))
 
   def giveReward(self, r):
@@ -57,13 +54,11 @@ class RegionFilteringAgent():
     assert self.reward == None
 
     self.reward = r
-    self.avgReward = (self.avgReward*self.receivedRewards + r)/(self.receivedRewards + 1)
-    self.receivedRewards += 1
+    self.avgReward = (self.avgReward*self.timer + r)/(self.timer + 1)
     if self.replayMemory != None:
       obs = self.observation.reshape( (self.observation.shape[0]*self.observation.shape[1]))
       self.replayMemory.add(self.image, self.timer, self.action, obs, self.reward)
     print 'Agent::MemoryRecord => image:',self.image,'time:',self.timer,'action:',self.action,'reward',self.reward,'avgReward:',self.avgReward
-    #print 'Agent::giveReward => ',r,self.avgReward
 
   def reset(self):
     print 'Agent::reset'
