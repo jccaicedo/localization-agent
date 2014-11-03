@@ -73,7 +73,7 @@ class CaffeMultiLayerPerceptronManagement():
     out.write('lr_policy: "step"\n')
     out.write('gamma: ' + config.get('gamma') + '\n')
     out.write('stepsize: 10000\n')
-    out.write('display: 20\n')
+    out.write('display: 1\n')
     out.write('max_iter: ' + config.get('trainingIterationsPerBatch') + '\n')
     out.write('momentum: ' + config.get('momentum') + '\n')
     out.write('weight_decay: ' + config.get('weightDecay') + '\n')

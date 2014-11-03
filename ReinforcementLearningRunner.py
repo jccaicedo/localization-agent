@@ -19,14 +19,16 @@ class ReinforcementLearningRunner():
     self.task = RegionFilteringTask(self.environment, config.get(mode+'GroundTruth'))
     self.experiment = Experiment(self.task, self.agent)
 
-  def runEpoch(self, interactions):
+  def runEpoch(self, interactions, maxImgs):
     img = 0
-    while img < len(self.environment.db.images):
+    s = cu.tic()
+    while img < maxImgs:
       self.experiment.doInteractions(interactions)
       self.agent.learn()
       self.agent.reset()
       self.environment.loadNextEpisode()
       img += 1
+    s = cu.toc('Run epoch with ' + str(maxImgs) + ' episodes', s)
 
   def run(self):
     if self.mode == 'train':
@@ -39,31 +41,33 @@ class ReinforcementLearningRunner():
 
   def train(self):
     interactions = config.geti('trainInteractions')
+    epochSize = len(self.environment.db.images)/2
     epsilon = 1.0
     self.controller.setEpsilonGreedy(epsilon)
     print 'Epoch 0: Exploration'
-    self.runEpoch(interactions)
+    self.runEpoch(interactions, len(self.environment.db.images))
     self.learner = QLearning()
     self.agent.learner = self.learner
     epoch = 1
     egEpochs = config.geti('epsilonGreedyEpochs')
     while epoch <= egEpochs:
-      epsilon = epsilon - 1/egEpochs if epsilon > 0.1 else 0.1
+      epsilon = epsilon - 1.0/float(egEpochs) 
+      if epsilon < 0.1: epsilon = 0.1
       self.controller.setEpsilonGreedy(epsilon)
       print 'Epoch',epoch ,'(epsilon-greedy:{:5.3f})'.format(epsilon)
-      self.runEpoch(interactions)
+      self.runEpoch(interactions, epochSize)
       epoch += 1
     epoch = 1
     maxEpochs = config.geti('exploitLearningEpochs')
     while epoch <= maxEpochs:
       print 'Epoch',epoch+egEpochs,'(exploitation mode: epsilon=0.1)'
-      self.runEpoch(interactions)
+      self.runEpoch(interactions, epochSize)
       epoch += 1
 
   def test(self):
     interactions = config.geti('testInteractions')
     self.controller.setEpsilonGreedy(0.0)
-    self.runEpoch(interactions)
+    self.runEpoch(interactions, len(self.environment.db.images))
   
 if __name__ == "__main__":
   if len(sys.argv) < 2:
