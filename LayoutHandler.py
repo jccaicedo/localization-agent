@@ -11,25 +11,25 @@ import numpy as np
 SCALES = 10
 HORIZONTAL_BINS = 3
 VERTICAL_BINS = 3
-NUM_ACTIONS = 14
-NUM_BOXES = HORIZONTAL_BINS*VERTICAL_BINS
+NUM_ACTIONS = 13
+NUM_BOXES = 3 
 WORLD_SIZE = SCALES*HORIZONTAL_BINS*VERTICAL_BINS
+PLANE_SIZE = HORIZONTAL_BINS*VERTICAL_BINS
 
 # ACTIONS
-EXPLORE_CURRENT_SCALE   = 0
-EXPLORE_ONE_SCALE_UP    = 1
-EXPLORE_ONE_SCALE_DOWN  = 2
-EXPLORE_TWO_SCALES_UP   = 3
-EXPLORE_TWO_SCALES_DOWN = 4
-GOTO_TOP_LEFT           = 5
-GOTO_TOP_CENTER         = 6
-GOTO_TOP_RIGHT          = 7
-GOTO_MIDDLE_LEFT        = 8
-GOTO_MIDDLE_CENTER      = 9
-GOTO_MIDDLE_RIGHT       = 10
-GOTO_BOTTOM_LEFT        = 11
-GOTO_BOTTOM_CENTER      = 12
-GOTO_BOTTOM_RIGHT       = 13
+EXPLORE_ONE_SCALE_UP    = 0
+EXPLORE_ONE_SCALE_DOWN  = 1
+EXPLORE_TWO_SCALES_UP   = 2
+EXPLORE_TWO_SCALES_DOWN = 3
+GOTO_TOP_LEFT           = 4
+GOTO_TOP_CENTER         = 5
+GOTO_TOP_RIGHT          = 6
+GOTO_MIDDLE_LEFT        = 7
+GOTO_MIDDLE_CENTER      = 8
+GOTO_MIDDLE_RIGHT       = 9
+GOTO_BOTTOM_LEFT        = 10
+GOTO_BOTTOM_CENTER      = 11
+GOTO_BOTTOM_RIGHT       = 12
 
 class Box():
 
@@ -71,14 +71,15 @@ class LayoutHandler():
           for k in range(verticalRange):
             self.layout[s][h][v].append(horizontalRangeElems[verticalRange*v + k])
     self.numBoxes = len(auxBoxes)
+    self.boxesPerBin = float(self.numBoxes)/WORLD_SIZE
     self.actionCounter = 0
-    self.scale = 0
+    self.scale = SCALES/2
     self.horizontal = 0
     self.vertical = 0
     self.percentExplored = 0
     self.selectedIds = []
-    self.status = np.zeros( (SCALES, HORIZONTAL_BINS, VERTICAL_BINS), dtype=np.int )
-    self.currentPosition = np.zeros( (SCALES, HORIZONTAL_BINS, VERTICAL_BINS), dtype=np.int )
+    self.status = np.zeros( (SCALES, HORIZONTAL_BINS, VERTICAL_BINS), dtype=np.int32 )
+    self.currentPosition = np.zeros( (SCALES, HORIZONTAL_BINS, VERTICAL_BINS), dtype=np.int32 )
 
   def move(self, s, h, v):
     self.scale = s
@@ -91,11 +92,11 @@ class LayoutHandler():
     self.actionChosen = action[0]
     self.actionValue = action[1]
     self.actionCounter += 1
-    if   self.actionChosen == EXPLORE_CURRENT_SCALE:     self.move( self.scale, 0, 0 )
-    elif self.actionChosen == EXPLORE_ONE_SCALE_UP:    self.move( max(self.scale-1, 0), 0, 0 )
-    elif self.actionChosen == EXPLORE_ONE_SCALE_DOWN:  self.move( min(self.scale+1, SCALES-1), 0, 0 )
-    elif self.actionChosen == EXPLORE_TWO_SCALES_UP:   self.move( max(self.scale-2, 0), 0, 0)
-    elif self.actionChosen == EXPLORE_TWO_SCALES_DOWN: self.move( min(self.scale+2, SCALES-1), 0, 0 )
+    #if   self.actionChosen == EXPLORE_CURRENT_SCALE:     self.move( self.scale, 0, 0 )
+    if self.actionChosen == EXPLORE_ONE_SCALE_UP:      self.move( max(self.scale-1, 0), self.horizontal, self.vertical )
+    elif self.actionChosen == EXPLORE_ONE_SCALE_DOWN:  self.move( min(self.scale+1, SCALES-1), self.horizontal, self.vertical )
+    elif self.actionChosen == EXPLORE_TWO_SCALES_UP:   self.move( max(self.scale-2, 0), self.horizontal, self.vertical )
+    elif self.actionChosen == EXPLORE_TWO_SCALES_DOWN: self.move( min(self.scale+2, SCALES-1), self.horizontal, self.vertical )
     elif self.actionChosen == GOTO_TOP_LEFT:           self.move( self.scale, 0, 0 )
     elif self.actionChosen == GOTO_TOP_CENTER:         self.move( self.scale, 1, 0 )
     elif self.actionChosen == GOTO_TOP_RIGHT:          self.move( self.scale, 2, 0 )
@@ -111,22 +112,23 @@ class LayoutHandler():
     self.selectedIds = []
     self.currentPosition[:,:,:] = 0
     # 2D Plane exploration
-    if self.actionChosen > EXPLORE_TWO_SCALES_DOWN: 
-      ini = self.status[self.scale,self.horizontal,self.vertical]
-      end = min( ini + NUM_BOXES, len(self.layout[self.scale][self.horizontal][self.vertical]) )
-      for i in range(ini, end):
-        self.selectedIds.append(self.layout[self.scale][self.horizontal][self.vertical][i].id)
-      self.status[self.scale,self.horizontal,self.vertical] = end
-      self.currentPosition[self.scale, self.horizontal, self.vertical] = NUM_BOXES
-    # Scale exploration
-    else: 
-      for i in range(VERTICAL_BINS):
-        for j in range(HORIZONTAL_BINS):
-          next = min( self.status[self.scale,j,i], len(self.layout[self.scale][j][i]) )
-          if next < len(self.layout[self.scale][j][i]):
-            self.selectedIds.append(self.layout[self.scale][j][i][next].id)
-            self.status[self.scale,j,i] = next + 1
-      self.currentPosition[self.scale,:,:] = 1.0
-    self.percentExplored = np.sum(self.status)/float(self.numBoxes)
+    ini = self.status[self.scale,self.horizontal,self.vertical]
+    end = min( ini + NUM_BOXES, len(self.layout[self.scale][self.horizontal][self.vertical]) )
+    for i in range(ini, end):
+      self.selectedIds.append(self.layout[self.scale][self.horizontal][self.vertical][i].id)
+    self.status[self.scale, self.horizontal, self.vertical] = end
+    self.currentPosition[self.scale, self.horizontal, self.vertical] = 1.0
     return self.selectedIds
+
+  def getLocationState(self):
+    state = np.copy( self.status[self.scale, ...].reshape( (PLANE_SIZE) ) )
+    state = state / self.boxesPerBin
+    location = np.zeros( (SCALES + PLANE_SIZE) )
+    location[self.scale] = 1.0
+    location[SCALES:] = self.currentPosition[self.scale, ...].reshape( (PLANE_SIZE) )
+    return np.concatenate( (state, 5*location) )
+
+  def isNewExploredCell(self):
+    return self.status[self.scale, self.horizontal, self.vertical] <= NUM_BOXES
+
 

@@ -12,7 +12,6 @@ class RegionFilteringAgent():
   observation = None
   action = None
   reward = None
-  memory = []
   timer = 0
   
   def __init__(self, qnet, learner=None):
@@ -26,9 +25,11 @@ class RegionFilteringAgent():
 
   def integrateObservation(self, obs):
     if obs['image'] != self.image:
+      self.actionsH = [0 for i in range(13)]
       self.observation = np.zeros( (2,obs['state'].shape[0]), np.float32 )
       self.image = obs['image']
       self.timer = 0
+      self.avgReward = 0.0
       if self.replayMemory != None:
         self.replayMemory.clear(self.image)
     self.observation[1,:] = self.observation[0,:]
@@ -58,15 +59,15 @@ class RegionFilteringAgent():
     if self.replayMemory != None:
       obs = self.observation.reshape( (self.observation.shape[0]*self.observation.shape[1]))
       self.replayMemory.add(self.image, self.timer, self.action, obs, self.reward)
+    self.actionsH[self.action] += 1
     print 'Agent::MemoryRecord => image:',self.image,'time:',self.timer,'action:',self.action,'reward',self.reward,'avgReward:',self.avgReward
 
   def reset(self):
-    print 'Agent::reset'
+    print 'Agent::reset',self.actionsH,self.avgReward
     self.image = ''
     self.observation = None
     self.action = None
     self.reward = None
-    self.memory = []
 
   def learn(self):
     print 'Agent:learn:'

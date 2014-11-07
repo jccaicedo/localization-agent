@@ -41,7 +41,7 @@ class ReinforcementLearningRunner():
 
   def train(self):
     interactions = config.geti('trainInteractions')
-    epochSize = len(self.environment.db.images)/2
+    epochSize = len(self.environment.db.images)/1
     epsilon = 1.0
     self.controller.setEpsilonGreedy(epsilon)
     print 'Epoch 0: Exploration'
@@ -52,7 +52,7 @@ class ReinforcementLearningRunner():
     egEpochs = config.geti('epsilonGreedyEpochs')
     while epoch <= egEpochs:
       epsilon = epsilon - 1.0/float(egEpochs) 
-      if epsilon < 0.1: epsilon = 0.1
+      if epsilon < 0.5: epsilon = 0.5
       self.controller.setEpsilonGreedy(epsilon)
       print 'Epoch',epoch ,'(epsilon-greedy:{:5.3f})'.format(epsilon)
       self.runEpoch(interactions, epochSize)
@@ -60,13 +60,13 @@ class ReinforcementLearningRunner():
     epoch = 1
     maxEpochs = config.geti('exploitLearningEpochs')
     while epoch <= maxEpochs:
-      print 'Epoch',epoch+egEpochs,'(exploitation mode: epsilon=0.1)'
+      print 'Epoch',epoch+egEpochs,'(exploitation mode: epsilon={:5.3f})'.format(epsilon)
       self.runEpoch(interactions, epochSize)
       epoch += 1
 
   def test(self):
     interactions = config.geti('testInteractions')
-    self.controller.setEpsilonGreedy(0.0)
+    self.controller.setEpsilonGreedy(0.05)
     self.runEpoch(interactions, len(self.environment.db.images))
   
 if __name__ == "__main__":

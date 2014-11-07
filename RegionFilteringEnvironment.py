@@ -14,6 +14,12 @@ import utils as cu
 import libDetection as det
 import RLConfig as config
 
+def sigmoid(x, a=1.0, b=0.0):
+  return 1.0/(1.0 + np.exp(-a*x + b))
+
+def tanh(x, a=0.75, b=0.25):
+  return np.tanh(a*x + b)
+
 class RegionFilteringEnvironment(Environment, Named):
 
   def __init__(self, featuresDir, mode):
@@ -39,7 +45,7 @@ class RegionFilteringEnvironment(Environment, Named):
       print 'Environment::LoadNextEpisode => Image',self.db.image,'({:4} boxes)'.format(self.db.boxes.shape[0])
       # Initialize state
       self.state = lh.LayoutHandler(self.db.boxes)
-      self.performAction([0,0])
+      self.performAction([8,0]) # Go to middle center cell
     else:
       print 'No more images available'
     # Restart record for new episode
@@ -55,16 +61,15 @@ class RegionFilteringEnvironment(Environment, Named):
 
   def getSensors(self):
     # Create arrays to represent the state of the world
-    worldExplored = np.asarray(self.state.status).reshape( (lh.WORLD_SIZE) )/float(self.db.boxes.shape[0])
-    currentLocation = self.state.currentPosition.reshape( (lh.WORLD_SIZE) )
+    worldState = self.state.getLocationState()
 
     # Make a vector represenation of the action that brought the agent to this state
     prevAction = np.zeros( (lh.NUM_ACTIONS) )
-    prevAction[self.state.actionChosen] = lh.NUM_ACTIONS
+    prevAction[self.state.actionChosen] = 5.0 #lh.NUM_ACTIONS
 
     # Select features of visible regions and apply the sigmoid
-    visibleRegions = self.db.scores[ self.state.selectedIds, :]
-    visibleRegions = 1/(1+np.exp(-visibleRegions))
+    visibleRegions = np.copy(self.db.scores[ self.state.selectedIds, :])
+    visibleRegions = tanh(visibleRegions)
 
     # Pad zeros on features of void regions
     if len(self.state.selectedIds) == 0:
@@ -76,6 +81,7 @@ class RegionFilteringEnvironment(Environment, Named):
     visibleRegions = visibleRegions.reshape( (visibleRegions.shape[0]*visibleRegions.shape[1]) )
 
     # Concatenate all info in the state representation vector
-    state = np.hstack( (visibleRegions, worldExplored, currentLocation, prevAction) )
+    #state = np.hstack( (visibleRegions, worldExplored, currentLocation, prevAction) )
+    state = np.hstack( (worldState, prevAction) )
     return {'image':self.db.image, 'state':state}
      
