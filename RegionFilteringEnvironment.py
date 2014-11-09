@@ -4,7 +4,7 @@ from pybrain.utilities import Named
 from pybrain.rl.environments.environment import Environment
 from RelationsDB import RelationsDB, CompactRelationsDB
 
-import LayoutHandler as lh
+import SimplifiedLayoutHandler as lh
 
 import random
 import numpy as np
@@ -45,7 +45,7 @@ class RegionFilteringEnvironment(Environment, Named):
       print 'Environment::LoadNextEpisode => Image',self.db.image,'({:4} boxes)'.format(self.db.boxes.shape[0])
       # Initialize state
       self.state = lh.LayoutHandler(self.db.boxes)
-      self.performAction([8,0]) # Go to middle center cell
+      self.performAction([lh.STAY,0]) 
     else:
       print 'No more images available'
     # Restart record for new episode
@@ -65,23 +65,24 @@ class RegionFilteringEnvironment(Environment, Named):
 
     # Make a vector represenation of the action that brought the agent to this state
     prevAction = np.zeros( (lh.NUM_ACTIONS) )
-    prevAction[self.state.actionChosen] = 5.0 #lh.NUM_ACTIONS
+    prevAction[self.state.actionChosen] = 3.0 
 
     # Select features of visible regions and apply the sigmoid
+    # Apply a threshold before transforming features?
     visibleRegions = np.copy(self.db.scores[ self.state.selectedIds, :])
-    visibleRegions = tanh(visibleRegions)
+    #visibleRegions = tanh(visibleRegions) # (Greedy: not transformation required)
 
     # Pad zeros on features of void regions
+    ## WARNING: Use zeros when using sigmoid. Use minus one for tanh.
     if len(self.state.selectedIds) == 0:
-      visibleRegions = np.zeros( (lh.NUM_BOXES, self.db.scores.shape[1]) )
+      visibleRegions = -1*np.ones( (lh.NUM_BOXES, self.db.scores.shape[1]) )
     elif len(self.state.selectedIds) < lh.NUM_BOXES:
       blankAreas = lh.NUM_BOXES - len(self.state.selectedIds)
-      blanks = np.zeros( (blankAreas, visibleRegions.shape[1]) )
+      blanks = -1*np.ones( (blankAreas, visibleRegions.shape[1]) ) 
       visibleRegions = np.vstack( (visibleRegions, blanks) )
     visibleRegions = visibleRegions.reshape( (visibleRegions.shape[0]*visibleRegions.shape[1]) )
 
     # Concatenate all info in the state representation vector
-    #state = np.hstack( (visibleRegions, worldExplored, currentLocation, prevAction) )
-    state = np.hstack( (worldState, prevAction) )
+    state = np.hstack( (visibleRegions, worldState, prevAction) )
     return {'image':self.db.image, 'state':state}
      

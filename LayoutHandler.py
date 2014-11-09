@@ -73,7 +73,7 @@ class LayoutHandler():
     self.numBoxes = len(auxBoxes)
     self.boxesPerBin = float(self.numBoxes)/WORLD_SIZE
     self.actionCounter = 0
-    self.scale = SCALES/2
+    self.scale = SCALES/2 # (Greedy: Set to zero)
     self.horizontal = 0
     self.vertical = 0
     self.percentExplored = 0
@@ -92,7 +92,6 @@ class LayoutHandler():
     self.actionChosen = action[0]
     self.actionValue = action[1]
     self.actionCounter += 1
-    #if   self.actionChosen == EXPLORE_CURRENT_SCALE:     self.move( self.scale, 0, 0 )
     if self.actionChosen == EXPLORE_ONE_SCALE_UP:      self.move( max(self.scale-1, 0), self.horizontal, self.vertical )
     elif self.actionChosen == EXPLORE_ONE_SCALE_DOWN:  self.move( min(self.scale+1, SCALES-1), self.horizontal, self.vertical )
     elif self.actionChosen == EXPLORE_TWO_SCALES_UP:   self.move( max(self.scale-2, 0), self.horizontal, self.vertical )
@@ -126,7 +125,7 @@ class LayoutHandler():
     location = np.zeros( (SCALES + PLANE_SIZE) )
     location[self.scale] = 1.0
     location[SCALES:] = self.currentPosition[self.scale, ...].reshape( (PLANE_SIZE) )
-    return np.concatenate( (state, 5*location) )
+    return np.concatenate( (state, 3*location) )
 
   def isNewExploredCell(self):
     return self.status[self.scale, self.horizontal, self.vertical] <= NUM_BOXES

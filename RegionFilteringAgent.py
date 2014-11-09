@@ -6,6 +6,10 @@ import numpy as np
 import scipy.io
 import MemoryUsage
 
+import RLConfig as config
+
+NUM_ACTIONS = config.geti('outputActions')
+
 class RegionFilteringAgent():
 
   image = None
@@ -25,7 +29,7 @@ class RegionFilteringAgent():
 
   def integrateObservation(self, obs):
     if obs['image'] != self.image:
-      self.actionsH = [0 for i in range(13)]
+      self.actionsH = [0 for i in range(NUM_ACTIONS)]
       self.observation = np.zeros( (2,obs['state'].shape[0]), np.float32 )
       self.image = obs['image']
       self.timer = 0

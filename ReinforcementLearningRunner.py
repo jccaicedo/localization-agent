@@ -41,6 +41,7 @@ class ReinforcementLearningRunner():
 
   def train(self):
     interactions = config.geti('trainInteractions')
+    minEpsilon = config.getf('minTrainingEpsilon')
     epochSize = len(self.environment.db.images)/1
     epsilon = 1.0
     self.controller.setEpsilonGreedy(epsilon)
@@ -51,8 +52,8 @@ class ReinforcementLearningRunner():
     epoch = 1
     egEpochs = config.geti('epsilonGreedyEpochs')
     while epoch <= egEpochs:
-      epsilon = epsilon - 1.0/float(egEpochs) 
-      if epsilon < 0.5: epsilon = 0.5
+      epsilon = epsilon - (1.0-minEpsilon)/float(egEpochs) 
+      if epsilon < minEpsilon: epsilon = minEpsilon
       self.controller.setEpsilonGreedy(epsilon)
       print 'Epoch',epoch ,'(epsilon-greedy:{:5.3f})'.format(epsilon)
       self.runEpoch(interactions, epochSize)
@@ -66,7 +67,7 @@ class ReinforcementLearningRunner():
 
   def test(self):
     interactions = config.geti('testInteractions')
-    self.controller.setEpsilonGreedy(0.05)
+    self.controller.setEpsilonGreedy(config.getf('testEpsilon'))
     self.runEpoch(interactions, len(self.environment.db.images))
   
 if __name__ == "__main__":
@@ -81,7 +82,8 @@ if __name__ == "__main__":
   from QNetwork import QNetwork
   from QLearning import QLearning
   from RegionFilteringTask import RegionFilteringTask
-  from RegionFilteringAgent import RegionFilteringAgent
+  #from RegionFilteringAgent import RegionFilteringAgent
+  from RegionFilteringGreedyAgent import RegionFilteringGreedyAgent as RegionFilteringAgent
 
   ## Run Training and Testing
   rl = ReinforcementLearningRunner('train')

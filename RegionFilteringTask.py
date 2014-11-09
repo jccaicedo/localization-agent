@@ -29,9 +29,7 @@ class RegionFilteringTask(Task):
 
   def computeObjectReward(self, gt, state):
     if len(state) == 0:
-      # Visiting a region with no boxes
-      return -1.0
-    return 0.0 # Do not count boxes overlap
+      return 0.0
     iouScores = []
     for b in state:
       iou, idx = self.matchBoxes(b, gt)
@@ -39,20 +37,23 @@ class RegionFilteringTask(Task):
     goodBoxes = len([s for s in iouScores if s > self.minAcceptableIoU])
     maxIoU = max(iouScores)
     if goodBoxes > 0:
-      return 5.0
+      return 2.0
     elif maxIoU > 0.2:
       return 1.0
     else:
       return 0.0
 
   def computeNavigationReward(self, state):
+    # Visiting a region with no boxes
+    if len(state.selectedIds) == 0:
+      return -1.0
     navigationReward = 0.0
     # Visiting a region that has not been explored yet
     if state.isNewExploredCell():
-      navigationReward += 0.51
+      navigationReward += 0.60
     # Moving to a different position
     if self.prevPos[0] != state.scale or self.prevPos[1] != state.horizontal or self.prevPos[2] != state.vertical:
-      navigationReward += 0.52
+      navigationReward += 0.40
     self.prevPos = state.scale,state.horizontal,state.vertical
     return navigationReward
 
