@@ -42,7 +42,7 @@ class ReinforcementLearningRunner():
   def train(self):
     interactions = config.geti('trainInteractions')
     minEpsilon = config.getf('minTrainingEpsilon')
-    epochSize = len(self.environment.db.images)/1
+    epochSize = len(self.environment.db.images)/2
     epsilon = 1.0
     self.controller.setEpsilonGreedy(epsilon)
     print 'Epoch 0: Exploration'
