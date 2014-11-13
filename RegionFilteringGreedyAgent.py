@@ -104,7 +104,7 @@ class RegionFilteringGreedyAgent():
     self.reward = r
     self.avgReward = (self.avgReward*self.timer + r)/(self.timer + 1)
     self.actionsH[self.action] += 1
-    print 'Agent::MemoryRecord => image:',self.image,'time:',self.timer,'action:',self.action,'reward',self.reward,'avgReward:',self.avgReward
+    print 'GreedyAgent::MemoryRecord => image:',self.image,'time:',self.timer,'action:',self.action,'reward',self.reward,'avgReward:',self.avgReward
 
   def reset(self):
     print 'Agent::reset',self.actionsH,self.avgReward
