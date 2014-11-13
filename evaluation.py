@@ -112,7 +112,7 @@ def evaluateDetections(groundTruth,detections,minOverlap,outFile=None,overlapMea
     log.close()
   return {'log':logData,'fp':fp,'tp':tp}
 
-def computePrecisionRecall(numPositives,tp,fp,outFile):
+def computePrecisionRecall(numPositives,tp,fp,outFile=None):
   # Compute Precision/Recall
   numTP = sum(tp)
   numFP = sum(fp)
@@ -125,9 +125,10 @@ def computePrecisionRecall(numPositives,tp,fp,outFile):
   fp = cumsum(fp)
   recall = map(lambda x:x/float(totalPositives), tp)
   precision = [tp[i]/(tp[i]+fp[i]) for i in range(0,len(tp))]
-  output = open(outFile,"w")
-  for i in range(0,len(recall)):
-    output.write(str(recall[i])+" "+str(precision[i])+"\n")
+  if outFile != None:
+    output = open(outFile,"w")
+    for i in range(0,len(recall)):
+      output.write(str(recall[i])+" "+str(precision[i])+"\n")
   
   '''
   PASCAL VOC 2012 devkit
@@ -171,8 +172,10 @@ def computePrecisionRecall(numPositives,tp,fp,outFile):
   print 'AP2012:',AP2012
   print 'AP2007:',AP2007
   print 'MAX RECALL:',max(recall)
-  output.write('AP='+str(AP2007))
-  output.close()
+  if outFile != None:
+    output.write('AP='+str(AP2007))
+    output.close()
+  return AP2007, max(recall)
 
 def computePrecAt(tp,K):
   import numpy as np
