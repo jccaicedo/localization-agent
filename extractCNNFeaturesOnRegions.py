@@ -7,27 +7,25 @@ import time
 ##################################
 # Parameter checking
 #################################
-if len(sys.argv) < 3:
-  print 'Use: extractCNNFeatures.py bboxes imgsDir outputDir'
+if len(sys.argv) < 6:
+  print 'Use: extractCNNFeatures.py bboxes imgsDir modelFile pretrainedModel outputDir'
   sys.exit()
 
 bboxes  = [ (x,x.split()) for x in open(sys.argv[1])]
 imgsDir = sys.argv[2]
-outDir = sys.argv[3]
+MODEL_FILE = sys.argv[3]
+PRETRAINED = sys.argv[4]
+outDir = sys.argv[5]
 
 from caffe import wrapperv0
-#MODEL_FILE = '/u/sciteam/caicedor/models/imagenet_deploy.prototxt'
-MODEL_FILE = '/home/caicedo/workspace/rcnn/model-defs/rcnn_batch_256_output_fc7.old_format.prototxt' 
-#PRETRAINED = '/u/sciteam/caicedor/models/finetune_voc_2012_train_iter_70k'
-PRETRAINED = '/home/caicedo/workspace/rcnn/data/caffe_nets/finetune_voc_2012_train_iter_70k'
 
 IMG_DIM = 256
-CROP_SIZE = 227
+CROP_SIZE = 224
 CONTEXT_PAD = 16
 batch = 50
 
-#meanImage = '/u/sciteam/caicedor/scratch/caffe/python/caffe/imagenet/ilsvrc_2012_mean.npy'
-meanImage = '/home/caicedo/workspace/sync/caffe/python/caffe/imagenet/ilsvrc_2012_mean.npy'
+meanImage = '/u/sciteam/caicedor/scratch/caffe/python/caffe/imagenet/ilsvrc_2012_mean.npy'
+#meanImage = '/home/caicedo/workspace/sync/caffe/python/caffe/imagenet/ilsvrc_2012_mean.npy'
 net = wrapperv0.ImageNetClassifier(MODEL_FILE, PRETRAINED, IMAGE_DIM=IMG_DIM, CROPPED_DIM=CROP_SIZE, MEAN_IMAGE=meanImage)
 net.caffenet.set_mode_gpu()
 net.caffenet.set_phase_test()
@@ -94,7 +92,7 @@ startTime = tic()
 images = {}
 for s,box in bboxes:
   # Subtract 1 because RCNN proposals have 1-based indexes for Matlab
-  b = map(lambda x: int(x)-1,box[1:]) + [s.replace('\n','')]
+  b = map(lambda x: int(x)-1,box[1:]) + [s]
   #b = map(int,box[1:]) + [s]
   try:
     images[ box[0] ].append(b)
