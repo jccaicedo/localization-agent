@@ -94,7 +94,7 @@ startTime = tic()
 images = {}
 for s,box in bboxes:
   # Subtract 1 because RCNN proposals have 1-based indexes for Matlab
-  b = map(lambda x: int(x)-1,box[1:]) + [s.replace('\n','')]
+  b = map(lambda x: int(x)-1,box[1:]) + [s]
   #b = map(int,box[1:]) + [s]
   try:
     images[ box[0] ].append(b)

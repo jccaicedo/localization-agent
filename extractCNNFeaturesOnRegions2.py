@@ -1,13 +1,7 @@
 # https://github.com/UCB-ICSI-Vision-Group/decaf-release/wiki/imagenet
 import os, sys
-import Image
 from utils import tic, toc
 import numpy as np
-from skimage import io
-import threading
-import Queue
-from multiprocessing import Process, JoinableQueue
-from multiprocessing import Queue as ProcQueue
 import time
 
 ##################################
@@ -21,29 +15,21 @@ bboxes  = [ (x,x.split()) for x in open(sys.argv[1])]
 imgsDir = sys.argv[2]
 outFile = sys.argv[3]
 
-from caffe import imagenet
-#MODEL_FILE = '/u/sciteam/caicedor/models/imagenet_deploy.prototxt'
-MODEL_FILE = '/home/caicedo/workspace/caffe/examples/imagenet/alexnet_deploy.prototxt.200'
-#PRETRAINED = '/home/caicedo/software/rcnn-master/data/caffe_nets/finetune_voc_2012_train_iter_70k'
-PRETRAINED = '/home/caicedo/software/rcnn-master/data/caffe_nets/ilsvrc_2012_train_iter_310k.original'
+from caffe import wrapperv0
+MODEL_FILE = '/home/caicedo/workspace/rcnn/model-defs/rcnn_batch_256_output_fc7.old_format.prototxt'
+PRETRAINED = '/home/caicedo/workspace/rcnn/data/caffe_nets/finetune_voc_2012_train_iter_70k'
+
 IMG_DIM = 256
 CROP_SIZE = 227
-CONTEXT_PAD = 0
+CONTEXT_PAD = 16
+batch = 50
 
-meanImage = '/home/caicedo/workspace/caffe/python/caffe/imagenet/ilsvrc_2012_mean.npy'
-net = imagenet.ImageNetClassifier(MODEL_FILE, PRETRAINED, IMAGE_DIM=IMG_DIM, CROPPED_DIM=CROP_SIZE, MEAN_IMAGE=meanImage)
+meanImage = '/home/caicedo/workspace/sync/caffe/python/caffe/imagenet/ilsvrc_2012_mean.npy'
+net = wrapperv0.ImageNetClassifier(MODEL_FILE, PRETRAINED, IMAGE_DIM=IMG_DIM, CROPPED_DIM=CROP_SIZE, MEAN_IMAGE=meanImage)
 net.caffenet.set_phase_test()
 net.caffenet.set_mode_gpu()
 
 ImageNetMean = net._IMAGENET_MEAN.swapaxes(1, 2).swapaxes(0, 1).astype('float32')
-
-# From: https://github.com/zachrahan/scikits-image/blob/master/skimage/io/tests/test_freeimage.py?source=cc
-try:
-  import skimage.io._plugins.freeimage_plugin as fi
-  FI_available = True
-  io.use_plugin('freeimage')
-except RuntimeError:
-  FI_available = False
 
 ##################################
 # Functions
@@ -105,7 +91,9 @@ startTime = tic()
 
 images = {}
 for s,box in bboxes:
-  b = map(int,box[1:]) + [s]
+  # Subtract 1 because RCNN proposals have 1-based indexes for Matlab
+  b = map(lambda x: int(x)-1,box[1:]) + [s]
+  #b = map(int,box[1:]) + [s]
   try:
     images[ box[0] ].append(b)
   except:
@@ -117,9 +105,8 @@ lap = toc('Reading boxes file:',startTime)
 #################################
 totalItems = len(bboxes)
 del(bboxes)
-layers = {'fc6_neuron_cudanet_out': {'dim':4096,'idx':'fc6'}, 'fc7_neuron_cudanet_out': {'dim':4096,'idx':'fc7'}}
+layers = {'fc7': {'dim':4096,'idx':'fc7'}}
 
-batch = 50
 results = dict([ (l,np.zeros((0,layers[l]['dim']))) for l in layers.keys()])
   
 print 'Extracting features for',totalItems,'total images'
