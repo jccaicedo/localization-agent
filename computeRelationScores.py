@@ -8,7 +8,7 @@ import scipy.io
 # Parameter checking
 #################################
 if len(sys.argv) < 5:
-  print 'Use: extractCNNFeatures.py bboxes imgsDir rcnnModel outputFile'
+  print 'Use: computeRelationScores.py bboxes imgsDir rcnnModel outputFile'
   sys.exit()
 
 bboxes  = [ (x,x.split()) for x in open(sys.argv[1])]
@@ -27,10 +27,10 @@ MODEL_FILE = '/home/caicedo/workspace/rcnn/model-defs/rcnn_batch_256_output_fc7.
 PRETRAINED = '/home/caicedo/workspace/rcnn/data/caffe_nets/finetune_voc_2012_train_iter_70k'
 IMG_DIM = 256
 CROP_SIZE = 227
-CONTEXT_PAD = 0
+CONTEXT_PAD = 16
 batch = 50
 
-meanImage = '/home/caicedo/workspace/caffe/python/caffe/imagenet/ilsvrc_2012_mean.npy'
+meanImage = '/home/caicedo/workspace/sync/caffe/python/caffe/imagenet/ilsvrc_2012_mean.npy'
 net = wrapperv0.ImageNetClassifier(MODEL_FILE, PRETRAINED, IMAGE_DIM=IMG_DIM, CROPPED_DIM=CROP_SIZE, MEAN_IMAGE=meanImage)
 net.caffenet.set_mode_gpu()
 net.caffenet.set_phase_test()
@@ -65,7 +65,7 @@ def processImg(info, filename, batchSize, layers):
     s,f = k*batchSize,(k+1)*batchSize
     e = batchSize if f <= n else n-s
     # Forward this batch
-    net.caffenet.ForwardRegions(boxes[s:f],CONTEXT_PAD) #,filename)
+    net.caffenet.ForwardRegions(boxes[s:f],CONTEXT_PAD)
     outputs = net.caffenet.blobs
     f = n if f > n else f
     # Collect outputs
@@ -108,7 +108,7 @@ lap = toc('Reading boxes file:',startTime)
 #################################
 totalItems = len(bboxes)
 del(bboxes)
-layers = {'fc7': {'dim':4096,'idx':'fc7'}, 'pool5': {'dim':9216,'idx':'pool5'}}
+layers = {'fc7': {'dim':4096,'idx':'fc7'}}
 
 print 'Extracting features for',totalItems,'total images'
 indexFile = open(outFile,'w')
@@ -118,13 +118,13 @@ for name in images.keys():
   # Get window proposals
   feat = processImg(images[name], imgsDir+'/'+name+'.jpg', batch, layers)
   scores = np.dot(feat['fc7'], W) + B
-  print 'pool5',feat['pool5'].shape, np.sum(np.sum(feat['pool5']))
   print 'fc7',feat['fc7'].shape, np.sum(np.sum(feat['fc7']))
 
   # Write the index file
   for i in range(len(images[name])):
     indexFile.write(images[name][i][4] + ' ')
-    indexFile.write( ' '.join( map(str, scores[i,:].tolist() )) + '\n' )
+    #indexFile.write( ' '.join( map(str, scores[i,:].tolist() )) + '\n' )
+    indexFile.write(' '.join( map(str, feat['fc7'][i,:]) ) + '\n')
   
 indexFile.close()
 
