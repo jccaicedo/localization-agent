@@ -20,7 +20,7 @@ outDir = sys.argv[5]
 from caffe import wrapperv0
 
 IMG_DIM = 256
-CROP_SIZE = 224
+CROP_SIZE = 227
 CONTEXT_PAD = 16
 batch = 50
 
@@ -105,7 +105,8 @@ lap = toc('Reading boxes file:',startTime)
 #################################
 totalItems = len(bboxes)
 del(bboxes)
-layers = {'fc7': {'dim':4096,'idx':'fc7'}}
+#layers = {'fc7': {'dim':4096,'idx':'fc7'}}
+layers = {'prob': {'dim':21, 'idx':'prob'}}
 
 print 'Extracting features for',totalItems,'total images'
 for name in images.keys():

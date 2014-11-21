@@ -1,23 +1,23 @@
 # Training
-modelsOutput=/home/caicedo/data/rcnnPascal/models/
+modelsOutput=/u/sciteam/caicedor/scratch/relationsRCNN/models/
 # Test
-trainingList=/home/caicedo/data/cnnPatches/lists/2007/trainvalSet2007.txt
-testList=/home/caicedo/data/cnnPatches/lists/2007/testSet2007.txt
+trainingList=/u/sciteam/caicedor/cnnPatches/lists/2007/trainvalSet2007.txt
+testList=/u/sciteam/caicedor/cnnPatches/lists/2007/testSet2007.txt
 featuresExt=fc7
 NMSThresholdTest=0.3
 scoreThreshold="-10.0"
-resultsOutput=/home/caicedo/data/rcnnPascal/results
+resultsOutput=/u/sciteam/caicedor/scratch/relationsRCNN/results/
 # Evaluation
 
 cost=0.001
-expName=9ScalePatchesNoDups
+expName=RCNN
 overlap=0.3 # Given an arbitrary window, how much it is allowed to overlap with a ground truth box to still be considered negative
 modelType='linear' # latent | linear
 #for category in aeroplane bicycle bird boat bottle bus car cat chair cow diningtable dog horse motorbike person pottedplant sheep sofa train tvmonitor; do
 for category in aeroplane; do
-  posFeatures="/home/caicedo/data/relationsRCNN/python/features/tight/"$category"."$featuresExt
-  featuresDir="/home/caicedo/data/rcnnPascal/FineTunedFeatures07/"
-  testGroundTruth="/home/caicedo/data/cnnPatches/lists/2007/test/"$category"_test_bboxes.txt"
+  posFeatures="/u/sciteam/caicedor/scratch/relationsRCNN/features/tight/"$category"."$featuresExt
+  featuresDir="/u/sciteam/caicedor/scratch/relationsRCNN/voc2007feats/FineTunedFeatures07/"
+  testGroundTruth="/u/sciteam/caicedor/cnnPatches/lists/2007/test/"$category"_test_bboxes.txt"
 
   modelArgs="C:"$cost"!maxIters:10!"
 

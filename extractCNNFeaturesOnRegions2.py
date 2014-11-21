@@ -16,15 +16,15 @@ imgsDir = sys.argv[2]
 outFile = sys.argv[3]
 
 from caffe import wrapperv0
-MODEL_FILE = '/home/caicedo/workspace/rcnn/model-defs/rcnn_batch_256_output_fc7.old_format.prototxt'
-PRETRAINED = '/home/caicedo/workspace/rcnn/data/caffe_nets/finetune_voc_2012_train_iter_70k'
+MODEL_FILE = '/u/sciteam/caicedor/scratch/relationsRCNN/rcnnNetworkDefs/rcnn_batch_256_output_fc7.old_format.prototxt'
+PRETRAINED = '/u/sciteam/caicedor/scratch/relationsRCNN/rcnnNetworkDefs/finetune_voc_2012_train_iter_70k'
 
 IMG_DIM = 256
 CROP_SIZE = 227
 CONTEXT_PAD = 16
 batch = 50
 
-meanImage = '/home/caicedo/workspace/sync/caffe/python/caffe/imagenet/ilsvrc_2012_mean.npy'
+meanImage = '/u/sciteam/caicedor/scratch/caffe/python/caffe/imagenet/ilsvrc_2012_mean.npy'
 net = wrapperv0.ImageNetClassifier(MODEL_FILE, PRETRAINED, IMAGE_DIM=IMG_DIM, CROPPED_DIM=CROP_SIZE, MEAN_IMAGE=meanImage)
 net.caffenet.set_phase_test()
 net.caffenet.set_mode_gpu()
