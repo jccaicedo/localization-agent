@@ -7,7 +7,7 @@ import re
 import MemoryUsage
 
 floatType = np.float32
-topHards = 20000
+topHards = 5000
 randomSeed = 0
 tolerance = 1e-9
 random.seed( randomSeed )

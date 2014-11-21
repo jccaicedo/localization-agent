@@ -36,15 +36,6 @@ ImageNetMean = net._IMAGENET_MEAN.swapaxes(1, 2).swapaxes(0, 1).astype('float32'
 # Functions
 #################################
 
-def getWindow(img, box):
-  dx = int( float(box[2]-box[0])*0.10 )
-  dy = int( float(box[3]-box[1])*0.10 )
-  x1 = max(box[0]-dx,0)
-  x2 = min(box[2]+dx,img.shape[1])
-  y1 = max(box[1]-dy,0)
-  y2 = min(box[3]+dy,img.shape[0])
-  return img[ y1:y2, x1:x2, : ]
-
 def processImg(info, filename, idx, batchSize, layers, output):
   startTime = tic()
   allFeat = {}

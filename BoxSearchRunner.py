@@ -42,7 +42,7 @@ class BoxSearchRunner():
   def train(self):
     interactions = config.geti('trainInteractions')
     minEpsilon = config.getf('minTrainingEpsilon')
-    epochSize = len(self.environment.imageList)/2
+    epochSize = len(self.environment.imageList)/10
     epsilon = 1.0
     self.controller.setEpsilonGreedy(epsilon)
     print 'Epoch 0: Exploration'

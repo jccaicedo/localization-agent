@@ -27,7 +27,7 @@ for category in aeroplane; do
   modelArgs="C:"$cost"!components:"$components"!maxIters:10!"
   iterations=2
 
-  for operation in big tight inside ; do
+  for operation in big inside ; do
     overlap=${OVERLAPS[$operation]}
     posFeatures="/home/caicedo/data/rcnn/regionSearchCategories6/"$operation"/"$category"."$featuresExt
     ## Training

@@ -5,6 +5,7 @@ from pybrain.rl.environments.environment import Environment
 from RelationsDB import RelationsDB, CompactRelationsDB
 
 import BoxSearchState as bs
+import ConvNet as cn
 
 import random
 import numpy as np
@@ -24,7 +25,7 @@ class BoxSearchEnvironment(Environment, Named):
 
   def __init__(self, imageList, mode):
     self.mode = mode
-    self.cnn = None
+    self.cnn = cn.ConvNet()
     self.testRecord = None
     self.idx = -1
     self.imageList = [x.strip() for x in open(imageList)]
@@ -44,10 +45,11 @@ class BoxSearchEnvironment(Environment, Named):
     self.idx += 1
     if self.idx < len(self.imageList):
       # Initialize state
+      self.cnn.prepareImage(self.imageList[self.idx])
       self.state = bs.BoxSearchState(self.imageList[self.idx])
-      print 'Environment::LoadNextEpisode => Image',self.imageList[self.idx],'('+str(self.state.visibleImage.size[0])+','+str(self.state.visibleImage.size[1])+')'
+      print 'Environment::LoadNextEpisode => Image',self.idx,self.imageList[self.idx],'('+str(self.state.visibleImage.size[0])+','+str(self.state.visibleImage.size[1])+')'
     else:
-      if self.mode == 'training':
+      if self.mode == 'train':
         random.shuffle(self.imageList)
         self.idx = -1
         self.loadNextEpisode()
@@ -55,7 +57,7 @@ class BoxSearchEnvironment(Environment, Named):
         print 'No more images available'
     # Restart record for new episode
     if self.mode == 'test':
-      self.testRecord = {'boxes':[], 'actions':[], 'values':[], 'rewards':[]}
+      self.testRecord = {'boxes':[], 'actions':[], 'values':[], 'rewards':[], 'scores':[]}
 
   def updatePostReward(self, reward):
     if self.mode == 'test':
@@ -63,6 +65,7 @@ class BoxSearchEnvironment(Environment, Named):
       self.testRecord['actions'].append( self.state.actionChosen )
       self.testRecord['values'].append( self.state.actionValue )
       self.testRecord['rewards'].append( reward )
+      self.testRecord['scores'].append( self.scores[:] )
 
   def getSensors(self):
     # Create arrays to represent the state of the world
@@ -74,9 +77,10 @@ class BoxSearchEnvironment(Environment, Named):
     prevAction[self.state.actionChosen] = 1.0 
 
     # Compute features of visible region and apply the sigmoid
-    visibleRegion = np.zeros( (bs.NUM_ACTIONS) )
+    visibleRegion = self.cnn.getActivations(self.state.box)
 
     # Concatenate all info in the state representation vector
     state = np.hstack( (visibleRegion, worldState, prevAction) )
+    self.scores = visibleRegion.tolist()
     return {'image':self.imageList[self.idx], 'state':state}
      
