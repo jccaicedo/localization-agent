@@ -5,6 +5,7 @@ import utils as cu
 import libDetection as det
 import numpy as np
 import Image
+import random
 
 import RLConfig as config
 
@@ -33,15 +34,23 @@ def fingerprint(b):
 
 class BoxSearchState():
 
-  def __init__(self, imageName):
+  def __init__(self, imageName, randomStart=False):
     self.imageName = imageName
     self.visibleImage = Image.open(config.get('imageDir') + '/' + self.imageName + '.jpg')
-    self.box = map(float, [0,0,self.visibleImage.size[0]-1,self.visibleImage.size[1]-1])
-    self.boxW = self.box[2]+1.0
-    self.boxH = self.box[3]+1.0
-    self.aspectRatio = self.boxH/self.boxW
-    self.x_coord = 0
-    self.y_coord = 0
+    if not randomStart:
+      self.box = map(float, [0,0,self.visibleImage.size[0]-1,self.visibleImage.size[1]-1])
+      self.boxW = self.box[2]+1.0
+      self.boxH = self.box[3]+1.0
+      self.aspectRatio = self.boxH/self.boxW
+    else:
+      a = random.randint(MIN_BOX_SIDE, self.visibleImage.size[0] - MIN_BOX_SIDE)
+      b = random.randint(MIN_BOX_SIDE, self.visibleImage.size[1] - MIN_BOX_SIDE)
+      c = random.randint(MIN_BOX_SIDE, min(self.visibleImage.size[0] - a, a) )
+      d = random.randint(MIN_BOX_SIDE, min(self.visibleImage.size[1] - b, b) )
+      self.box = map(float, [a-c, b-d, a+c, b+d] )
+      self.boxW = 2.0*c
+      self.boxH = 2.0*d
+      self.aspectRatio = self.boxH/self.boxW
     self.trajectoryIndex = {}
     self.actionChosen = 2
     self.actionValue = 0
@@ -254,6 +263,7 @@ class BoxSearchState():
       except: f = 0.0
       flags[i] = f
     r += flags
+    # Total state features: 17
     return r
 
   def visitedBefore(self):

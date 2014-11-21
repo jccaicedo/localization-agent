@@ -7,6 +7,16 @@ import json
 import scipy.io
 import numpy as np
 
+def categoryIndex(type):
+  categories, categoryIndex = [],[]
+  if type == 'pascal':
+    categories, categoryIndex = get20Categories()
+  elif type == 'relations':
+    categories, categoryIndex = getCategories()
+  elif type == 'finetunedRelations':
+    categories, categoryIndex = getRelationCategories()
+  return categories, categoryIndex
+
 def getCategories():
   categories = 'aeroplane bicycle bird boat bottle bus car cat chair cow diningtable dog horse motorbike person pottedplant sheep sofa train tvmonitor'.split()
   relations = [c + '_boxes' for c in categories] + [c + '_big' for c in categories] + [c + '_inside' for c in categories]
@@ -16,7 +26,13 @@ def getCategories():
 
 def get20Categories():
   categories = 'background aeroplane bicycle bird boat bottle bus car cat chair cow diningtable dog horse motorbike person pottedplant sheep sofa train tvmonitor'.split()
-  categoryIndex = [ i for i in range(len(categories)) ]
+  categoryIndex = [ i for i in range(1,len(categories)) ]
+  return categories, categoryIndex
+
+def getRelationCategories():
+  categories = 'background aeroplane bicycle bird boat bottle bus car cat chair cow diningtable dog horse motorbike person pottedplant sheep sofa train tvmonitor'.split()
+  relations = categories + [categories[i+1]+'_big' for i in range(len(categories)-1)] + [categories[i+1]+'_inside' for i in range(len(categories)-1)]
+  cateogryIndex = [ i for i in range(1,len(categories)) ]
   return categories, categoryIndex
 
 def loadScores(memDir, categoryIndex):
@@ -88,6 +104,8 @@ if __name__ == "__main__":
     categories, categoryIndex = get20Categories()
   elif params['categoryIndex'] == 'relations':
     categories, categoryIndex = getCategories()
+  elif params['categoryIndex'] == 'finetunedRelations':
+    categories, categoryIndex = getRelationCategories()
   scoredDetections, maxTime = loadScores(params['testMemDir'], categoryIndex)
   
   P = np.zeros( (maxTime, len(categories)) )

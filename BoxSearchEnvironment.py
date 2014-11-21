@@ -46,7 +46,7 @@ class BoxSearchEnvironment(Environment, Named):
     if self.idx < len(self.imageList):
       # Initialize state
       self.cnn.prepareImage(self.imageList[self.idx])
-      self.state = bs.BoxSearchState(self.imageList[self.idx])
+      self.state = bs.BoxSearchState(self.imageList[self.idx], self.mode == 'train')
       print 'Environment::LoadNextEpisode => Image',self.idx,self.imageList[self.idx],'('+str(self.state.visibleImage.size[0])+','+str(self.state.visibleImage.size[1])+')'
     else:
       if self.mode == 'train':
@@ -68,11 +68,11 @@ class BoxSearchEnvironment(Environment, Named):
       self.testRecord['scores'].append( self.scores[:] )
 
   def getSensors(self):
-    # Create arrays to represent the state of the world
+    # Create arrays to represent the state of the world (17 features)
     worldState = self.state.getRepresentation()
     worldState = np.array( worldState )
 
-    # Make a vector represenation of the action that brought the agent to this state
+    # Make a vector represenation of the action that brought the agent to this state (8 features)
     prevAction = np.zeros( (bs.NUM_ACTIONS) )
     prevAction[self.state.actionChosen] = 1.0 
 
