@@ -33,7 +33,7 @@ class BoxSearchTask(Task):
         return iou
       else:
         # IoU is not improving. We could give negative rewards to repell the agent from this position
-        return -0.1
+        return 0.0
     else:
       return 0.0
       

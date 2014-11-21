@@ -233,13 +233,13 @@ class BoxSearchState():
     return box
 
   def getRepresentation(self):
-    # Normalized box coordinates
+    # Normalized box coordinates (4)
     r = [self.box[0]/self.boxW, self.box[1]/self.boxH, self.box[2]/self.boxW, self.box[3]/self.boxH]
-    # Center coordinates and normalized with and height
+    # Center coordinates and normalized with and height (4)
     r += [ (r[2]-r[0])/2.0, (r[3]-r[1])/2.0, self.boxW/self.visibleImage.size[0], self.boxH/self.visibleImage.size[1] ]
-    # Aspect ratio
+    # Aspect ratio (1)
     r += [ self.boxH/self.boxW ]
-    # Proximity flags
+    # Proximity flags (8)
     flags = []
     flags.append( fingerprint( self.xCoordUp() ) )
     flags.append( fingerprint( self.yCoordUp() ) )
