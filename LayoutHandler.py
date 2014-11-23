@@ -73,7 +73,7 @@ class LayoutHandler():
     self.numBoxes = len(auxBoxes)
     self.boxesPerBin = float(self.numBoxes)/WORLD_SIZE
     self.actionCounter = 0
-    self.scale = SCALES/2 # (Greedy: Set to zero)
+    self.scale = 0 #SCALES/2 # (Greedy: Set to zero)
     self.horizontal = 0
     self.vertical = 0
     self.percentExplored = 0

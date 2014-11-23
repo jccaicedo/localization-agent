@@ -82,12 +82,12 @@ if __name__ == "__main__":
   from QNetwork import QNetwork
   from QLearning import QLearning
   from RegionFilteringTask import RegionFilteringTask
-  from RegionFilteringAgent import RegionFilteringAgent
-  #from RegionFilteringGreedyAgent import RegionFilteringGreedyAgent as RegionFilteringAgent
+  #from RegionFilteringAgent import RegionFilteringAgent
+  from RegionFilteringGreedyAgent import RegionFilteringGreedyAgent as RegionFilteringAgent
 
   ## Run Training and Testing
-  rl = ReinforcementLearningRunner('train')
-  rl.run()
+  #rl = ReinforcementLearningRunner('train')
+  #rl.run()
   rl = ReinforcementLearningRunner('test')
   rl.run()
 

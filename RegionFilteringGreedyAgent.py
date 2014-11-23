@@ -10,6 +10,13 @@ import SimplifiedLayoutHandler as lh
 
 THRESHOLD = -0.5
 
+def getCategories():
+  categories = 'aeroplane bicycle bird boat bottle bus car cat chair cow diningtable dog horse motorbike person pottedplant sheep sofa train tvmonitor'.split()
+  relations = [c + '_boxes' for c in categories] + [c + '_big' for c in categories] + [c + '_inside' for c in categories]
+  relations.sort()
+  categoryIndex = [ i for i in range(len(relations)) if relations[i].find('_boxes') != -1 ]
+  return categories, categoryIndex
+
 class RegionFilteringGreedyAgent():
 
   image = None
@@ -24,6 +31,7 @@ class RegionFilteringGreedyAgent():
     self.location = 0
     self.prevAction = 0
     self.action = None
+    categories, self.categoryIndex = getCategories()
 
   def startReplayMemory(self, memoryImages, recordsPerImage, recordSize):
     pass
@@ -53,10 +61,11 @@ class RegionFilteringGreedyAgent():
     scale = np.argmax(self.observation[189:199])
     location = np.argmax(self.observation[199:208])
     A = self.observation[0:180]
-    detectorsResponse = [A[1], A[61], A[121]]
+    #detectorsResponse = [A[1], A[61], A[121]]
+    detectorsResponse = A[self.categoryIndex]
     # Select action using predefined rules
     #print 'FEATURES',detectorsResponse
-    print scale,location
+    print scale,location,np.max(detectorsResponse)
     if np.max(detectorsResponse) > THRESHOLD:
       # Explore cell further if response above threshold
       self.action = lh.STAY

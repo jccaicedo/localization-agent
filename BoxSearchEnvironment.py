@@ -2,7 +2,6 @@ __author__ = "Juan C. Caicedo, caicedo@illinois.edu"
 
 from pybrain.utilities import Named
 from pybrain.rl.environments.environment import Environment
-from RelationsDB import RelationsDB, CompactRelationsDB
 
 import BoxSearchState as bs
 import ConvNet as cn
@@ -23,7 +22,7 @@ def tanh(x, a=0.75, b=0.25):
 
 class BoxSearchEnvironment(Environment, Named):
 
-  def __init__(self, imageList, mode):
+  def __init__(self, imageList, mode, groundTruth=None):
     self.mode = mode
     self.cnn = cn.ConvNet()
     self.testRecord = None

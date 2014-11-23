@@ -11,7 +11,7 @@ class BoxSearchRunner():
   def __init__(self, mode):
     self.mode = mode
     cu.mem('Reinforcement Learning Started')
-    self.environment = BoxSearchEnvironment(config.get(mode+'Database'), mode)
+    self.environment = BoxSearchEnvironment(config.get(mode+'Database'), mode, config.get(mode+'GroundTruth'))
     self.controller = QNetwork()
     cu.mem('QNetwork controller created')
     self.learner = None
