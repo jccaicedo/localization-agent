@@ -1,12 +1,12 @@
 # Training
-modelsOutput=/u/sciteam/caicedor/scratch/relationsRCNN/models/
+modelsOutput=/home/caicedo/data/rcnnPascal/models/
 # Test
-trainingList=/u/sciteam/caicedor/cnnPatches/lists/2007/trainvalSet2007.txt
-testList=/u/sciteam/caicedor/cnnPatches/lists/2007/testSet2007.txt
+trainingList=/home/caicedo/data/cnnPatches/lists/2007/trainvalSet2007.txt
+testList=/home/caicedo/data/cnnPatches/lists/2007/testSet2007.txt
 featuresExt=fc7
 NMSThresholdTest=0.3
 scoreThreshold="-10.0"
-resultsOutput=/u/sciteam/caicedor/scratch/relationsRCNN/results/
+resultsOutput=/home/caicedo/data/rcnnPascal/results/
 # Evaluation
 
 cost=0.001
@@ -15,9 +15,9 @@ overlap=0.3 # Given an arbitrary window, how much it is allowed to overlap with 
 modelType='linear' # latent | linear
 #for category in aeroplane bicycle bird boat bottle bus car cat chair cow diningtable dog horse motorbike person pottedplant sheep sofa train tvmonitor; do
 for category in aeroplane; do
-  posFeatures="/u/sciteam/caicedor/scratch/relationsRCNN/features/tight/"$category"."$featuresExt
-  featuresDir="/u/sciteam/caicedor/scratch/relationsRCNN/voc2007feats/FineTunedFeatures07/"
-  testGroundTruth="/u/sciteam/caicedor/cnnPatches/lists/2007/test/"$category"_test_bboxes.txt"
+  posFeatures="/home/caicedo/data/relationsRCNN/python/features/tight/"$category"."$featuresExt
+  featuresDir="/home/caicedo/data/rcnnPascal/FineTunedFeatures07/"
+  testGroundTruth="/home/caicedo/data/cnnPatches/lists/2007/test/"$category"_test_bboxes.txt"
 
   modelArgs="C:"$cost"!maxIters:10!"
 
@@ -28,7 +28,7 @@ for category in aeroplane; do
 
   ## Detections in Test Set
   resultsFile=$resultsOutput"/"$category"_"$cost"_"$expName"_"$overlap"_"$iterations".out"
-  time python detector.py $modelType $modelFile"."$iterations $testList $featuresDir $featuresExt $NMSThresholdTest $scoreThreshold $resultsFile
+  #time python detector.py $modelType $modelFile"."$iterations $testList $featuresDir $featuresExt $NMSThresholdTest $scoreThreshold $resultsFile
   python evaluation.py 0.5 $testGroundTruth $resultsFile $resultsFile".result"
 
   #python evaluation.py OV0.5 $testGroundTruth $resultsFile $resultsFile".result"

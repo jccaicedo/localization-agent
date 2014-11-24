@@ -8,35 +8,35 @@ import scipy.io
 import numpy as np
 
 def categoryIndex(type):
-  categories, categoryIndex = [],[]
+  categories, catIndex = [],[]
   if type == 'pascal':
-    categories, categoryIndex = get20Categories()
+    categories, catIndex = get20Categories()
   elif type == 'relations':
-    categories, categoryIndex = getCategories()
+    categories, catIndex = getCategories()
   elif type == 'finetunedRelations':
-    categories, categoryIndex = getRelationCategories()
-  return categories, categoryIndex
+    categories, catIndex = getRelationCategories()
+  return categories, catIndex
 
 def getCategories():
   categories = 'aeroplane bicycle bird boat bottle bus car cat chair cow diningtable dog horse motorbike person pottedplant sheep sofa train tvmonitor'.split()
   relations = [c + '_boxes' for c in categories] + [c + '_big' for c in categories] + [c + '_inside' for c in categories]
   relations.sort()
-  categoryIndex = [ i for i in range(len(relations)) if relations[i].find('_boxes') != -1 ]
-  return categories, categoryIndex
+  catIndex = [ i for i in range(len(relations)) if relations[i].find('_boxes') != -1 ]
+  return categories, catIndex
 
 def get20Categories():
   categories = 'background aeroplane bicycle bird boat bottle bus car cat chair cow diningtable dog horse motorbike person pottedplant sheep sofa train tvmonitor'.split()
-  categoryIndex = [ i for i in range(1,len(categories)) ]
-  return categories, categoryIndex
+  catIndex = [ i for i in range(1,len(categories)) ]
+  return categories, catIndex
 
 def getRelationCategories():
   categories = 'background aeroplane bicycle bird boat bottle bus car cat chair cow diningtable dog horse motorbike person pottedplant sheep sofa train tvmonitor'.split()
   relations = categories + [categories[i+1]+'_big' for i in range(len(categories)-1)] + [categories[i+1]+'_inside' for i in range(len(categories)-1)]
-  cateogryIndex = [ i for i in range(1,len(categories)) ]
-  return categories, categoryIndex
+  catIndex = [ i for i in range(1,len(categories)) ]
+  return categories, catIndex
 
-def loadScores(memDir, categoryIndex):
-  print categoryIndex
+def loadScores(memDir, catIndex):
+  print catIndex
   totalNumberOfBoxes = 0
   sumOfPercentBoxesUsed = 0
   totalImages = 0
@@ -50,7 +50,7 @@ def loadScores(memDir, categoryIndex):
     time = []
     t = 0
     for i in range(len(data['boxes'])):
-      scores.append( [data['scores'][i][j] for j in categoryIndex ] )
+      scores.append( [data['scores'][i][j] for j in catIndex ] )
       boxes.append( data['boxes'][i] )
       time.append( t )
       t += 1
@@ -99,14 +99,14 @@ def saveTimeResults(categories, results, outputFile):
     out.write(' '.join(map(str,r)) + '\n')
 
 if __name__ == "__main__":
-  params = cu.loadParams('testMemDir groundTruthDir outputDir category categoryIndex')
-  if params['categoryIndex'] == 'pascal':
-    categories, categoryIndex = get20Categories()
-  elif params['categoryIndex'] == 'relations':
-    categories, categoryIndex = getCategories()
-  elif params['categoryIndex'] == 'finetunedRelations':
-    categories, categoryIndex = getRelationCategories()
-  scoredDetections, maxTime = loadScores(params['testMemDir'], categoryIndex)
+  params = cu.loadParams('testMemDir groundTruthDir outputDir category catIndex')
+  if params['catIndex'] == 'pascal':
+    categories, catIndex = get20Categories()
+  elif params['catIndex'] == 'relations':
+    categories, catIndex = getCategories()
+  elif params['catIndex'] == 'finetunedRelations':
+    categories, catIndex = getRelationCategories()
+  scoredDetections, maxTime = loadScores(params['testMemDir'], catIndex)
   
   P = np.zeros( (maxTime, len(categories)) )
   R = np.zeros( (maxTime, len(categories)) )

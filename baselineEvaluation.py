@@ -41,11 +41,28 @@ class BigestToSmallestArea():
   def run(self, img, features, bboxes):
     boxSet = bboxes
     areas = [det.area(b) for b in boxSet]
-    rank = np.argsort(areas)
+    rank = np.argsort(areas)[::-1]
     rankedBoxes = [boxSet[i].tolist() for i in rank[0:self.maxTime]]
     scores = [features[i,self.categoryIndex].tolist() for i in rank[0:maxTime]]
     return (img, rankedBoxes, scores, range(len(rankedBoxes)))
 
+class Objectness():
+  def __init__(self, maxTime, categoryIndex):
+    self.maxTime = maxTime
+    self.categoryIndex = categoryIndex
+
+  def run(self, img, features, bboxes):
+    fp = lambda x: '_'.join(map(str,map(int,x)))
+    boxIndex = dict([ (fp(bboxes[i]),i) for i in range(len(bboxes)) ])
+    data = scipy.io.loadmat('/home/caicedo/data/relationsRCNN/objectness/'+img+'.mat')
+    boxSet = [data['R'][i,0:4].tolist() for i in range(data['R'].shape[0]) ]
+    objectness = [data['R'][i,4] for i in range(data['R'].shape[0])]
+    rank = np.argsort(objectness)[::-1]
+    rankedBoxes = [boxSet[i] for i in rank[0:self.maxTime]]
+    scoresIndex = [ boxIndex[k] for k in map(fp, rankedBoxes) ]
+    scores = [features[i,self.categoryIndex].tolist() for i in scoresIndex]
+    return (img, rankedBoxes, scores, range(len(rankedBoxes)))
+    
 def loadDetections(imageList, featuresDir, ranking):
   totalNumberOfBoxes = 0
   sumOfPercentBoxesUsed = 0
@@ -107,7 +124,8 @@ if __name__ == "__main__":
   step = 3
   categories, categoryIndex = getCategories()
   #ranking = CenterToEdgesDetector(maxTime, categoryIndex)
-  ranking = BigestToSmallestArea(maxTime, categoryIndex)
+  #ranking = BigestToSmallestArea(maxTime, categoryIndex)
+  ranking = Objectness(maxTime, categoryIndex)
   scoredDetections = loadDetections(images, params['relationFeaturesDir'], ranking)
   
   P = np.zeros( (maxTime/step, len(categories)) )

@@ -9,6 +9,8 @@ from caffe import wrapperv0
 
 import RLConfig as config
 
+LAYER = 'fc6'
+
 class ConvNet():
 
   def __init__(self):
@@ -37,5 +39,5 @@ class ConvNet():
     boxes = [map(int,box)]
     self.net.caffenet.ForwardRegions(boxes, self.contextPad)
     outputs =  self.net.caffenet.blobs
-    return outputs['prob'].data.squeeze() #.reshape([0,21])
+    return outputs[LAYER].data.squeeze() #.reshape([0,21])
 

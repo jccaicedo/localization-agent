@@ -9,6 +9,8 @@ import MemoryUsage
 import RLConfig as config
 
 NUM_ACTIONS = config.geti('outputActions')
+TIME_WINDOW = 1
+HISTORY_FACTOR = 2
 
 class BoxSearchAgent():
 
@@ -30,13 +32,12 @@ class BoxSearchAgent():
   def integrateObservation(self, obs):
     if obs['image'] != self.image:
       self.actionsH = [0 for i in range(NUM_ACTIONS)]
-      self.observation = np.zeros( (2,obs['state'].shape[0]), np.float32 )
+      self.observation = np.zeros( (TIME_WINDOW,obs['state'].shape[0]), np.float32 )
       self.image = obs['image']
       self.timer = 0
       self.avgReward = 0.0
-      if self.replayMemory != None:
-        self.replayMemory.clear(self.image)
-    self.observation[1,:] = self.observation[0,:]
+    for t in range(TIME_WINDOW-1):
+      self.observation[t+1,:] = self.observation[t,:]
     self.observation[0,:] = obs['state']
     self.action = None
     self.reward = None
@@ -59,7 +60,7 @@ class BoxSearchAgent():
     assert self.reward == None
 
     self.reward = r
-    self.avgReward = (self.avgReward*self.timer + r)/(self.timer + 1)
+    self.avgReward = (self.avgReward*(self.timer-1) + r)/(self.timer)
     if self.replayMemory != None:
       obs = self.observation.reshape( (self.observation.shape[0]*self.observation.shape[1]))
       self.replayMemory.add(self.image, self.timer, self.action, obs, self.reward)
@@ -82,38 +83,23 @@ class BoxSearchAgent():
 class ReplayMemory():
 
   def __init__(self, numImages, recordsPerImage, recordSize):
-    self.O = np.zeros( (numImages*recordsPerImage, recordSize), np.float32 )
-    self.A = np.zeros( (numImages*recordsPerImage, 1), np.int )
-    self.R = np.zeros( (numImages*recordsPerImage, 1), np.float32 )
-    self.numImages = numImages
+    self.O = np.zeros( (HISTORY_FACTOR*numImages*recordsPerImage, recordSize), np.float32 )
+    self.A = np.zeros( (HISTORY_FACTOR*numImages*recordsPerImage, 1), np.int )
+    self.R = np.zeros( (HISTORY_FACTOR*numImages*recordsPerImage, 1), np.float32 )
     self.recordsPerImage = recordsPerImage
-    self.index = {}
-    self.pointer = 0
+    self.pointer = -1
+    self.usableRecords = 0
 
   def add(self, img, time, action, observation, reward):
-    try: 
-      key = self.index[img]
-    except: 
-      if self.pointer < self.O.shape[0]:
-        self.index[img] = self.pointer
-        self.pointer += self.recordsPerImage
-        key = self.index[img]
-      else:
-        print 'Error: More images than expected!!'
-    r = key + time - 1
-    self.A[r,0] = action
-    self.O[r,:] = observation
-    self.R[r,0] = reward
+    if self.pointer < self.O.shape[0]-1:
+      self.pointer += 1
+    else:
+      self.pointer = 0
 
-  def clear(self, img):
-    try:
-      key = self.index[img]
-    except:
-      key = -1
-    if key > 0:
-      s = key
-      e = key + self.recordsPerImage
-      self.A[s:e,0] = 0
-      self.O[s:e,:] = 0
-      self.R[s:e,:] = 0
+    self.A[self.pointer,0] = action
+    self.O[self.pointer,:] = observation
+    self.R[self.pointer,0] = reward
+
+    if self.usableRecords < self.O.shape[0]:
+      self.usableRecords += 1
 

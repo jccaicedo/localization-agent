@@ -18,16 +18,17 @@ X_COORD_DOWN       = 4
 Y_COORD_DOWN       = 5
 SCALE_DOWN         = 6
 ASPECT_RATIO_DOWN  = 7
+PLACE_LANDMARK     = 8
 
 # BOX LIMITS
 MIN_ASPECT_RATIO = 0.20
 MAX_ASPECT_RATIO = 5.00
-MIN_BOX_SIDE     = 40
-STEP_PIXELS      = 15
+MIN_BOX_SIDE     = 20
+STEP_FACTOR      = 0.10
 DELTA_SIZE       = 0.10
 
 # OTHER DEFINITIONS
-NUM_ACTIONS = 8
+NUM_ACTIONS = 9
 
 def fingerprint(b):
   return '_'.join( map(str, map(int, b)) )
@@ -51,13 +52,14 @@ class BoxSearchState():
       self.boxW = 2.0*c
       self.boxH = 2.0*d
       self.aspectRatio = self.boxH/self.boxW
-    self.trajectoryIndex = {}
+    self.landmarkIndex = {}
     self.actionChosen = 2
     self.actionValue = 0
 
   def performAction(self, action):
     self.actionChosen = action[0]
     self.actionValue = action[1]
+
     if action[0] == X_COORD_UP:           newBox = self.xCoordUp()
     elif action[0] == Y_COORD_UP:         newBox = self.yCoordUp()
     elif action[0] == SCALE_UP:           newBox = self.scaleUp()
@@ -66,20 +68,20 @@ class BoxSearchState():
     elif action[0] == Y_COORD_DOWN:       newBox = self.yCoordDown()
     elif action[0] == SCALE_DOWN:         newBox = self.scaleDown()
     elif action[0] == ASPECT_RATIO_DOWN:  newBox = self.aspectRatioDown()
+    elif action[0] == PLACE_LANDMARK:     newBox = self.placeLandmark()
 
-    self.trajectoryIndex[ fingerprint(self.box) ] = 1.0
     self.box = newBox
-
     self.boxW = self.box[2] - self.box[0]
     self.boxH = self.box[3] - self.box[1]
     return self.box
 
   def xCoordUp(self):
     newBox = self.box[:]
+    step = STEP_FACTOR*self.boxW
     # This action preserves box width and height
-    if self.box[0] + STEP_PIXELS + self.boxW < self.visibleImage.size[0]:
-      newBox[0] += STEP_PIXELS
-      newBox[2] += STEP_PIXELS
+    if self.box[0] + step + self.boxW < self.visibleImage.size[0]:
+      newBox[0] += step
+      newBox[2] += step
     else:
       newBox[0] = self.visibleImage.size[0] - self.boxW - 1
       newBox[2] = self.visibleImage.size[0] - 1
@@ -87,10 +89,11 @@ class BoxSearchState():
 
   def yCoordUp(self):
     newBox = self.box[:]
+    step = STEP_FACTOR*self.boxH
     # This action preserves box width and height
-    if self.box[1] + STEP_PIXELS + self.boxH < self.visibleImage.size[1]:
-      newBox[1] += STEP_PIXELS
-      newBox[3] += STEP_PIXELS
+    if self.box[1] + step + self.boxH < self.visibleImage.size[1]:
+      newBox[1] += step
+      newBox[3] += step
     else:
       newBox[1] = self.visibleImage.size[1] - self.boxH - 1
       newBox[3] = self.visibleImage.size[1] - 1
@@ -140,10 +143,11 @@ class BoxSearchState():
 
   def xCoordDown(self):
     newBox = self.box[:]
+    step = STEP_FACTOR*self.boxW
     # This action preserves box width and height
-    if self.box[0] - STEP_PIXELS >= 0:
-      newBox[0] -= STEP_PIXELS
-      newBox[2] -= STEP_PIXELS
+    if self.box[0] - step >= 0:
+      newBox[0] -= step
+      newBox[2] -= step
     else:
       newBox[0] = 0
       newBox[2] = self.boxW
@@ -151,10 +155,11 @@ class BoxSearchState():
 
   def yCoordDown(self):
     newBox = self.box[:]
+    step = STEP_FACTOR*self.boxH
     # This action preserves box width and height
-    if self.box[1] - STEP_PIXELS >= 0:
-      newBox[1] -= STEP_PIXELS
-      newBox[3] -= STEP_PIXELS
+    if self.box[1] - step >= 0:
+      newBox[1] -= step
+      newBox[3] -= step
     else:
       newBox[1] = 0
       newBox[3] = self.boxH
@@ -241,34 +246,31 @@ class BoxSearchState():
         box[3] = self.visibleImage.size[1] - 1
     return box
 
+  def placeLandmark(self):
+    self.landmarkIndex[ fingerprint(self.box) ] = self.box[:]
+    return self.box
+
   def getRepresentation(self):
     # Normalized box coordinates (4)
-    r = [self.box[0]/self.boxW, self.box[1]/self.boxH, self.box[2]/self.boxW, self.box[3]/self.boxH]
+    #r = [self.box[0]/self.boxW, self.box[1]/self.boxH, self.box[2]/self.boxW, self.box[3]/self.boxH]
     # Center coordinates and normalized with and height (4)
-    r += [ (r[2]-r[0])/2.0, (r[3]-r[1])/2.0, self.boxW/self.visibleImage.size[0], self.boxH/self.visibleImage.size[1] ]
+    #r += [ (r[2]-r[0])/2.0, (r[3]-r[1])/2.0, self.boxW/self.visibleImage.size[0], self.boxH/self.visibleImage.size[1] ]
     # Aspect ratio (1)
-    r += [ self.boxH/self.boxW ]
-    # Proximity flags (8)
-    flags = []
-    flags.append( fingerprint( self.xCoordUp() ) )
-    flags.append( fingerprint( self.yCoordUp() ) )
-    flags.append( fingerprint( self.scaleUp() ) )
-    flags.append( fingerprint( self.aspectRatioUp() ) )
-    flags.append( fingerprint( self.xCoordDown() ) )
-    flags.append( fingerprint( self.yCoordDown() ) )
-    flags.append( fingerprint( self.scaleDown() ) )
-    flags.append( fingerprint( self.aspectRatioDown() ) )
-    for i in range(len(flags)):
-      try: f = self.trajectoryIndex[flags[i]]
-      except: f = 0.0
-      flags[i] = f
-    r += flags
-    # Total state features: 17
+    #r += [ self.boxH/self.boxW ]
+    # Proximity features (8)
+    ious = []
+    for fp in self.landmarkIndex.keys():
+      ious.append( det.IoU( self.box, self.landmarkIndex[fp] ) )
+    ious.sort(reverse=True)
+    ious = ious[0:8]
+    while len(ious) < 8:
+      ious.append(0.0)
+    r = ious
     return r
 
   def visitedBefore(self):
     fp = fingerprint(self.box)
-    try: v = self.trajectoryIndex[fp]
+    try: v = len(self.landmarkIndex[fp])
     except: v = 0
     if v > 0:
       return True

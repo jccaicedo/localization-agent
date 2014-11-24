@@ -27,9 +27,9 @@ class QNetwork(ActionValueInterface):
       del self.net
       self.net = None
 
-  def loadNetwork(self):
+  def loadNetwork(self, definition='deploy.prototxt'):
     if os.path.isfile(self.networkFile):
-      modelFile = config.get('networkDir') + 'deploy.prototxt'
+      modelFile = config.get('networkDir') + definition
       self.net = caffe.Net(modelFile, self.networkFile)
       self.net.set_phase_test()
       self.net.set_mode_gpu()

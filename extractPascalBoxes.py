@@ -5,13 +5,13 @@ def findObjects(xmlFile, category):
   boxes = []
   tree = ET.parse(xmlFile)
   for child in tree.getroot().findall('object'):
-    if child.find('name').text == category and child.find('difficult').text != '1':
+    if child.find('name').text == category: # and child.find('difficult').text != '1':
       bn = child.find('bndbox')
       box = map(float, [bn.find('xmin').text, bn.find('ymin').text, bn.find('xmax').text, bn.find('ymax').text])
       area = (box[2]-box[0])*(box[3]-box[1])
       # Skip small objects
-      if area >= 400.0:
-        boxes.append( box )
+      #if area >= 400.0:
+      boxes.append( box )
   return boxes
 
 ## MAIN PROGRAM

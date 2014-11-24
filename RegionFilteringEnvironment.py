@@ -70,7 +70,7 @@ class RegionFilteringEnvironment(Environment, Named):
     # Select features of visible regions and apply the sigmoid
     # Apply a threshold before transforming features?
     visibleRegions = np.copy(self.db.scores[ self.state.selectedIds, :])
-    #visibleRegions = tanh(visibleRegions) # (Greedy: not transformation required)
+    visibleRegions = tanh(visibleRegions) # (Greedy: not transformation required)
 
     # Pad zeros on features of void regions
     ## WARNING: Use zeros when using sigmoid. Use minus one for tanh.
