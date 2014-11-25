@@ -75,14 +75,15 @@ class BoxSearchEnvironment(Environment, Named):
     worldState = 2*np.array( worldState )
 
     # Make a vector represenation of the action that brought the agent to this state (9 features)
-    prevAction = np.zeros( (bs.NUM_ACTIONS) )
-    prevAction[self.state.actionChosen] = 2.0 
+    #prevAction = np.zeros( (bs.NUM_ACTIONS) )
+    #prevAction[self.state.actionChosen] = 2.0 
 
     # Compute features of visible region and apply the sigmoid
     visibleRegion = self.cnn.getActivations(self.state.box)
 
     # Concatenate all info in the state representation vector
-    state = np.hstack( (visibleRegion, worldState, prevAction) )
+    #state = np.hstack( (visibleRegion, worldState, prevAction) )
+    state = np.hstack( (visibleRegion, worldState) )
     #self.scores = visibleRegion.tolist()
     return {'image':self.imageList[self.idx], 'state':state}
      

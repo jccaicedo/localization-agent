@@ -36,32 +36,41 @@ class BoxSearchTask(Task):
     # Agent is very close to a ground truth object
     if iou >= minAcceptableIoU:
       # Landmarks are very welcome for well localized objects
-      if state.actionChosen == bss.PLACE_LANDMARK and not state.visitedBefore():
-        return 3.0
+      if state.actionChosen == bss.PLACE_LANDMARK: 
+        # We won't give double reward for the same box
+        if state.visitedBefore():
+          return -1.0
+        else:
+          return 3.0
       else:
         # IoU has improved for this object?
-        if iou >= self.control['IOU'][idx]:
+        if iou > self.control['IOU'][idx]:
           self.control['IOU'][idx] = iou
-          return 3.0
+          return 2.0
         else:
-          return 0.0
+          return -0.2
     # Agent is not close to an object
     else:
       # Landmarks should not be placed far away from objects
       if state.actionChosen == bss.PLACE_LANDMARK:
         return -1.0
       else:
-        # Center is moving towards an object's center
-        if dis < self.control['DIST'][dId] and det.IoU(state.box, self.boxes[dId]) > 0:
-          self.control['DIST'][dId] = dis
-          return 1.0
-        else:
+        iouToCenteredObject = det.IoU(state.box, self.boxes[dId])
+        if iouToCenteredObject > 0:
+          # Center is moving towards an object's center
+          if dis < self.control['DIST'][dId]:
+            self.control['DIST'][dId] = dis
+            return 1.0
+        iouToCoveredObject = det.IoU(state.box, self.boxes[aId])
+        if iouToCoveredObject > 0:
           # Area of the proposal is similar to an object's area (similar scale)
           if dif < self.control['ADIFF'][aId] and det.IoU(state.box, self.boxes[aId]) > 0:
             self.control['ADIFF'][aId] = dif
             return 1.0
-          else:
-            return -1.0
+        if iouToCenteredObject > 0 or iouToCoveredObject > 0:
+          return -0.3
+        else:
+          return -1.0
 
   def performAction(self, action):
     Task.performAction(self, action)

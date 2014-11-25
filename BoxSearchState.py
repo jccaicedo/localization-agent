@@ -248,15 +248,10 @@ class BoxSearchState():
 
   def placeLandmark(self):
     self.landmarkIndex[ fingerprint(self.box) ] = self.box[:]
-    return self.box
+    newBox = map(float, [0,0,self.visibleImage.size[0]-1,self.visibleImage.size[1]-1])
+    return newBox
 
   def getRepresentation(self):
-    # Normalized box coordinates (4)
-    #r = [self.box[0]/self.boxW, self.box[1]/self.boxH, self.box[2]/self.boxW, self.box[3]/self.boxH]
-    # Center coordinates and normalized with and height (4)
-    #r += [ (r[2]-r[0])/2.0, (r[3]-r[1])/2.0, self.boxW/self.visibleImage.size[0], self.boxH/self.visibleImage.size[1] ]
-    # Aspect ratio (1)
-    #r += [ self.boxH/self.boxW ]
     # Proximity features (8)
     ious = []
     for fp in self.landmarkIndex.keys():
@@ -265,8 +260,7 @@ class BoxSearchState():
     ious = ious[0:8]
     while len(ious) < 8:
       ious.append(0.0)
-    r = ious
-    return r
+    return ious
 
   def visitedBefore(self):
     fp = fingerprint(self.box)

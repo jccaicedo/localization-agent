@@ -9,8 +9,8 @@ import MemoryUsage
 import RLConfig as config
 
 NUM_ACTIONS = config.geti('outputActions')
-TIME_WINDOW = 1
-HISTORY_FACTOR = 2
+TEMPORAL_WINDOW = config.geti('temporalWindow')
+HISTORY_FACTOR = config.geti('historyFactor')
 
 class BoxSearchAgent():
 
@@ -32,11 +32,11 @@ class BoxSearchAgent():
   def integrateObservation(self, obs):
     if obs['image'] != self.image:
       self.actionsH = [0 for i in range(NUM_ACTIONS)]
-      self.observation = np.zeros( (TIME_WINDOW,obs['state'].shape[0]), np.float32 )
+      self.observation = np.zeros( (TEMPORAL_WINDOW,obs['state'].shape[0]), np.float32 )
       self.image = obs['image']
       self.timer = 0
       self.avgReward = 0.0
-    for t in range(TIME_WINDOW-1):
+    for t in range(TEMPORAL_WINDOW-1):
       self.observation[t+1,:] = self.observation[t,:]
     self.observation[0,:] = obs['state']
     self.action = None
