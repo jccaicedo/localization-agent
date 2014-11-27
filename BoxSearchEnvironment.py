@@ -48,7 +48,7 @@ class BoxSearchEnvironment(Environment, Named):
     if self.idx < len(self.imageList):
       # Initialize state
       self.cnn.prepareImage(self.imageList[self.idx])
-      self.state = bs.BoxSearchState(self.imageList[self.idx])
+      self.state = bs.BoxSearchState(self.imageList[self.idx], groundTruth=self.groundTruth)
       print 'Environment::LoadNextEpisode => Image',self.idx,self.imageList[self.idx],'('+str(self.state.visibleImage.size[0])+','+str(self.state.visibleImage.size[1])+')'
     else:
       if self.mode == 'train':
@@ -71,8 +71,8 @@ class BoxSearchEnvironment(Environment, Named):
 
   def getSensors(self):
     # Create arrays to represent the state of the world (8 features)
-    worldState = self.state.getRepresentation()
-    worldState = 2*np.array( worldState )
+    #worldState = self.state.getRepresentation()
+    #worldState = 2*np.array( worldState )
 
     # Make a vector represenation of the action that brought the agent to this state (9 features)
     #prevAction = np.zeros( (bs.NUM_ACTIONS) )
@@ -83,9 +83,12 @@ class BoxSearchEnvironment(Environment, Named):
 
     # Concatenate all info in the state representation vector
     #state = np.hstack( (visibleRegion, worldState, prevAction) )
-    state = np.hstack( (visibleRegion, worldState) )
+    state = visibleRegion
     #self.scores = visibleRegion.tolist()
     return {'image':self.imageList[self.idx], 'state':state}
+
+  def sampleAction(self):
+    return self.state.sampleNextAction()
      
   def rankImages(self):
     keys = self.groundTruth.keys()

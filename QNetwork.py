@@ -12,6 +12,9 @@ import RLConfig as config
 EXPLORE = 0
 EXPLOIT = 1
 
+def defaultSampler():
+  return np.random.random([1, config.geti('outputActions')])
+
 class QNetwork(ActionValueInterface):
 
   networkFile = config.get('networkDir') + config.get('snapshotPrefix') + '_iter_' + config.get('trainingIterationsPerBatch') + '.caffemodel'
@@ -21,6 +24,7 @@ class QNetwork(ActionValueInterface):
     print 'QNetwork::Init. Loading ',self.networkFile
     if os.path.exists(self.networkFile):
       self.loadNetwork()
+    self.sampler = defaultSampler
 
   def releaseNetwork(self):
     if self.net != None:
@@ -42,7 +46,7 @@ class QNetwork(ActionValueInterface):
 
   def getActionValues(self, state):
     if self.net == None or self.exploreOrExploit() == EXPLORE:
-      return np.random.random([state.shape[0], config.geti('outputActions')])
+      return self.sampler()
     else:
       return self.getActivations(state)
 
@@ -50,7 +54,9 @@ class QNetwork(ActionValueInterface):
     out = self.net.forward_all( **{self.net.inputs[0]: state.reshape( (state.shape[0], state.shape[1], 1, 1) )} )
     return out['qvalues'].squeeze(axis=(2,3))
 
-  def setEpsilonGreedy(self, epsilon):
+  def setEpsilonGreedy(self, epsilon, sampler=None):
+    if sampler is not None:
+      self.sampler = sampler
     self.epsilon = epsilon
 
   def exploreOrExploit(self):
