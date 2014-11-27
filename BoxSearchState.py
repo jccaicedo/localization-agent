@@ -7,6 +7,7 @@ import numpy as np
 import Image
 import random
 
+import BoxSearchTask as bst
 import RLConfig as config
 
 # ACTIONS
@@ -35,7 +36,7 @@ def fingerprint(b):
 
 class BoxSearchState():
 
-  def __init__(self, imageName, randomStart=False):
+  def __init__(self, imageName, randomStart=False, groundTruth=None):
     self.imageName = imageName
     self.visibleImage = Image.open(config.get('imageDir') + '/' + self.imageName + '.jpg')
     if not randomStart:
@@ -55,6 +56,11 @@ class BoxSearchState():
     self.landmarkIndex = {}
     self.actionChosen = 2
     self.actionValue = 0
+    self.groundTruth = groundTruth
+    if self.groundTruth is not None:
+      self.task = bst.BoxSearchTask()
+      self.task.groundTruth = self.groundTruth
+      self.task.loadGroundTruth(self.imageName)
 
   def performAction(self, action):
     self.actionChosen = action[0]
@@ -73,6 +79,7 @@ class BoxSearchState():
     self.box = newBox
     self.boxW = self.box[2] - self.box[0]
     self.boxH = self.box[3] - self.box[1]
+    self.task.computeObjectReward(self.box, self.actionChosen, self.visitedBefore())
     return self.box
 
   def xCoordUp(self):
@@ -271,3 +278,54 @@ class BoxSearchState():
     else:
       return False
 
+  def sampleNextAction(self):
+    if self.groundTruth is None:
+      return np.argmax( np.random.random([1, NUM_ACTIONS]), 1 )
+    else:
+      nextBoxes = []
+      nextBoxes.append( self.xCoordUp() )
+      nextBoxes.append( self.yCoordUp() )
+      nextBoxes.append( self.scaleUp() )
+      nextBoxes.append( self.aspectRatioUp() )
+      nextBoxes.append( self.xCoordDown() )
+      nextBoxes.append( self.yCoordDown() )
+      nextBoxes.append( self.scaleDown() )
+      nextBoxes.append( self.aspectRatioDown() )
+      nextBoxes.append( self.placeLandmark() )
+
+      rewards = []
+      for a in range(len(nextBoxes)):
+        visited = True
+        try: self.landmarkIndex[fingerprint(nextBoxes[a])]
+        except: visited = False
+        r = self.task.computeObjectReward(nextBoxes[a], a, visited, False)
+        rewards.append(r)
+      positiveActions = [i for i in range(len(nextBoxes)) if rewards[i]  > 0 ]
+      negativeActions = [i for i in range(len(nextBoxes)) if rewards[i] <= 0 ]
+      value = random.random()
+      actionVector = np.zeros( (1, NUM_ACTIONS) )
+      # Actions with positive reward are more likely
+      if value > 0.0 and len(positiveActions) > 0:
+        if PLACE_LANDMARK in positiveActions:
+          value = random.random()
+          # Oportunity to place a landmark encouraged
+          if value > 0.5:
+            actionVector[0,PLACE_LANDMARK] = value
+          else:
+            positiveActions.remove(PLACE_LANDMARK)
+            random.shuffle(positiveActions)
+            actionVector[0,positiveActions[0]] = value
+        else:
+          random.shuffle(positiveActions)
+          actionVector[0,positiveActions[0]] = value
+      # Actions with negative reward
+      elif len(negativeActions) > 0:
+        random.shuffle(negativeActions)
+        actionVector[0,negativeActions[0]] = value
+      # If there is a tie, just pick a random among all
+      else:
+        allActions = positiveActions + negativeActions
+        random.shuffle(allActions)
+        actionVector[0,allActions[0]] = value
+      return actionVector
+   
