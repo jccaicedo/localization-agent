@@ -27,10 +27,10 @@ class BoxSearchEnvironment(Environment, Named):
     self.cnn = cn.ConvNet()
     self.testRecord = None
     self.idx = -1
-    #self.imageList = [x.strip() for x in open(imageList)]
-    self.groundTruth = cu.loadBoxIndexFile(groundTruthFile)
-    self.imageList = self.rankImages()
-    self.imageList = self.imageList[0:10]
+    self.imageList = [x.strip() for x in open(imageList)]
+    #self.groundTruth = cu.loadBoxIndexFile(groundTruthFile)
+    #self.imageList = self.rankImages()
+    #self.imageList = self.imageList[0:10]
     if self.mode == 'train':
       random.shuffle(self.imageList)
     self.loadNextEpisode()
@@ -67,7 +67,7 @@ class BoxSearchEnvironment(Environment, Named):
       self.testRecord['actions'].append( self.state.actionChosen )
       self.testRecord['values'].append( self.state.actionValue )
       self.testRecord['rewards'].append( reward )
-      #self.testRecord['scores'].append( self.scores[:] )
+      self.testRecord['scores'].append( [self.state.actionValue] + [0 for i in range(20)] ) # This only works for aeroplane
 
   def getSensors(self):
     # Create arrays to represent the state of the world (8 features)
