@@ -44,11 +44,12 @@ class BoxSearchEnvironment(Environment, Named):
       with open(config.get('testMemory') + self.imageList[self.idx] + '.txt', 'w') as outfile:
         json.dump(self.testRecord, outfile)
     # Load a new episode
+    self.episodeDone = False
     self.idx += 1
     if self.idx < len(self.imageList):
       # Initialize state
       self.cnn.prepareImage(self.imageList[self.idx])
-      self.state = bs.BoxSearchState(self.imageList[self.idx], groundTruth=self.groundTruth)
+      self.state = bs.BoxSearchState(self.imageList[self.idx], groundTruth=self.groundTruth, randomStart=self.mode=='train')
       print 'Environment::LoadNextEpisode => Image',self.idx,self.imageList[self.idx],'('+str(self.state.visibleImage.size[0])+','+str(self.state.visibleImage.size[1])+')'
     else:
       if self.mode == 'train':
@@ -68,6 +69,9 @@ class BoxSearchEnvironment(Environment, Named):
       self.testRecord['values'].append( self.state.actionValue )
       self.testRecord['rewards'].append( reward )
       #self.testRecord['scores'].append( self.scores[:] )
+    else:
+      if self.state.actionChosen == bs.PLACE_LANDMARK:
+        self.episodeDone = True
 
   def getSensors(self):
     # Create arrays to represent the state of the world (8 features)
