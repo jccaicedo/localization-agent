@@ -31,14 +31,28 @@ class BoxSearchTask(Task):
     self.env.updatePostReward(reward)
     return reward
 
-  def computeObjectReward(self, box, actionChosen, visitedBefore, update=True):
+  def computeObjectRewardV4(self, box, actionChosen, visitedBefore, update=True):
     iou, idx = self.matchBoxes(box)
     improvedIoU = 0.0
     if iou > self.control['IOU'][idx]:
       if update: self.control['IOU'][idx] = iou
       improvedIoU += 1.0
-    else:
-      improvedIoU -= 1.0
+    wellLocalizedObject = 0.0
+    if iou >= minAcceptableIoU:
+      wellLocalizedObject += 1.0
+    if actionChosen == bss.PLACE_LANDMARK and iou >= 0.8:
+      wellLocalizedObject += 2.0
+    visibleObject = 0.0
+    if iou == 0.0:
+      visibleObject = -2.0
+    return improvedIoU + wellLocalizedObject + visibleObject
+
+  def computeObjectRewardV3(self, box, actionChosen, visitedBefore, update=True):
+    iou, idx = self.matchBoxes(box)
+    improvedIoU = 0.0
+    if iou > self.control['IOU'][idx]:
+      if update: self.control['IOU'][idx] = iou
+      improvedIoU += 1.0
     wellLocalizedObject = 0.0
     if iou >= minAcceptableIoU:
       wellLocalizedObject += 1.0
@@ -49,7 +63,29 @@ class BoxSearchTask(Task):
       visibleObject = -2.0
     return improvedIoU + wellLocalizedObject + visibleObject
 
-  def computeObjectRewardOld(self, box, actionChosen, visitedBefore, update=True):
+  def computeObjectReward(self, box, actionChosen, visitedBefore, update=True):
+    iou, idx = self.matchBoxes(box)
+    if actionChosen == bss.PLACE_LANDMARK:
+      if iou >= 0.8: #minAcceptableIoU:
+        return 3.0
+      else:
+        return -3.0
+    else:
+      improvedIoU = 0.0
+      if iou > self.control['IOU'][idx]:
+        if update: self.control['IOU'][idx] = iou
+        improvedIoU += 1.0
+      else:
+        improvedIoU -= 1.0
+      wellLocalizedObject = 0.0
+      if iou >= minAcceptableIoU:
+        wellLocalizedObject += 1.0
+      visibleObject = 0.0
+      if iou == 0.0:
+        visibleObject = -2.0
+      return improvedIoU + wellLocalizedObject + visibleObject
+
+  def computeObjectRewardV1(self, box, actionChosen, visitedBefore, update=True):
     iou, idx = self.matchBoxes(box)
     dis, dId = self.matchCenters(box)
     dif, aId = self.matchAreas(box)

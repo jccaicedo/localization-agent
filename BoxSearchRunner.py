@@ -23,7 +23,10 @@ class BoxSearchRunner():
     img = 0
     s = cu.tic()
     while img < maxImgs:
-      self.experiment.doInteractions(interactions)
+      k = 0
+      while not self.environment.episodeDone and k < interactions:
+        self.experiment._oneInteraction()
+        k += 1
       self.agent.learn()
       self.agent.reset()
       self.environment.loadNextEpisode()
@@ -33,7 +36,7 @@ class BoxSearchRunner():
   def run(self):
     if self.mode == 'train':
       self.agent.persistMemory = True
-      self.agent.startReplayMemory(len(self.environment.imageList), config.geti('trainInteractions'), config.geti('stateFeatures'))
+      self.agent.startReplayMemory(len(self.environment.imageList), config.geti('trainInteractions'))
       self.train()
     elif self.mode == 'test':
       self.agent.persistMemory = False

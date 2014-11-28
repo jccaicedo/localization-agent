@@ -45,10 +45,12 @@ class BoxSearchState():
       self.boxH = self.box[3]+1.0
       self.aspectRatio = self.boxH/self.boxW
     else:
-      a = random.randint(MIN_BOX_SIDE, self.visibleImage.size[0] - MIN_BOX_SIDE)
-      b = random.randint(MIN_BOX_SIDE, self.visibleImage.size[1] - MIN_BOX_SIDE)
-      c = random.randint(MIN_BOX_SIDE, min(self.visibleImage.size[0] - a, a) )
-      d = random.randint(MIN_BOX_SIDE, min(self.visibleImage.size[1] - b, b) )
+      wlimit = self.visibleImage.size[0]/4
+      hlimit = self.visibleImage.size[1]/4
+      a = random.randint(wlimit, self.visibleImage.size[0] - wlimit)
+      b = random.randint(hlimit, self.visibleImage.size[1] - hlimit)
+      c = random.randint(wlimit, min(self.visibleImage.size[0] - a, a) )
+      d = random.randint(hlimit, min(self.visibleImage.size[1] - b, b) )
       self.box = map(float, [a-c, b-d, a+c, b+d] )
       self.boxW = 2.0*c
       self.boxH = 2.0*d
@@ -255,8 +257,7 @@ class BoxSearchState():
 
   def placeLandmark(self):
     self.landmarkIndex[ fingerprint(self.box) ] = self.box[:]
-    newBox = map(float, [0,0,self.visibleImage.size[0]-1,self.visibleImage.size[1]-1])
-    return newBox
+    return self.box
 
   def getRepresentation(self):
     # Proximity features (8)
@@ -305,24 +306,9 @@ class BoxSearchState():
       value = random.random()
       actionVector = np.zeros( (1, NUM_ACTIONS) )
       # Actions with positive reward are more likely
-      if value > 0.0 and len(positiveActions) > 0:
-        if PLACE_LANDMARK in positiveActions:
-          value = random.random()
-          # Oportunity to place a landmark encouraged
-          if value > 0.5:
-            actionVector[0,PLACE_LANDMARK] = value
-          else:
-            if len(positiveActions) > 1:
-              positiveActions.remove(PLACE_LANDMARK)
-              random.shuffle(positiveActions)
-              actionVector[0,positiveActions[0]] = value
-            else:
-              allActions = positiveActions + negativeActions
-              random.shuffle(allActions)
-              actionVector[0,allActions[0]] = value       
-        else:
-          random.shuffle(positiveActions)
-          actionVector[0,positiveActions[0]] = value
+      if len(positiveActions) > 0:
+        random.shuffle(positiveActions)
+        actionVector[0,positiveActions[0]] = value
       # Actions with negative reward
       elif len(negativeActions) > 0:
         random.shuffle(negativeActions)
