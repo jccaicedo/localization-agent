@@ -28,7 +28,7 @@ class BoxSearchEnvironment(Environment, Named):
     self.testRecord = None
     self.idx = -1
     self.imageList = [x.strip() for x in open(imageList)]
-    #self.groundTruth = cu.loadBoxIndexFile(groundTruthFile)
+    self.groundTruth = cu.loadBoxIndexFile(groundTruthFile)
     #self.imageList = self.rankImages()
     #self.imageList = self.imageList[0:10]
     if self.mode == 'train':

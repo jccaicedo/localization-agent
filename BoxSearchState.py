@@ -312,9 +312,14 @@ class BoxSearchState():
           if value > 0.5:
             actionVector[0,PLACE_LANDMARK] = value
           else:
-            positiveActions.remove(PLACE_LANDMARK)
-            random.shuffle(positiveActions)
-            actionVector[0,positiveActions[0]] = value
+            if len(positiveActions) > 1:
+              positiveActions.remove(PLACE_LANDMARK)
+              random.shuffle(positiveActions)
+              actionVector[0,positiveActions[0]] = value
+            else:
+              allActions = positiveActions + negativeActions
+              random.shuffle(allActions)
+              actionVector[0,allActions[0]] = value       
         else:
           random.shuffle(positiveActions)
           actionVector[0,positiveActions[0]] = value
