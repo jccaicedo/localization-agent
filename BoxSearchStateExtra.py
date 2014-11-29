@@ -19,17 +19,20 @@ X_COORD_DOWN       = 4
 Y_COORD_DOWN       = 5
 SCALE_DOWN         = 6
 ASPECT_RATIO_DOWN  = 7
-PLACE_LANDMARK     = 8
+SPLIT_HORIZONTAL   = 8
+SPLIT_VERTICAL     = 9
+SKIP_REGION        = 10
+PLACE_LANDMARK     = 11
 
 # BOX LIMITS
 MIN_ASPECT_RATIO = 0.20
 MAX_ASPECT_RATIO = 5.00
 MIN_BOX_SIDE     = 20
-STEP_FACTOR      = 0.20
-DELTA_SIZE       = 0.20
+STEP_FACTOR      = 0.10
+DELTA_SIZE       = 0.10
 
 # OTHER DEFINITIONS
-NUM_ACTIONS = 9
+NUM_ACTIONS = 12
 
 def fingerprint(b):
   return '_'.join( map(str, map(int, b)) )
@@ -55,7 +58,7 @@ class BoxSearchState():
       self.boxW = 2.0*c
       self.boxH = 2.0*d
       self.aspectRatio = self.boxH/self.boxW
-    self.landmarkIndex = {}
+    self.splitsQueue = []
     self.actionChosen = 2
     self.actionValue = 0
     self.groundTruth = groundTruth
@@ -76,6 +79,9 @@ class BoxSearchState():
     elif action[0] == Y_COORD_DOWN:       newBox = self.yCoordDown()
     elif action[0] == SCALE_DOWN:         newBox = self.scaleDown()
     elif action[0] == ASPECT_RATIO_DOWN:  newBox = self.aspectRatioDown()
+    elif action[0] == SPLIT_HORIZONTAL:   newBox = self.splitHorizontal()
+    elif action[0] == SPLIT_VERTICAL:     newBox = self.splitVertical()
+    elif action[0] == SKIP_REGION:        newBox = self.skipRegion()
     elif action[0] == PLACE_LANDMARK:     newBox = self.placeLandmark()
 
     self.box = newBox
@@ -255,12 +261,34 @@ class BoxSearchState():
         box[3] = self.visibleImage.size[1] - 1
     return box
 
-  def placeLandmark(self):
-    self.landmarkIndex[ fingerprint(self.box) ] = self.box[:]
-    return self.box
+  def splitHorizontal(self):
+    newBox1 = self.box[:]
+    if self.boxW > 2*MIN_BOX_SIDE:
+      newBox2 = self.box[:]
+      half = self.boxW/2.0
+      newBox1[2] -= half
+      newBox2[0] += half
+      self.splitsQueue.append(newBox2)
+    return newBox1
+
+  def splitVertical(self): 
+    newBox1 = self.box[:]
+    if self.boxH > 2*MIN_BOX_SIDE:
+      newBox2 = self.box[:]
+      half = self.boxH/2.0
+      newBox1[3] -= half
+      newBox2[1] += half
+      self.splitsQueue.append(newBox2)
+    return newBox1
 
   def skipRegion(self):
-    self.box = [0, 0, self.visibleImage.size[0] - 1, self.visibleImage.size[1] - 1]
+    if len(self.splitsQueue) > 0:
+      return self.splitsQueue.pop(0)
+    else:
+      return [0, 0, self.visibleImage.size[0] - 1, self.visibleImage.size[1] - 1]
+
+  def placeLandmark(self):
+    return self.box
 
   def sampleNextAction(self):
     if self.groundTruth is None:
@@ -275,6 +303,9 @@ class BoxSearchState():
       nextBoxes.append( self.yCoordDown() )
       nextBoxes.append( self.scaleDown() )
       nextBoxes.append( self.aspectRatioDown() )
+      nextBoxes.append( self.splitHorizontal() )
+      nextBoxes.append( self.splitVertical() )
+      nextBoxes.append( self.skipRegion() )
       nextBoxes.append( self.placeLandmark() )
 
       rewards = []

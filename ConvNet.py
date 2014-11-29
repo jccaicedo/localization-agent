@@ -9,7 +9,7 @@ from caffe import wrapperv0
 
 import RLConfig as config
 
-LAYER = 'fc7'
+LAYER = config.get('convnetLayer')
 
 class ConvNet():
 

@@ -6,7 +6,7 @@ import utils as cu
 
 import RLConfig as config
 
-params = cu.loadParams("config logdir")
+params = cu.loadParams("config caffeLog rlLog outdir")
 config.readConfiguration(params["config"])
 
 fig, ax = plt.subplots(nrows=2, ncols=3)
@@ -14,7 +14,7 @@ fig.set_size_inches(18.5,10.5)
 
 # Parse Caffe Log
 loss = []
-for l in open(params['logdir'] + '/caffe.log'):
+for l in open(params['caffeLog']):
   if l.find('loss =') != -1:
     loss.append( float(l.split()[-1]) )
 i = np.argmax(loss)
@@ -28,7 +28,7 @@ epochRecall = []
 epochIoU = []
 positives = dict([ (i,0) for i in range(config.geti('outputActions')) ])
 negatives = dict([ (i,0) for i in range(config.geti('outputActions')) ])
-for l in open(params['logdir'] + '/rl.log'):
+for l in open(params['rlLog']):
   if l.find('Agent::MemoryRecord') != -1:
     parts = l.split()
     action = int(parts[7])
@@ -57,4 +57,4 @@ neg = negatives.keys()
 neg.sort()
 ax[1,2].barh(range(len(neg)), [negatives[k] for k in neg] )
 ax[1,2].set_title('Distribution of negative rewards')
-plt.savefig(params['logdir'] + '/report.png')
+plt.savefig(params['outdir'] + '/report.png')
