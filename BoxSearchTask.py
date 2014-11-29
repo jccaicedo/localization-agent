@@ -27,11 +27,39 @@ class BoxSearchTask(Task):
 
   def getReward(self):
     gt = self.loadGroundTruth(self.env.imageList[self.env.idx])
-    reward = self.computeObjectReward(self.env.state.box, self.env.state.actionChosen, self.env.state.visitedBefore())
-    self.env.updatePostReward(reward)
+    reward = self.computeObjectReward(self.env.state.box, self.env.state.actionChosen)
+    allDone = reduce(lambda x,y: x and y, self.control['DONE'])
+    self.env.updatePostReward(reward, allDone)
     return reward
 
-  def computeObjectRewardV4(self, box, actionChosen, visitedBefore, update=True):
+  def computeObjectReward(self, box, actionChosen, update=True):
+    iou, idx = self.matchBoxes(box)
+    if actionChosen == bss.PLACE_LANDMARK:
+      if iou >= 0.7: #minAcceptableIoU:
+        if update: 
+          self.control['DONE'][idx] = True
+          for j in range(len(self.control['IOU'])):
+            if not self.control['DONE']:
+              self.control['IOU'] = 0.0
+        return 3.0
+      else:
+        return -3.0
+    else:
+      improvedIoU = 0.0
+      if iou > self.control['IOU'][idx]:
+        if update: self.control['IOU'][idx] = iou
+        improvedIoU += 1.0
+      else:
+        improvedIoU -= 1.0
+      wellLocalizedObject = 0.0
+      if iou >= minAcceptableIoU:
+        wellLocalizedObject += 1.0
+      visibleObject = 0.0
+      if iou == 0.0:
+        visibleObject = -2.0
+      return improvedIoU + wellLocalizedObject + visibleObject
+
+  def computeObjectRewardV4(self, box, actionChosen, update=True):
     iou, idx = self.matchBoxes(box)
     improvedIoU = 0.0
     if iou > self.control['IOU'][idx]:
@@ -47,7 +75,7 @@ class BoxSearchTask(Task):
       visibleObject = -2.0
     return improvedIoU + wellLocalizedObject + visibleObject
 
-  def computeObjectRewardV3(self, box, actionChosen, visitedBefore, update=True):
+  def computeObjectRewardV3(self, box, actionChosen, update=True):
     iou, idx = self.matchBoxes(box)
     improvedIoU = 0.0
     if iou > self.control['IOU'][idx]:
@@ -63,7 +91,7 @@ class BoxSearchTask(Task):
       visibleObject = -2.0
     return improvedIoU + wellLocalizedObject + visibleObject
 
-  def computeObjectReward(self, box, actionChosen, visitedBefore, update=True):
+  def computeObjectRewardV2(self, box, actionChosen, update=True):
     iou, idx = self.matchBoxes(box)
     if actionChosen == bss.PLACE_LANDMARK:
       if iou >= 0.8: #minAcceptableIoU:
@@ -85,50 +113,6 @@ class BoxSearchTask(Task):
         visibleObject = -2.0
       return improvedIoU + wellLocalizedObject + visibleObject
 
-  def computeObjectRewardV1(self, box, actionChosen, visitedBefore, update=True):
-    iou, idx = self.matchBoxes(box)
-    dis, dId = self.matchCenters(box)
-    dif, aId = self.matchAreas(box)
-    # Agent is very close to a ground truth object
-    if iou >= minAcceptableIoU:
-      # Landmarks are very welcome for well localized objects
-      if actionChosen == bss.PLACE_LANDMARK: 
-        # We won't give double reward for the same box
-        if visitedBefore:
-          return -1.0
-        else:
-          return 3.0
-      else:
-        # IoU has improved for this object?
-        if iou > self.control['IOU'][idx]:
-          if update: self.control['IOU'][idx] = iou
-          return 2.0
-        else:
-          return 0.0
-    # Agent is not close to an object
-    else:
-      if iou > self.control['IOU'][idx] and update: self.control['IOU'][idx] = iou
-      # Landmarks should not be placed far away from objects
-      if actionChosen == bss.PLACE_LANDMARK:
-        return -1.0
-      else:
-        iouToCenteredObject = det.IoU(box, self.boxes[dId])
-        if iouToCenteredObject > 0:
-          # Center is moving towards an object's center
-          if dis < self.control['DIST'][dId]:
-            if update: self.control['DIST'][dId] = dis
-            return 1.0
-        iouToCoveredObject = det.IoU(box, self.boxes[aId])
-        if iouToCoveredObject > 0:
-          # Area of the proposal is similar to an object's area (similar scale)
-          if dif < self.control['ADIFF'][aId] and det.IoU(box, self.boxes[aId]) > 0:
-            if update: self.control['ADIFF'][aId] = dif
-            return 1.0
-        if iouToCenteredObject > 0 or iouToCoveredObject > 0:
-          return 0.0
-        else:
-          return -1.0
-
   def performAction(self, action):
     Task.performAction(self, action)
 
@@ -143,15 +127,15 @@ class BoxSearchTask(Task):
       self.boxes = [b[:] for b in gt]
       self.centers = [center(b) for b in gt]
       self.areas = [det.area(b) for b in gt]
-      self.control = {'IOU': [0.0 for b in gt], 
-                      'DIST': [float('inf') for b in gt], 
-                      'ADIFF': [float('inf') for b in gt]}
+      self.control = {'IOU': [0.0 for b in gt], 'DONE': [False for b in gt]} 
     return gt
 
   def matchBoxes(self, box):
     maxIoU = -1.
     maxIdx = 0
     for i in range(len(self.boxes)):
+      if self.control['DONE'][i]: 
+        continue
       iou = det.IoU(box, self.boxes[i])
       if iou > maxIoU:
         maxIoU = iou

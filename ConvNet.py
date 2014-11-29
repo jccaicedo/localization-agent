@@ -41,3 +41,8 @@ class ConvNet():
     outputs =  self.net.caffenet.blobs
     return outputs[LAYER].data.squeeze() #.reshape([0,21])
 
+  def coverRegion(self, box):
+    boxes = [map(int,box)]
+    self.net.caffenet.CoverRegions(boxes)
+    return True
+

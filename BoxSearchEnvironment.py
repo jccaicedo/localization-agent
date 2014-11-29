@@ -62,15 +62,18 @@ class BoxSearchEnvironment(Environment, Named):
     if self.mode == 'test':
       self.testRecord = {'boxes':[], 'actions':[], 'values':[], 'rewards':[], 'scores':[]}
 
-  def updatePostReward(self, reward):
+  def updatePostReward(self, reward, allDone):
+    if self.state.actionChosen == bs.PLACE_LANDMARK:
+      self.cnn.coverRegion(self.state.box)
+      self.state.skipRegion()
     if self.mode == 'test':
       self.testRecord['boxes'].append( self.state.box )
       self.testRecord['actions'].append( self.state.actionChosen )
       self.testRecord['values'].append( self.state.actionValue )
       self.testRecord['rewards'].append( reward )
       #self.testRecord['scores'].append( self.scores[:] )
-    else:
-      if self.state.actionChosen == bs.PLACE_LANDMARK:
+    elif self.mode == 'train':
+      if allDone:
         self.episodeDone = True
 
   def getSensors(self):
