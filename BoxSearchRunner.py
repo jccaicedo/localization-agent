@@ -68,8 +68,11 @@ class BoxSearchRunner():
     epoch = 1
     maxEpochs = config.geti('exploitLearningEpochs')
     while epoch <= maxEpochs:
+      s = cu.tic()
       print 'Epoch',epoch+egEpochs,'(exploitation mode: epsilon={:5.3f})'.format(epsilon)
       self.runEpoch(interactions, epochSize)
+      self.task.flushStats()
+      s = cu.toc('Epoch done in ',s)
       epoch += 1
 
   def test(self):

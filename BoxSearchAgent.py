@@ -7,6 +7,7 @@ import scipy.io
 import MemoryUsage
 
 import RLConfig as config
+import BoxSearchState as bss
 
 STATE_FEATURES = config.geti('stateFeatures')
 NUM_ACTIONS = config.geti('outputActions')
@@ -62,9 +63,12 @@ class BoxSearchAgent():
 
     self.reward = r
     self.avgReward = (self.avgReward*(self.timer-1) + r)/(self.timer)
+    obs = self.observation.reshape( (TEMPORAL_WINDOW*STATE_FEATURES))
     if self.replayMemory != None:
-      obs = self.observation.reshape( (TEMPORAL_WINDOW*STATE_FEATURES))
       self.replayMemory.add(self.image, self.timer, self.action, obs, self.reward)
+      if self.action == bss.PLACE_LANDMARK and self.reward > 0: # Oversample terminal state
+        for copy in range(HISTORY_FACTOR):
+          self.replayMemory.add(self.image+'_'+str(copy), self.timer, self.action, obs, self.reward)
     self.actionsH[self.action] += 1
     print 'Agent::MemoryRecord => image:',self.image,'time:',self.timer,'action:',self.action,'reward',self.reward,'avgReward:',self.avgReward
 

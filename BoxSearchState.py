@@ -81,7 +81,7 @@ class BoxSearchState():
     self.box = newBox
     self.boxW = self.box[2] - self.box[0]
     self.boxH = self.box[3] - self.box[1]
-    self.task.computeObjectReward(self.box, self.actionChosen, self.visitedBefore())
+    self.task.computeObjectReward(self.box, self.actionChosen)
     return self.box
 
   def xCoordUp(self):
@@ -259,25 +259,8 @@ class BoxSearchState():
     self.landmarkIndex[ fingerprint(self.box) ] = self.box[:]
     return self.box
 
-  def getRepresentation(self):
-    # Proximity features (8)
-    ious = []
-    for fp in self.landmarkIndex.keys():
-      ious.append( det.IoU( self.box, self.landmarkIndex[fp] ) )
-    ious.sort(reverse=True)
-    ious = ious[0:8]
-    while len(ious) < 8:
-      ious.append(0.0)
-    return ious
-
-  def visitedBefore(self):
-    fp = fingerprint(self.box)
-    try: v = len(self.landmarkIndex[fp])
-    except: v = 0
-    if v > 0:
-      return True
-    else:
-      return False
+  def skipRegion(self):
+    self.box = [0, 0, self.visibleImage.size[0] - 1, self.visibleImage.size[1] - 1]
 
   def sampleNextAction(self):
     if self.groundTruth is None:
@@ -296,10 +279,7 @@ class BoxSearchState():
 
       rewards = []
       for a in range(len(nextBoxes)):
-        visited = True
-        try: self.landmarkIndex[fingerprint(nextBoxes[a])]
-        except: visited = False
-        r = self.task.computeObjectReward(nextBoxes[a], a, visited, False)
+        r = self.task.computeObjectReward(nextBoxes[a], a, False)
         rewards.append(r)
       positiveActions = [i for i in range(len(nextBoxes)) if rewards[i]  > 0 ]
       negativeActions = [i for i in range(len(nextBoxes)) if rewards[i] <= 0 ]

@@ -25,7 +25,6 @@ class QLearning(ValueBasedLearner):
 
   def learn(self, memory, controller):
     print '# Identify memory records stored by the agent',memory.O.shape, memory.A.shape,memory.R.shape
-    recordingSize = config.geti('trainInteractions')
     totalMemorySize = memory.usableRecords
     replayMemorySize = config.geti('trainingIterationsPerBatch')*config.geti('trainingBatchSize')
 

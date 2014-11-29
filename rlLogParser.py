@@ -4,7 +4,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import utils as cu
 
-params = cu.loadParams("logdir")
+import RLConfig as config
+
+params = cu.loadParams("config logdir")
+config.readConfiguration(params["config"])
 
 fig, ax = plt.subplots(nrows=2, ncols=3)
 fig.set_size_inches(18.5,10.5)
@@ -23,8 +26,8 @@ ax[0,0].set_title('QNetwork Loss')
 avgRewards = []
 epochRecall = []
 epochIoU = []
-positives = dict([ (i,0) for i in range(9) ])
-negatives = dict([ (i,0) for i in range(9) ])
+positives = dict([ (i,0) for i in range(config.geti('outputActions')) ])
+negatives = dict([ (i,0) for i in range(config.geti('outputActions')) ])
 for l in open(params['logdir'] + '/rl.log'):
   if l.find('Agent::MemoryRecord') != -1:
     parts = l.split()
