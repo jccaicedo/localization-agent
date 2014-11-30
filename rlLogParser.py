@@ -26,6 +26,7 @@ ax[0,0].set_title('QNetwork Loss')
 avgRewards = []
 epochRecall = []
 epochIoU = []
+epochLandmarks = []
 positives = dict([ (i,0) for i in range(config.geti('outputActions')) ])
 negatives = dict([ (i,0) for i in range(config.geti('outputActions')) ])
 for l in open(params['rlLog']):
@@ -43,9 +44,14 @@ for l in open(params['rlLog']):
     epochRecall.append( float(l.split()[-1]) )
   elif l.find('MaxIoU') != -1:
     epochIoU.append( float(l.split()[-1]) )
+  elif l.find('Epoch Landmarks:') != -1:
+    epochLandmarks.append( float(l.split()[-1]) )
 ax[1,0].plot(range(len(avgRewards)), avgRewards)
 ax[1,0].set_title('Average Reward Per Episode')
-ax[0,1].plot(range(len(epochRecall)), epochRecall)
+recall = np.zeros( (len(epochRecall),2) )
+recall[:,0] = epochRecall
+recall[:,1] = epochLandmarks
+ax[0,1].plot(range(len(epochRecall)), recall)
 ax[0,1].set_title('Recall per Epoch')
 ax[1,1].plot(range(len(epochIoU)), epochIoU)
 ax[1,1].set_title('MaxIoU per Epoch')
