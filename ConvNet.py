@@ -39,7 +39,8 @@ class ConvNet():
     boxes = [map(int,box)]
     self.net.caffenet.ForwardRegions(boxes, self.contextPad)
     outputs =  self.net.caffenet.blobs
-    return outputs[LAYER].data.squeeze() #.reshape([0,21])
+    result = {'prob':outputs['prob'].data.squeeze(), LAYER:outputs[LAYER].data.squeeze()}
+    return result
 
   def coverRegion(self, box):
     boxes = [map(int,box)]

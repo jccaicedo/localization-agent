@@ -62,36 +62,36 @@ class BoxSearchEnvironment(Environment, Named):
     if self.mode == 'test':
       self.testRecord = {'boxes':[], 'actions':[], 'values':[], 'rewards':[], 'scores':[]}
 
-  def updatePostReward(self, reward, allDone):
-    if self.state.actionChosen == bs.PLACE_LANDMARK:
-      self.cnn.coverRegion(self.state.box)
-      self.state.skipRegion()
+  def updatePostReward(self, reward, allDone, cover):
     if self.mode == 'test':
       self.testRecord['boxes'].append( self.state.box )
       self.testRecord['actions'].append( self.state.actionChosen )
       self.testRecord['values'].append( self.state.actionValue )
       self.testRecord['rewards'].append( reward )
-      #self.testRecord['scores'].append( self.scores[:] )
+      self.testRecord['scores'].append( self.scores[:] )
+      if self.state.actionChosen == bs.PLACE_LANDMARK:
+        self.cnn.coverRegion(self.state.box)
+        self.state.skipRegion()
     elif self.mode == 'train':
+      # We do not cover false landmarks during training
+      if self.state.actionChosen == bs.PLACE_LANDMARK and cover:
+        self.cnn.coverRegion(self.state.box) 
+        self.state.skipRegion()
       if allDone:
         self.episodeDone = True
 
   def getSensors(self):
-    # Create arrays to represent the state of the world (8 features)
-    #worldState = self.state.getRepresentation()
-    #worldState = 2*np.array( worldState )
-
     # Make a vector represenation of the action that brought the agent to this state (9 features)
     #prevAction = np.zeros( (bs.NUM_ACTIONS) )
     #prevAction[self.state.actionChosen] = 2.0 
 
     # Compute features of visible region and apply the sigmoid
-    visibleRegion = self.cnn.getActivations(self.state.box)
+    activations = self.cnn.getActivations(self.state.box)
 
     # Concatenate all info in the state representation vector
     #state = np.hstack( (visibleRegion, worldState, prevAction) )
-    state = visibleRegion
-    #self.scores = visibleRegion.tolist()
+    state = activations[config.get('convnetLayer')]
+    self.scores = activations['prob'].tolist()
     return {'image':self.imageList[self.idx], 'state':state}
 
   def sampleAction(self):

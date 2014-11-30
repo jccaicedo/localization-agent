@@ -24,15 +24,51 @@ class BoxSearchTask(Task):
     self.image = ''
     self.epochRecall = []
     self.epochMaxIoU = []
+    self.epochLandmarks = []
 
   def getReward(self):
     gt = self.loadGroundTruth(self.env.imageList[self.env.idx])
     reward = self.computeObjectReward(self.env.state.box, self.env.state.actionChosen)
     allDone = reduce(lambda x,y: x and y, self.control['DONE'])
-    self.env.updatePostReward(reward, allDone)
+    self.env.updatePostReward(reward, allDone, self.cover)
     return reward
 
   def computeObjectReward(self, box, actionChosen, update=True):
+    reward = 0
+    self.cover = False
+    iou, idx = self.matchBoxes(box)
+    if iou == 0.0:
+      reward = -2.0
+    else:
+      improvedIoU = False
+      if iou > self.control['IOU'][idx]:
+        if update: self.control['IOU'][idx] = iou
+        improvedIoU = True
+      if not improvedIoU and iou < 0.5:
+        reward = -1.0
+      elif improvedIoU and iou < 0.5:
+        reward = 1.0
+      elif not improvedIoU and iou >= 0.5 and actionChosen != bss.PLACE_LANDMARK:
+        reward = -1.0
+      elif improvedIoU and iou >= 0.5:
+        reward = 2.0
+      elif actionChosen == bss.PLACE_LANDMARK:
+        if iou >= minAcceptableIoU:
+          if update: 
+            self.control['DONE'][idx] = True
+            self.cover = True
+            for j in range(len(self.control['IOU'])):
+              if not self.control['DONE']:
+                self.control['IOU'] = 0.0
+        if iou < 0.5:
+          reward = -1.0
+        elif iou < 0.7:
+          reward = 2.0
+        else:
+          reward = 3.0
+    return reward
+
+  def computeObjectRewardV5(self, box, actionChosen, update=True):
     iou, idx = self.matchBoxes(box)
     if actionChosen == bss.PLACE_LANDMARK:
       if iou >= 0.7: #minAcceptableIoU:
@@ -115,20 +151,26 @@ class BoxSearchTask(Task):
       detected = len( [1 for i in range(len(self.boxes)) if self.control['IOU'][i] >= 0.5] )
       recall = (float(detected)/len(self.boxes))
       maxIoU = max(self.control['IOU'])
+      landmarks = sum( self.control['DONE'] )
       print self.image,'Objects detected [min(IoU) > 0.5]:',detected,'of',len(self.boxes),
       print 'Recall:',recall,
-      print 'Maximum IoU achieved:',maxIoU
+      print 'Maximum IoU achieved:',maxIoU,
+      print 'Landmarks:',landmarks
       self.epochRecall.append( [detected, len(self.boxes)] )
       self.epochMaxIoU.append(maxIoU)
+      self.epochLandmarks.append(landmarks)
 
   def flushStats(self):
     detected,expected = 0,0
     for pair in self.epochRecall:
       detected += pair[0]
       expected += pair[1]
+    landmarks = sum(self.epochLandmarks)
     avgMaxIoU = np.average(self.epochMaxIoU)
     print 'Epoch Recall:',float(detected)/expected
     print 'Epoch Average MaxIoU:',avgMaxIoU
+    print 'Epoch Landmarks:',float(landmarks)/expected
     self.epochRecall = []
     self.epochMaxIoU = []
+    self.epochLandmarks = []
 

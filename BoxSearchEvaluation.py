@@ -35,68 +35,57 @@ def getRelationCategories():
   catIndex = [ i for i in range(1,len(categories)) ]
   return categories, catIndex
 
-def loadScores(memDir, catIndex):
-  print catIndex
+def loadScores(memDir, catI):
   totalNumberOfBoxes = 0
   sumOfPercentBoxesUsed = 0
   totalImages = 0
   scoredDetections = {}
   for f in os.listdir(memDir):
+    if not f.endswith('.txt'): continue
     imageName = f.replace('.txt','')
     totalImages += 1
     data = json.load( open(memDir + f, 'r') )
     boxes = []
     scores = []
-    time = []
+    values = []
+    landmarks = []
     t = 0
     for i in range(len(data['boxes'])):
-      scores.append( [data['scores'][i][j] for j in catIndex ] )
       boxes.append( data['boxes'][i] )
-      time.append( t )
+      scores.append( data['scores'][i][catI])
+      values.append( data['values'][i] )
+      if data['actions'][i] == 8:
+        landmarks.append( data['values'][i] )
+      else:
+        landmarks.append( float('-inf') )
+      totalNumberOfBoxes += 1
       t += 1
-    scoredDetections[imageName] = {'boxes':boxes, 'scores':scores, 'time':time}
-    totalNumberOfBoxes += len(boxes)
-    print imageName,'boxes:',len(boxes)
+    scoredDetections[imageName] = {'boxes':boxes, 'scores':scores, 'values':values, 'landmarks':landmarks}
+    print imageName,'detections:',len(boxes)
     #if totalImages > 5: break
 
-  maxTime = np.max(time)
   print 'Average boxes per image: {:5.1f}'.format(totalNumberOfBoxes/float(totalImages))
-  print 'Average percent of boxes used: {:5.2f}%'.format(sumOfPercentBoxesUsed/float(totalImages))
-  return scoredDetections, maxTime
+  return scoredDetections
 
-def evaluateCategory(scoredDetections, categoryIdx, maxTime, groundTruthFile, output):
+def evaluateCategory(scoredDetections, ranking, groundTruthFile, output):
   performance = []
-  ## Do a time analysis evaluation
-  for t in range(maxTime):
-    print " ****************** TIME: {:3} ********************** ".format(t) 
-    detections = []
-    for img in scoredDetections.keys():
-      data = scoredDetections[img]
-      idx = [i for i in range(len(data['time'])) if data['time'][i] <= t]
-      boxes = [data['boxes'][i] for i in idx]
-      scores = [data['scores'][i][categoryIdx] for i in idx]
-      if len(boxes) > 0:
-        fBoxes, fScores = det.nonMaximumSuppression(boxes, scores, 0.3)
-        for i in range(len(fBoxes)):
-          detections.append( [img, fScores[i]] + fBoxes[i] )
-    detections.sort(key=lambda x:x[1], reverse=True)
-    gtBoxes = [x.split() for x in open(groundTruthFile)]
-    numPositives = len(gtBoxes)
-    groundTruth = eval.loadGroundTruthAnnotations(gtBoxes)
-    results = eval.evaluateDetections(groundTruth, detections, 0.5)
-    if t == maxTime - 1:
-      prec, recall = eval.computePrecisionRecall(numPositives, results['tp'], results['fp'], output)
-    else:
-      prec, recall = eval.computePrecisionRecall(numPositives, results['tp'], results['fp'])
-    performance.append( [prec, recall] )
-  return performance
-
-def saveTimeResults(categories, results, outputFile):
-  out = open(outputFile,'w')
-  out.write(' '.join(categories) + '\n')
-  for i in range(results.shape[0]):
-    r = results[i,:].tolist()
-    out.write(' '.join(map(str,r)) + '\n')
+  detections = []
+  for img in scoredDetections.keys():
+    data = scoredDetections[img]
+    idx = range(len(data['boxes']))
+    boxes = [data['boxes'][i] for i in idx if data[ranking][i] > float('-inf')]
+    scores = [data[ranking][i] for i in idx if data[ranking][i] > float('-inf')]
+    if len(boxes) > 0:
+      fBoxes, fScores = det.nonMaximumSuppression(boxes, scores, 0.3)
+      for i in range(len(fBoxes)):
+        detections.append( [img, fScores[i]] + fBoxes[i] )
+  detections.sort(key=lambda x:x[1], reverse=True)
+  gtBoxes = [x.split() for x in open(groundTruthFile)]
+  numPositives = len(gtBoxes)
+  groundTruth = eval.loadGroundTruthAnnotations(gtBoxes)
+  results = eval.evaluateDetections(groundTruth, detections, 0.5)
+  prec, recall = eval.computePrecisionRecall(numPositives, results['tp'], results['fp'], output+'.'+ranking)
+  return prec, recall
 
 if __name__ == "__main__":
   params = cu.loadParams('testMemDir groundTruthDir outputDir category catIndex')
@@ -106,21 +95,19 @@ if __name__ == "__main__":
     categories, catIndex = getCategories()
   elif params['catIndex'] == 'finetunedRelations':
     categories, catIndex = getRelationCategories()
-  scoredDetections, maxTime = loadScores(params['testMemDir'], catIndex)
+
+  catI = categories.index(params['category'])
+  scoredDetections = loadScores(params['testMemDir'], catI)
   
-  P = np.zeros( (maxTime, len(categories)) )
-  R = np.zeros( (maxTime, len(categories)) )
-
-  if params['category'] == 'all':
-    catIdx = range(len(categories))
-  else:
-    catIdx = [i for i in range(len(categories)) if categories[i] == params['category']]
-
-  for i in catIdx:
-    groundTruthFile = params['groundTruthDir'] + '/' + categories[i] + '_test_bboxes.txt'
-    outputFile = params['outputDir'] + '/' + categories[i] + '.out'
-    performance = evaluateCategory(scoredDetections, i, maxTime, groundTruthFile, outputFile)
-    P[:,i] = np.array( [p[0] for p in performance] )
-    R[:,i] = np.array( [r[1] for r in performance] )
-  saveTimeResults(categories, P, params['outputDir'] + '/precision_through_time.txt')
-  saveTimeResults(categories, R, params['outputDir'] + '/recall_through_time.txt')
+  groundTruthFile = params['groundTruthDir'] + '/' + categories[catI] + '_test_bboxes.txt'
+  outputFile = params['outputDir'] + '/' + categories[catI] + '.out'
+  ps,rs = evaluateCategory(scoredDetections, 'scores', groundTruthFile, outputFile)
+  pv,rv = evaluateCategory(scoredDetections, 'values', groundTruthFile, outputFile)
+  pl,rl = evaluateCategory(scoredDetections, 'landmarks', groundTruthFile, outputFile)
+  line = lambda x,y,z: x + '\t{:5.3f}\t{:5.3f}\n'.format(y,z)
+  out = open(params['outputDir'] + '/evaluation.txt','w')
+  out.write(categories[catI] + '\tPrecision\tRecall\n')
+  out.write(line('Scores',ps,rs))
+  out.write(line('Values',pv,rv))
+  out.write(line('Landmarks',pl,rl))
+  out.close()
