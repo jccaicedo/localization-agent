@@ -67,7 +67,7 @@ def loadScores(memDir, catI):
   print 'Average boxes per image: {:5.1f}'.format(totalNumberOfBoxes/float(totalImages))
   return scoredDetections
 
-def evaluateCategory(scoredDetections, ranking, groundTruthFile, output):
+def evaluateCategory(scoredDetections, ranking, groundTruthFile, output=None):
   performance = []
   detections = []
   for img in scoredDetections.keys():
@@ -84,7 +84,9 @@ def evaluateCategory(scoredDetections, ranking, groundTruthFile, output):
   numPositives = len(gtBoxes)
   groundTruth = eval.loadGroundTruthAnnotations(gtBoxes)
   results = eval.evaluateDetections(groundTruth, detections, 0.5)
-  prec, recall = eval.computePrecisionRecall(numPositives, results['tp'], results['fp'], output+'.'+ranking)
+  if output is not None:
+    output = output + '.' + ranking
+  prec, recall = eval.computePrecisionRecall(numPositives, results['tp'], results['fp'], output)
   return prec, recall
 
 if __name__ == "__main__":

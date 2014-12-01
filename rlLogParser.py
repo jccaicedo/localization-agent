@@ -28,6 +28,7 @@ epochRewards = []
 epochRecall = []
 epochIoU = []
 epochLandmarks = []
+validationLandmarks = []
 positives = dict([ (i,0) for i in range(config.geti('outputActions')) ])
 negatives = dict([ (i,0) for i in range(config.geti('outputActions')) ])
 for l in open(params['rlLog']):
@@ -49,21 +50,35 @@ for l in open(params['rlLog']):
     epochIoU.append( float(l.split()[-1]) )
   elif l.find('Epoch Landmarks:') != -1:
     epochLandmarks.append( float(l.split()[-1]) )
+  elif l.find('Validation Landmarks') != -1:
+    validationLandmarks.append( float(l.split()[-1]) )
+
+# Draw all plots
 ax[1,0].plot(range(len(epochRewards)), epochRewards)
 ax[1,0].set_title('Average Reward Per Epoch')
+
 recall = np.zeros( (len(epochRecall),2) )
 recall[:,0] = epochRecall
 recall[:,1] = epochLandmarks
 ax[0,1].plot(range(len(epochRecall)), recall)
 ax[0,1].set_title('Recall per Epoch')
+
 ax[1,1].plot(range(len(epochIoU)), epochIoU)
 ax[1,1].set_title('MaxIoU per Epoch')
-pos = positives.keys()
-pos.sort()
-ax[0,2].barh(range(len(pos)), [positives[k] for k in pos] )
-ax[0,2].set_title('Distribution of positive rewards')
-neg = negatives.keys()
-neg.sort()
-ax[1,2].barh(range(len(neg)), [negatives[k] for k in neg] )
-ax[1,2].set_title('Distribution of negative rewards')
+
+pos = positives.keys(); pos.sort()
+neg = negatives.keys(); neg.sort()
+ind = np.arange(len(pos)); width = 0.35
+rp = ax[0,2].bar(ind        , [positives[k] for k in pos], width=0.35, color='g' )
+rn = ax[0,2].bar(ind + width, [negatives[k] for k in neg], width=0.35, color='r' )
+ax[0,2].set_title('Distribution of rewards per action')
+ax[0,2].legend( (rp[0], rn[0]), ('Positive','Negative') )
+ax[0,2].set_xticks(ind + width)
+ax[0,2].set_xticklabels( ('XU','YU','SU','AU','XD','YD','SD','AD','LM','SR') )
+
+ax[1,2].plot(range(len(validationLandmarks)), validationLandmarks)
+ax[1,2].set_title('% Landmarks in Validation Set')
+
+
+# Save Plot
 plt.savefig(params['outdir'] + '/report.png')

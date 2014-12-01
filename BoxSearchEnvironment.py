@@ -42,13 +42,13 @@ class BoxSearchEnvironment(Environment, Named):
       self.state.performAction(action)
 
   def loadNextEpisode(self):
+    self.episodeDone = False
     if self.selectNegativeSample(): return
     # Save actions performed during this episode
     if self.mode == 'test' and self.testRecord != None:
       with open(config.get('testMemory') + self.imageList[self.idx] + '.txt', 'w') as outfile:
         json.dump(self.testRecord, outfile)
     # Load a new episode
-    self.episodeDone = False
     self.idx += 1
     if self.idx < len(self.imageList):
       # Initialize state

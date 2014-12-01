@@ -39,7 +39,7 @@ class BoxSearchTask(Task):
     iou, idx = self.matchBoxes(box)
     if iou <= 0.0:
       if actionChosen == bss.SKIP_REGION:
-        reward = 0.0
+        reward = 0.1
       else:
         reward = -2.0
     else:
