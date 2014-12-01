@@ -32,6 +32,9 @@ class BoxSearchEnvironment(Environment, Named):
     #self.imageList = self.rankImages()
     #self.imageList = self.imageList[0:10]
     if self.mode == 'train':
+      allImgs = set([x.strip() for x in open(config.get('allImagesList'))])
+      self.negativeSamples = list(allImgs.difference(set(self.imageList)))
+      self.negativeProbability = config.getf('negativeEpisodeProb')
       random.shuffle(self.imageList)
     self.loadNextEpisode()
 
@@ -39,6 +42,7 @@ class BoxSearchEnvironment(Environment, Named):
       self.state.performAction(action)
 
   def loadNextEpisode(self):
+    if self.selectNegativeSample(): return
     # Save actions performed during this episode
     if self.mode == 'test' and self.testRecord != None:
       with open(config.get('testMemory') + self.imageList[self.idx] + '.txt', 'w') as outfile:
@@ -62,6 +66,16 @@ class BoxSearchEnvironment(Environment, Named):
     if self.mode == 'test':
       self.testRecord = {'boxes':[], 'actions':[], 'values':[], 'rewards':[], 'scores':[]}
 
+  def selectNegativeSample(self):
+    if self.mode == 'train' and random.random() < self.negativeProbability:
+      idx = random.randint(0,len(self.negativeSamples)-1)
+      self.cnn.prepareImage(self.negativeSamples[idx])
+      self.state = bs.BoxSearchState(self.negativeSamples[idx], groundTruth=self.groundTruth, randomStart=True)
+      print 'Environment::LoadNextEpisode => Random Negative:',idx,self.negativeSamples[idx]
+      return True
+    else:
+      return False
+
   def updatePostReward(self, reward, allDone, cover):
     if self.mode == 'test':
       self.testRecord['boxes'].append( self.state.box )
@@ -71,14 +85,16 @@ class BoxSearchEnvironment(Environment, Named):
       self.testRecord['scores'].append( self.scores[:] )
       if self.state.actionChosen == bs.PLACE_LANDMARK:
         self.cnn.coverRegion(self.state.box)
-        self.state.skipRegion()
+        self.state.reset()
     elif self.mode == 'train':
       # We do not cover false landmarks during training
       if self.state.actionChosen == bs.PLACE_LANDMARK and cover:
         self.cnn.coverRegion(self.state.box) 
-        self.state.skipRegion()
+        self.state.reset()
       if allDone:
         self.episodeDone = True
+    if self.state.actionChosen == bs.SKIP_REGION:
+      self.state.reset()
 
   def getSensors(self):
     # Make a vector represenation of the action that brought the agent to this state (9 features)

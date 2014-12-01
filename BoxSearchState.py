@@ -20,16 +20,17 @@ Y_COORD_DOWN       = 5
 SCALE_DOWN         = 6
 ASPECT_RATIO_DOWN  = 7
 PLACE_LANDMARK     = 8
+SKIP_REGION        = 9
 
 # BOX LIMITS
-MIN_ASPECT_RATIO = 0.20
-MAX_ASPECT_RATIO = 5.00
-MIN_BOX_SIDE     = 20
+MIN_ASPECT_RATIO = 0.15
+MAX_ASPECT_RATIO = 6.00
+MIN_BOX_SIDE     = 10
 STEP_FACTOR      = 0.20
 DELTA_SIZE       = 0.20
 
 # OTHER DEFINITIONS
-NUM_ACTIONS = 9
+NUM_ACTIONS = 10
 
 def fingerprint(b):
   return '_'.join( map(str, map(int, b)) )
@@ -77,6 +78,7 @@ class BoxSearchState():
     elif action[0] == SCALE_DOWN:         newBox = self.scaleDown()
     elif action[0] == ASPECT_RATIO_DOWN:  newBox = self.aspectRatioDown()
     elif action[0] == PLACE_LANDMARK:     newBox = self.placeLandmark()
+    elif action[0] == SKIP_REGION:        newBox = self.skipRegion()
 
     self.box = newBox
     self.boxW = self.box[2] - self.box[0]
@@ -260,7 +262,13 @@ class BoxSearchState():
     return self.box
 
   def skipRegion(self):
-    self.box = [0, 0, self.visibleImage.size[0] - 1, self.visibleImage.size[1] - 1]
+    return self.box
+
+  def reset(self):
+    self.box = map(float, [0,0,self.visibleImage.size[0]-1,self.visibleImage.size[1]-1])
+    self.boxW = self.box[2]+1.0
+    self.boxH = self.box[3]+1.0
+    self.aspectRatio = self.boxH/self.boxW
 
   def sampleNextAction(self):
     if self.groundTruth is None:

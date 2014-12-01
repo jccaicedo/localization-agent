@@ -37,19 +37,20 @@ class BoxSearchTask(Task):
     reward = 0
     self.cover = False
     iou, idx = self.matchBoxes(box)
-    if iou == 0.0:
-      reward = -2.0
+    if iou <= 0.0:
+      if actionChosen == bss.SKIP_REGION:
+        reward = 0.0
+      else:
+        reward = -2.0
     else:
       improvedIoU = False
       if iou > self.control['IOU'][idx]:
         if update: self.control['IOU'][idx] = iou
         improvedIoU = True
-      if not improvedIoU and iou < 0.5:
+      if not improvedIoU and actionChosen not in [bss.SKIP_REGION, bss.PLACE_LANDMARK]:
         reward = -1.0
       elif improvedIoU and iou < 0.5:
         reward = 1.0
-      elif not improvedIoU and iou >= 0.5 and actionChosen != bss.PLACE_LANDMARK:
-        reward = -1.0
       elif improvedIoU and iou >= 0.5:
         reward = 2.0
       elif actionChosen == bss.PLACE_LANDMARK:
@@ -66,34 +67,12 @@ class BoxSearchTask(Task):
           reward = 2.0
         else:
           reward = 3.0
+      elif actionChosen == bss.SKIP_REGION:
+        if iou < 0.5:
+          return -1.0
+        else:
+          return -2.0
     return reward
-
-  def computeObjectRewardV5(self, box, actionChosen, update=True):
-    iou, idx = self.matchBoxes(box)
-    if actionChosen == bss.PLACE_LANDMARK:
-      if iou >= 0.7: #minAcceptableIoU:
-        if update: 
-          self.control['DONE'][idx] = True
-          for j in range(len(self.control['IOU'])):
-            if not self.control['DONE']:
-              self.control['IOU'] = 0.0
-        return 3.0
-      else:
-        return -3.0
-    else:
-      improvedIoU = 0.0
-      if iou > self.control['IOU'][idx]:
-        if update: self.control['IOU'][idx] = iou
-        improvedIoU += 1.0
-      else:
-        improvedIoU -= 1.0
-      wellLocalizedObject = 0.0
-      if iou >= minAcceptableIoU:
-        wellLocalizedObject += 1.0
-      visibleObject = 0.0
-      if iou == 0.0:
-        visibleObject = -2.0
-      return improvedIoU + wellLocalizedObject + visibleObject
 
   def performAction(self, action):
     Task.performAction(self, action)
