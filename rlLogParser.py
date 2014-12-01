@@ -24,6 +24,7 @@ ax[0,0].set_title('QNetwork Loss')
 
 # Parse RL output
 avgRewards = []
+epochRewards = []
 epochRecall = []
 epochIoU = []
 epochLandmarks = []
@@ -42,12 +43,14 @@ for l in open(params['rlLog']):
     avgRewards.append( float(l.split()[-1]) )
   elif l.find('Epoch Recall') != -1:
     epochRecall.append( float(l.split()[-1]) )
+    epochRewards.append( np.average(avgRewards) )
+    avgRewards = []
   elif l.find('MaxIoU') != -1:
     epochIoU.append( float(l.split()[-1]) )
   elif l.find('Epoch Landmarks:') != -1:
     epochLandmarks.append( float(l.split()[-1]) )
-ax[1,0].plot(range(len(avgRewards)), avgRewards)
-ax[1,0].set_title('Average Reward Per Episode')
+ax[1,0].plot(range(len(epochRewards)), epochRewards)
+ax[1,0].set_title('Average Reward Per Epoch')
 recall = np.zeros( (len(epochRecall),2) )
 recall[:,0] = epochRecall
 recall[:,1] = epochLandmarks

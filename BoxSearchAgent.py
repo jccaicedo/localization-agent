@@ -9,7 +9,7 @@ import MemoryUsage
 import RLConfig as config
 import BoxSearchState as bss
 
-STATE_FEATURES = config.geti('stateFeatures')
+STATE_FEATURES = config.geti('stateFeatures')/config.geti('temporalWindow')
 NUM_ACTIONS = config.geti('outputActions')
 TEMPORAL_WINDOW = config.geti('temporalWindow')
 HISTORY_FACTOR = config.geti('historyFactor')
@@ -88,7 +88,7 @@ class BoxSearchAgent():
 class ReplayMemory():
 
   def __init__(self, numImages, recordsPerImage):
-    self.O = np.zeros( (HISTORY_FACTOR*numImages*recordsPerImage, STATE_FEATURES), np.float32 )
+    self.O = np.zeros( (HISTORY_FACTOR*numImages*recordsPerImage, TEMPORAL_WINDOW*STATE_FEATURES), np.float32 )
     self.A = np.zeros( (HISTORY_FACTOR*numImages*recordsPerImage, 1), np.int )
     self.R = np.zeros( (HISTORY_FACTOR*numImages*recordsPerImage, 1), np.float32 )
     self.I = ['' for i in range(HISTORY_FACTOR*numImages*recordsPerImage)]

@@ -48,14 +48,19 @@ class BoxSearchRunner():
     epochSize = len(self.environment.imageList)/1
     epsilon = 1.0
     self.controller.setEpsilonGreedy(epsilon, self.environment.sampleAction)
-    print 'Epoch 0: Exploration'
-    self.runEpoch(interactions, len(self.environment.imageList))
-    self.task.flushStats()
+    epoch = 1
+    exEpochs = config.geti('explorationEpochs')
+    while epoch <= exEpochs:
+      s = cu.tic()
+      print 'Epoch',epoch,': Exploration (epsilon=1.0)'
+      self.runEpoch(interactions, len(self.environment.imageList))
+      self.task.flushStats()
+      s = cu.toc('Epoch done in ',s)
+      epoch += 1
     self.learner = QLearning()
     self.agent.learner = self.learner
-    epoch = 1
     egEpochs = config.geti('epsilonGreedyEpochs')
-    while epoch <= egEpochs:
+    while epoch <= egEpochs + exEpochs:
       s = cu.tic()
       epsilon = epsilon - (1.0-minEpsilon)/float(egEpochs)
       if epsilon < minEpsilon: epsilon = minEpsilon
@@ -65,11 +70,10 @@ class BoxSearchRunner():
       self.task.flushStats()
       s = cu.toc('Epoch done in ',s)
       epoch += 1
-    epoch = 1
-    maxEpochs = config.geti('exploitLearningEpochs')
+    maxEpochs = config.geti('exploitLearningEpochs') + exEpochs + egEpochs
     while epoch <= maxEpochs:
       s = cu.tic()
-      print 'Epoch',epoch+egEpochs,'(exploitation mode: epsilon={:5.3f})'.format(epsilon)
+      print 'Epoch',epoch,'(exploitation mode: epsilon={:5.3f})'.format(epsilon)
       self.runEpoch(interactions, epochSize)
       self.task.flushStats()
       s = cu.toc('Epoch done in ',s)

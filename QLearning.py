@@ -60,11 +60,21 @@ class CaffeMultiLayerPerceptronManagement():
     self.directory = workingDir
     self.writeSolverFile()
     self.solver = caffe.SGDSolver(self.directory + 'solver.prototxt')
+    self.iter = 0
+    self.itersPerEpisode = config.geti('trainingIterationsPerBatch')
+    self.lr = config.getf('learningRate')
+    self.stepSize = config.geti('stepSize')
+    self.gamma = config.getf('gamma')
     print 'CAFFE SOLVER INITALIZED'
 
   def doNetworkTraining(self, samples, labels):
     self.solver.net.set_input_arrays(samples, labels)
     self.solver.solve()
+    self.iter += config.geti('trainingIterationsPerBatch')
+    if self.iter % self.stepSize == 0:
+      newLR = self.lr * ( self.gamma** int(self.iter/self.stepSize) )
+      print 'Changing LR to:',newLR
+      self.solver.change_lr(newLR)
 
   def writeSolverFile(self):
     out = open(self.directory + '/solver.prototxt','w')
@@ -72,7 +82,7 @@ class CaffeMultiLayerPerceptronManagement():
     out.write('base_lr: ' + config.get('learningRate') + '\n')
     out.write('lr_policy: "step"\n')
     out.write('gamma: ' + config.get('gamma') + '\n')
-    out.write('stepsize: 10000\n')
+    out.write('stepsize: ' + config.get('stepSize') + '\n')
     out.write('display: 1\n')
     out.write('max_iter: ' + config.get('trainingIterationsPerBatch') + '\n')
     out.write('momentum: ' + config.get('momentum') + '\n')
