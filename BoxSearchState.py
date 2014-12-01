@@ -20,7 +20,7 @@ Y_COORD_DOWN       = 5
 SCALE_DOWN         = 6
 ASPECT_RATIO_DOWN  = 7
 PLACE_LANDMARK     = 8
-SKIP_REGION        = 9
+#SKIP_REGION        = 9
 
 # BOX LIMITS
 MIN_ASPECT_RATIO = 0.15
@@ -40,22 +40,7 @@ class BoxSearchState():
   def __init__(self, imageName, randomStart=False, groundTruth=None):
     self.imageName = imageName
     self.visibleImage = Image.open(config.get('imageDir') + '/' + self.imageName + '.jpg')
-    if not randomStart:
-      self.box = map(float, [0,0,self.visibleImage.size[0]-1,self.visibleImage.size[1]-1])
-      self.boxW = self.box[2]+1.0
-      self.boxH = self.box[3]+1.0
-      self.aspectRatio = self.boxH/self.boxW
-    else:
-      wlimit = self.visibleImage.size[0]/4
-      hlimit = self.visibleImage.size[1]/4
-      a = random.randint(wlimit, self.visibleImage.size[0] - wlimit)
-      b = random.randint(hlimit, self.visibleImage.size[1] - hlimit)
-      c = random.randint(wlimit, min(self.visibleImage.size[0] - a, a) )
-      d = random.randint(hlimit, min(self.visibleImage.size[1] - b, b) )
-      self.box = map(float, [a-c, b-d, a+c, b+d] )
-      self.boxW = 2.0*c
-      self.boxH = 2.0*d
-      self.aspectRatio = self.boxH/self.boxW
+    self.reset(randomStart)
     self.landmarkIndex = {}
     self.actionChosen = 2
     self.actionValue = 0
@@ -78,7 +63,7 @@ class BoxSearchState():
     elif action[0] == SCALE_DOWN:         newBox = self.scaleDown()
     elif action[0] == ASPECT_RATIO_DOWN:  newBox = self.aspectRatioDown()
     elif action[0] == PLACE_LANDMARK:     newBox = self.placeLandmark()
-    elif action[0] == SKIP_REGION:        newBox = self.skipRegion()
+    #elif action[0] == SKIP_REGION:        newBox = self.skipRegion()
 
     self.box = newBox
     self.boxW = self.box[2] - self.box[0]
@@ -261,14 +246,26 @@ class BoxSearchState():
     self.landmarkIndex[ fingerprint(self.box) ] = self.box[:]
     return self.box
 
-  def skipRegion(self):
-    return self.box
+  #def skipRegion(self):
+  #  return self.box
 
-  def reset(self):
-    self.box = map(float, [0,0,self.visibleImage.size[0]-1,self.visibleImage.size[1]-1])
-    self.boxW = self.box[2]+1.0
-    self.boxH = self.box[3]+1.0
-    self.aspectRatio = self.boxH/self.boxW
+  def reset(self, randomStart=False):
+    if not randomStart:
+      self.box = map(float, [0,0,self.visibleImage.size[0]-1,self.visibleImage.size[1]-1])
+      self.boxW = self.box[2]+1.0
+      self.boxH = self.box[3]+1.0
+      self.aspectRatio = self.boxH/self.boxW
+    else:
+      wlimit = self.visibleImage.size[0]/4
+      hlimit = self.visibleImage.size[1]/4
+      a = random.randint(wlimit, self.visibleImage.size[0] - wlimit)
+      b = random.randint(hlimit, self.visibleImage.size[1] - hlimit)
+      c = random.randint(wlimit, min(self.visibleImage.size[0] - a, a) )
+      d = random.randint(hlimit, min(self.visibleImage.size[1] - b, b) )
+      self.box = map(float, [a-c, b-d, a+c, b+d] )
+      self.boxW = 2.0*c
+      self.boxH = 2.0*d
+      self.aspectRatio = self.boxH/self.boxW
 
   def sampleNextAction(self):
     if self.groundTruth is None:

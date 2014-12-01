@@ -88,13 +88,14 @@ class BoxSearchEnvironment(Environment, Named):
         self.state.reset()
     elif self.mode == 'train':
       # We do not cover false landmarks during training
-      if self.state.actionChosen == bs.PLACE_LANDMARK and cover:
-        self.cnn.coverRegion(self.state.box) 
-        self.state.reset()
+      if self.state.actionChosen == bs.PLACE_LANDMARK and len(cover) > 0:
+        # During training we only cover a carefully selected part of the ground truth box to avoid conflicts with other boxes.
+        self.cnn.coverRegion(cover)
+        self.state.reset(True)
       if allDone:
         self.episodeDone = True
-    if self.state.actionChosen == bs.SKIP_REGION:
-      self.state.reset()
+    #if self.state.actionChosen == bs.SKIP_REGION:
+    #  self.state.reset(self.mode == 'train')
 
   def getSensors(self):
     # Make a vector represenation of the action that brought the agent to this state (9 features)
