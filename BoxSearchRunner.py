@@ -68,6 +68,7 @@ class BoxSearchRunner():
       print 'Epoch',epoch ,'(epsilon-greedy:{:5.3f})'.format(epsilon)
       self.runEpoch(interactions, epochSize)
       self.task.flushStats()
+      self.doValidation(epoch)
       s = cu.toc('Epoch done in ',s)
       epoch += 1
     maxEpochs = config.geti('exploitLearningEpochs') + exEpochs + egEpochs
@@ -76,6 +77,7 @@ class BoxSearchRunner():
       print 'Epoch',epoch,'(exploitation mode: epsilon={:5.3f})'.format(epsilon)
       self.runEpoch(interactions, epochSize)
       self.task.flushStats()
+      self.doValidation(epoch)
       s = cu.toc('Epoch done in ',s)
       epoch += 1
 
@@ -83,6 +85,29 @@ class BoxSearchRunner():
     interactions = config.geti('testInteractions')
     self.controller.setEpsilonGreedy(config.getf('testEpsilon'))
     self.runEpoch(interactions, len(self.environment.imageList))
+
+  def doValidation(self, epoch):
+    if epoch % config.geti('validationEpochs') != 0:
+      return
+    auxRL = BoxSearchRunner('test')
+    auxRL.run()
+    indexType = config.get('evaluationIndexType')
+    category = config.get('category')
+    if indexType == 'pascal':
+      categories, catIndex = bse.get20Categories()
+    elif indexType == 'relations':
+      categories, catIndex = bse.getCategories()
+    elif indexType == 'finetunedRelations':
+      categories, catIndex = bse.getRelationCategories()
+    catI = categories.index(category)
+    scoredDetections = bse.loadScores(config.get('testMemory'), catI)
+    groundTruthFile = config.get('testGroundTruth')
+    ps,rs = bse.evaluateCategory(scoredDetections, 'scores', groundTruthFile)
+    pl,rl = bse.evaluateCategory(scoredDetections, 'landmarks', groundTruthFile)
+    line = lambda x,y,z: x + '\t{:5.3f}\t{:5.3f}\n'.format(y,z)
+    print line('Validation Scores:',ps,rs)
+    print line('Validation Landmarks:',pl,rl)
+
   
 if __name__ == "__main__":
   if len(sys.argv) < 2:
@@ -97,6 +122,7 @@ if __name__ == "__main__":
   from BoxSearchEnvironment import BoxSearchEnvironment
   from BoxSearchTask import BoxSearchTask
   from BoxSearchAgent import BoxSearchAgent
+  import BoxSearchEvaluation as bse
 
   ## Run Training and Testing
   rl = BoxSearchRunner('train')

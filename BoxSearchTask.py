@@ -35,19 +35,19 @@ class BoxSearchTask(Task):
 
   def computeObjectReward(self, box, actionChosen, update=True):
     reward = 0
-    self.cover = False
+    self.cover = []
     iou, idx = self.matchBoxes(box)
     if iou <= 0.0:
-      if actionChosen == bss.SKIP_REGION:
-        reward = 0.0
-      else:
-        reward = -2.0
+      #if actionChosen == bss.SKIP_REGION:
+      #  reward = 0.0
+      #else:
+      reward = -2.0
     else:
       improvedIoU = False
       if iou > self.control['IOU'][idx]:
         if update: self.control['IOU'][idx] = iou
         improvedIoU = True
-      if not improvedIoU and actionChosen not in [bss.SKIP_REGION, bss.PLACE_LANDMARK]:
+      if not improvedIoU and actionChosen != bss.PLACE_LANDMARK:
         reward = -1.0
       elif improvedIoU and iou < 0.5:
         reward = 1.0
@@ -56,22 +56,21 @@ class BoxSearchTask(Task):
       elif actionChosen == bss.PLACE_LANDMARK:
         if iou >= minAcceptableIoU:
           if update: 
-            self.control['DONE'][idx] = True
-            self.cover = True
+            self.coverSample(idx)
             for j in range(len(self.control['IOU'])):
-              if not self.control['DONE']:
-                self.control['IOU'] = 0.0
+              if not self.control['DONE'][j]:
+                self.control['IOU'][j] = 0.0
         if iou < 0.5:
           reward = -1.0
         elif iou < 0.7:
           reward = 2.0
         else:
           reward = 3.0
-      elif actionChosen == bss.SKIP_REGION:
-        if iou < 0.5:
-          return -1.0
-        else:
-          return -2.0
+      #elif actionChosen == bss.SKIP_REGION:
+      #  if iou < 0.5:
+      #    return -1.0
+      #  else:
+      #    return -2.0
     return reward
 
   def performAction(self, action):
@@ -88,7 +87,7 @@ class BoxSearchTask(Task):
       self.boxes = [b[:] for b in gt]
       self.centers = [center(b) for b in gt]
       self.areas = [det.area(b) for b in gt]
-      self.control = {'IOU': [0.0 for b in gt], 'DONE': [False for b in gt]} 
+      self.control = {'IOU': [0.0 for b in gt], 'DONE': [False for b in gt], 'SKIP': [False for b in gt]} 
     return gt
 
   def matchBoxes(self, box):
@@ -103,34 +102,42 @@ class BoxSearchTask(Task):
         maxIdx = i
     return (maxIoU, maxIdx)
 
-  def matchCenters(self, box):
-    minDist = float('inf')
-    minIdx = 0
-    c = center(box)
-    for i in range(len(self.centers)):
-      dist = euclideanDist(c, self.centers[i])
-      if dist < minDist:
-        minDist = dist
-        minIdx = i
-    return (minDist, minIdx)
- 
-  def matchAreas(self, box):
-    minDiff = float('inf')
-    minIdx = 0
-    a = det.area(box)
-    for i in range(len(self.areas)):
-      diff = abs(a - self.areas[i])
-      if diff < minDiff:
-        minDiff = diff
-        minIdx = i
-    return (minDiff, minIdx)
+  def coverSample(self, idx):
+    self.control['DONE'][idx] = True
+    self.cover = self.boxes[idx][:]
+    conflicts = []
+    for j in range(len(self.control['DONE'])):
+      if not self.control['DONE'][j]:
+        ov = det.overlap(self.cover, self.boxes[j])
+        if ov > 0.0:
+          conflicts.append( (j,ov) )
+    conflicts.sort(key=lambda x:x[1], reverse=True)
+    for j,ov in conflicts:
+      nov = det.overlap(self.cover, self.boxes[j])
+      if nov > 0.1 and nov < 0.5:
+        ib = det.intersect(self.cover, self.boxes[j])
+        iw = ib[2] - ib[0] + 1
+        ih = ib[3] = ib[1] + 1
+        if iw > ih: # Cut height first
+          if self.cover[1] >= ib[1]: self.cover[1] = ib[3]
+          if self.cover[3] <= ib[3]: self.cover[3] = ib[1]
+          if self.cover[0] >= ib[0]: self.cover[0] = ib[2]
+          if self.cover[2] <= ib[2]: self.cover[2] = ib[0]
+        else: # Cut width first
+          if self.cover[0] >= ib[0]: self.cover[0] = ib[2]
+          if self.cover[2] <= ib[2]: self.cover[2] = ib[0]
+          if self.cover[1] >= ib[1]: self.cover[1] = ib[3]
+          if self.cover[3] <= ib[3]: self.cover[3] = ib[1]
+      elif nov > 0.5: # Assume the example is done for now
+        self.control['DONE'][j] = True
+        self.control['SKIP'][j] = True
 
   def displayEpisodePerformance(self):
     if self.image != '':
-      detected = len( [1 for i in range(len(self.boxes)) if self.control['IOU'][i] >= 0.5] )
+      detected = len( [1 for i in range(len(self.boxes)) if self.control['IOU'][i] >= 0.5 and not self.control['SKIP'][i]] )
       recall = (float(detected)/len(self.boxes))
       maxIoU = max(self.control['IOU'])
-      landmarks = sum( self.control['DONE'] )
+      landmarks = sum( self.control['DONE'] ) - sum( self.control['SKIP'] )
       print self.image,'Objects detected [min(IoU) > 0.5]:',detected,'of',len(self.boxes),
       print 'Recall:',recall,
       print 'Maximum IoU achieved:',maxIoU,

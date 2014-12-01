@@ -169,13 +169,17 @@ def computePrecisionRecall(numPositives,tp,fp,outFile=None):
       p = 0.0
     AP2007 += p/11
 
+  if len(recall) > 0:
+    maxRecall = max(recall)
+  else:
+    maxRecall = 0.0
   print 'AP2012:',AP2012
   print 'AP2007:',AP2007
-  print 'MAX RECALL:',max(recall)
+  print 'MAX RECALL:',maxRecall
   if outFile != None:
     output.write('AP='+str(AP2007))
     output.close()
-  return AP2007, max(recall)
+  return AP2007, maxRecall
 
 def computePrecAt(tp,K):
   import numpy as np
