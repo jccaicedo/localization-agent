@@ -69,6 +69,8 @@ class BoxSearchAgent():
       if self.action == bss.PLACE_LANDMARK and self.reward > 0: # Oversample terminal state
         for copy in range(HISTORY_FACTOR):
           self.replayMemory.add(self.image+'_'+str(copy), self.timer, self.action, obs, self.reward)
+        # Clean history of observations
+        self.observation = np.zeros( (TEMPORAL_WINDOW, STATE_FEATURES), np.float32 )
     self.actionsH[self.action] += 1
     print 'Agent::MemoryRecord => image:',self.image,'time:',self.timer,'action:',self.action,'reward',self.reward,'avgReward:',self.avgReward
 
