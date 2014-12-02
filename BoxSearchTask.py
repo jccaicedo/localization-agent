@@ -114,7 +114,7 @@ class BoxSearchTask(Task):
     conflicts.sort(key=lambda x:x[1], reverse=True)
     for j,ov in conflicts:
       nov = det.overlap(self.cover, self.boxes[j])
-      if nov > 0.1 and nov < 0.5:
+      if nov < 0.5:
         ib = det.intersect(self.cover, self.boxes[j])
         iw = ib[2] - ib[0] + 1
         ih = ib[3] = ib[1] + 1
@@ -128,7 +128,7 @@ class BoxSearchTask(Task):
           if self.cover[2] <= ib[2]: self.cover[2] = ib[0]
           if self.cover[1] >= ib[1]: self.cover[1] = ib[3]
           if self.cover[3] <= ib[3]: self.cover[3] = ib[1]
-      elif nov > 0.5: # Assume the example is done for now
+      elif nov >= 0.5: # Assume the example is done for now
         self.control['DONE'][j] = True
         self.control['SKIP'][j] = True
 
