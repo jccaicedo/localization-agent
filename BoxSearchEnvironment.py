@@ -94,8 +94,9 @@ class BoxSearchEnvironment(Environment, Named):
         self.state.reset(True)
       if allDone:
         self.episodeDone = True
-    #if self.state.actionChosen == bs.SKIP_REGION:
-    #  self.state.reset(self.mode == 'train')
+    # Terminate episode with a single detected instance
+    if self.state.actionChosen == bs.PLACE_LANDMARK:
+      self.episodeDone = True
 
   def getSensors(self):
     # Make a vector represenation of the action that brought the agent to this state (9 features)

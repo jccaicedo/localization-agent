@@ -16,6 +16,7 @@ class ConvNet():
   def __init__(self):
     self.net = None
     self.image = ''
+    self.id = 0
     self.loadNetwork()
 
   def loadNetwork(self):
@@ -44,6 +45,7 @@ class ConvNet():
 
   def coverRegion(self, box):
     boxes = [map(int,box)]
-    self.net.caffenet.CoverRegions(boxes)
+    self.net.caffenet.CoverRegions(boxes, self.id)
+    self.id += 1
     return True
 
