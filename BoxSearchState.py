@@ -26,11 +26,12 @@ PLACE_LANDMARK     = 8
 MIN_ASPECT_RATIO = 0.15
 MAX_ASPECT_RATIO = 6.00
 MIN_BOX_SIDE     = 10
-STEP_FACTOR      = 0.20
-DELTA_SIZE       = 0.20
+STEP_FACTOR      = 0.10
+DELTA_SIZE       = 0.10
 
 # OTHER DEFINITIONS
 NUM_ACTIONS = 10
+RESET_BOX_FACTOR = 4
 
 def fingerprint(b):
   return '_'.join( map(str, map(int, b)) )
@@ -256,15 +257,15 @@ class BoxSearchState():
       self.boxH = self.box[3]+1.0
       self.aspectRatio = self.boxH/self.boxW
     else:
-      wlimit = self.visibleImage.size[0]/4
-      hlimit = self.visibleImage.size[1]/4
+      wlimit = self.visibleImage.size[0]/(RESET_BOX_FACTOR*2)
+      hlimit = self.visibleImage.size[1]/(RESET_BOX_FACTOR*2)
       a = random.randint(wlimit, self.visibleImage.size[0] - wlimit)
       b = random.randint(hlimit, self.visibleImage.size[1] - hlimit)
       c = random.randint(wlimit, min(self.visibleImage.size[0] - a, a) )
       d = random.randint(hlimit, min(self.visibleImage.size[1] - b, b) )
       self.box = map(float, [a-c, b-d, a+c, b+d] )
-      self.boxW = 2.0*c
-      self.boxH = 2.0*d
+      self.boxW = float(RESET_BOX_FACTOR)*c
+      self.boxH = float(RESET_BOX_FACTOR)*d
       self.aspectRatio = self.boxH/self.boxW
 
   def sampleNextAction(self):

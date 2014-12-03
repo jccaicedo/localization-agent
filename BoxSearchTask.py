@@ -54,7 +54,16 @@ class BoxSearchTask(Task):
       elif improvedIoU and iou >= 0.5:
         reward = 2.0
       elif actionChosen == bss.PLACE_LANDMARK:
-        if iou >= minAcceptableIoU:
+        # First, make sure it does not touch any covering
+        touchCover = False
+        for c in self.control['COVERS']:
+          if det.IoU(c, box) > 0.0:
+            touchCover = True
+            break
+        if touchCover:
+          reward = -1
+        # If no cover is touched, proceed to check landmark quality
+        elif iou >= minAcceptableIoU:
           if update: 
             self.coverSample(idx)
             for j in range(len(self.control['IOU'])):
@@ -87,7 +96,8 @@ class BoxSearchTask(Task):
       self.boxes = [b[:] for b in gt]
       self.centers = [center(b) for b in gt]
       self.areas = [det.area(b) for b in gt]
-      self.control = {'IOU': [0.0 for b in gt], 'DONE': [False for b in gt], 'SKIP': [False for b in gt]} 
+      self.control = {'IOU': [0.0 for b in gt], 'DONE': [False for b in gt], 
+                      'SKIP': [False for b in gt], 'COVERS':[]} 
     return gt
 
   def matchBoxes(self, box):
@@ -117,20 +127,21 @@ class BoxSearchTask(Task):
       if nov < 0.5:
         ib = det.intersect(self.cover, self.boxes[j])
         iw = ib[2] - ib[0] + 1
-        ih = ib[3] = ib[1] + 1
+        ih = ib[3] - ib[1] + 1
         if iw > ih: # Cut height first
           if self.cover[1] >= ib[1]: self.cover[1] = ib[3]
           if self.cover[3] <= ib[3]: self.cover[3] = ib[1]
-          if self.cover[0] >= ib[0]: self.cover[0] = ib[2]
-          if self.cover[2] <= ib[2]: self.cover[2] = ib[0]
+          #if self.cover[0] >= ib[0]: self.cover[0] = ib[2]
+          #if self.cover[2] <= ib[2]: self.cover[2] = ib[0]
         else: # Cut width first
           if self.cover[0] >= ib[0]: self.cover[0] = ib[2]
           if self.cover[2] <= ib[2]: self.cover[2] = ib[0]
-          if self.cover[1] >= ib[1]: self.cover[1] = ib[3]
-          if self.cover[3] <= ib[3]: self.cover[3] = ib[1]
+          #if self.cover[1] >= ib[1]: self.cover[1] = ib[3]
+          #if self.cover[3] <= ib[3]: self.cover[3] = ib[1]
       elif nov >= 0.5: # Assume the example is done for now
         self.control['DONE'][j] = True
         self.control['SKIP'][j] = True
+    self.control['COVERS'].append(self.cover[:])
 
   def displayEpisodePerformance(self):
     if self.image != '':
