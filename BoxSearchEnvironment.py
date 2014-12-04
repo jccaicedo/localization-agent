@@ -200,5 +200,5 @@ class BoxSearchEnvironment(Environment, Named):
     values = [ rank[i] for i in keys ]
     complexityRank = np.argsort(values)
     print 'More complex images:',[keys[i] for i in complexityRank[0:10]]
-    return [keys[i] for i in smallRank]
+    return [keys[i] for i in occlusionRank]
     

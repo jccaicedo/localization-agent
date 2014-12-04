@@ -9,7 +9,7 @@ import numpy as np
 
 import RLConfig as config
 
-MIN_ACCEPTABLE_IOU = config.geti('minAcceptableIoU')
+MIN_ACCEPTABLE_IOU = config.getf('minAcceptableIoU')
 
 def center(box):
   return [ (box[2] + box[0])/2.0 , (box[3] + box[1])/2.0 ]
