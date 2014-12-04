@@ -7,7 +7,9 @@ import utils as cu
 import libDetection as det
 import numpy as np
 
-minAcceptableIoU = 0.8
+import RLConfig as config
+
+MIN_ACCEPTABLE_IOU = config.geti('minAcceptableIoU')
 
 def center(box):
   return [ (box[2] + box[0])/2.0 , (box[3] + box[1])/2.0 ]
@@ -51,13 +53,13 @@ class BoxSearchTask(Task):
       elif improvedIoU and iou >= 0.5:
         reward = 2.0
       elif actionChosen == bss.PLACE_LANDMARK:
-        if iou >= minAcceptableIoU:
+        if iou >= MIN_ACCEPTABLE_IOU:
           if update: 
             self.coverSample(idx)
             for j in range(len(self.control['IOU'])):
               if not self.control['DONE'][j]:
                 self.control['IOU'][j] = 0.0
-        if iou < minAcceptableIoU:
+        if iou < MIN_ACCEPTABLE_IOU:
           reward = -1.0
         else:
           reward = 3.0

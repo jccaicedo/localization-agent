@@ -20,6 +20,8 @@ def sigmoid(x, a=1.0, b=0.0):
 def tanh(x, a=5, b=0.5, c=2.0):
   return c*np.tanh(a*x + b)
 
+TEST_TIME_OUT = config.geti('testTimeOut')
+
 class BoxSearchEnvironment(Environment, Named):
 
   def __init__(self, imageList, mode, groundTruthFile=None):
@@ -87,7 +89,7 @@ class BoxSearchEnvironment(Environment, Named):
         #negImg = random.randint(0,len(self.negativeSamples)-1)
         self.cnn.coverRegion(self.state.box) #, self.negativeSamples[negImg])
         self.state.reset()
-      if self.state.stepsWithoutLandmark > 30:
+      if self.state.stepsWithoutLandmark > TEST_TIME_OUT:
         self.state.reset(True)
     elif self.mode == 'train':
       # We do not cover false landmarks during training

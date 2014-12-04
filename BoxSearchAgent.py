@@ -14,6 +14,7 @@ STATE_FEATURES = config.geti('stateFeatures')/config.geti('temporalWindow')
 NUM_ACTIONS = config.geti('outputActions')
 TEMPORAL_WINDOW = config.geti('temporalWindow')
 HISTORY_FACTOR = config.geti('historyFactor')
+NEGATIVE_PROBABILITY = config.getf('negativeEpisodeProb')
 
 class BoxSearchAgent():
 
@@ -75,7 +76,7 @@ class BoxSearchAgent():
             self.replayMemory.add(self.image+'_'+str(copy), self.timer, self.action, obs, self.reward)
       else:
         # Any negative sample should be remembered as a bad landmark rather than a bad movement
-        if random.random() < 2*config.getf('negativeEpisodeProb'):
+        if random.random() < 2*NEGATIVE_PROBABILITY:
           self.replayMemory.add(self.image, self.timer, bss.PLACE_LANDMARK, obs, -2.0)
     if self.action == bss.PLACE_LANDMARK:
       # Clean history of observations
