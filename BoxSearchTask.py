@@ -7,7 +7,9 @@ import utils as cu
 import libDetection as det
 import numpy as np
 
-minAcceptableIoU = 0.5
+import RLConfig as config
+
+MIN_ACCEPTABLE_IOU = config.getf('minAcceptableIoU')
 
 def center(box):
   return [ (box[2] + box[0])/2.0 , (box[3] + box[1])/2.0 ]
@@ -38,9 +40,6 @@ class BoxSearchTask(Task):
     self.cover = []
     iou, idx = self.matchBoxes(box)
     if iou <= 0.0:
-      #if actionChosen == bss.SKIP_REGION:
-      #  reward = 0.0
-      #else:
       reward = -2.0
     else:
       improvedIoU = False
@@ -54,32 +53,16 @@ class BoxSearchTask(Task):
       elif improvedIoU and iou >= 0.5:
         reward = 2.0
       elif actionChosen == bss.PLACE_LANDMARK:
-        # First, make sure it does not touch any covering
-        touchCover = False
-        for c in self.control['COVERS']:
-          if det.IoU(c, box) > 0.0:
-            touchCover = True
-            break
-        if touchCover:
-          reward = -1
-        # If no cover is touched, proceed to check landmark quality
-        elif iou >= minAcceptableIoU:
+        if iou >= MIN_ACCEPTABLE_IOU:
           if update: 
             self.coverSample(idx)
             for j in range(len(self.control['IOU'])):
               if not self.control['DONE'][j]:
                 self.control['IOU'][j] = 0.0
-        if iou < 0.5:
+        if iou < MIN_ACCEPTABLE_IOU:
           reward = -1.0
-        elif iou < 0.7:
-          reward = 2.0
         else:
           reward = 3.0
-      #elif actionChosen == bss.SKIP_REGION:
-      #  if iou < 0.5:
-      #    return -1.0
-      #  else:
-      #    return -2.0
     return reward
 
   def performAction(self, action):
@@ -97,7 +80,7 @@ class BoxSearchTask(Task):
       self.centers = [center(b) for b in gt]
       self.areas = [det.area(b) for b in gt]
       self.control = {'IOU': [0.0 for b in gt], 'DONE': [False for b in gt], 
-                      'SKIP': [False for b in gt], 'COVERS':[]} 
+                      'SKIP': [False for b in gt]} 
     return gt
 
   def matchBoxes(self, box):
@@ -131,17 +114,12 @@ class BoxSearchTask(Task):
         if iw > ih: # Cut height first
           if self.cover[1] >= ib[1]: self.cover[1] = ib[3]
           if self.cover[3] <= ib[3]: self.cover[3] = ib[1]
-          #if self.cover[0] >= ib[0]: self.cover[0] = ib[2]
-          #if self.cover[2] <= ib[2]: self.cover[2] = ib[0]
         else: # Cut width first
           if self.cover[0] >= ib[0]: self.cover[0] = ib[2]
           if self.cover[2] <= ib[2]: self.cover[2] = ib[0]
-          #if self.cover[1] >= ib[1]: self.cover[1] = ib[3]
-          #if self.cover[3] <= ib[3]: self.cover[3] = ib[1]
       elif nov >= 0.5: # Assume the example is done for now
         self.control['DONE'][j] = True
         self.control['SKIP'][j] = True
-    self.control['COVERS'].append(self.cover[:])
 
   def displayEpisodePerformance(self):
     if self.image != '':

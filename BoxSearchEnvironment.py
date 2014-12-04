@@ -20,6 +20,8 @@ def sigmoid(x, a=1.0, b=0.0):
 def tanh(x, a=5, b=0.5, c=2.0):
   return c*np.tanh(a*x + b)
 
+TEST_TIME_OUT = config.geti('testTimeOut')
+
 class BoxSearchEnvironment(Environment, Named):
 
   def __init__(self, imageList, mode, groundTruthFile=None):
@@ -31,9 +33,10 @@ class BoxSearchEnvironment(Environment, Named):
     self.groundTruth = cu.loadBoxIndexFile(groundTruthFile)
     #self.imageList = self.rankImages()
     #self.imageList = self.imageList[0:10]
+    allImgs = set([x.strip() for x in open(config.get('allImagesList'))])
+    self.negativeSamples = list(allImgs.difference(set(self.groundTruth.keys())))
+    self.negativeEpisode = False
     if self.mode == 'train':
-      allImgs = set([x.strip() for x in open(config.get('allImagesList'))])
-      self.negativeSamples = list(allImgs.difference(set(self.imageList)))
       self.negativeProbability = config.getf('negativeEpisodeProb')
       random.shuffle(self.imageList)
     self.loadNextEpisode()
@@ -43,6 +46,7 @@ class BoxSearchEnvironment(Environment, Named):
 
   def loadNextEpisode(self):
     self.episodeDone = False
+    self.negativeEpisode = False
     if self.selectNegativeSample(): return
     # Save actions performed during this episode
     if self.mode == 'test' and self.testRecord != None:
@@ -72,9 +76,7 @@ class BoxSearchEnvironment(Environment, Named):
       self.cnn.prepareImage(self.negativeSamples[idx])
       self.state = bs.BoxSearchState(self.negativeSamples[idx], groundTruth=self.groundTruth, randomStart=True)
       print 'Environment::LoadNextEpisode => Random Negative:',idx,self.negativeSamples[idx]
-      return True
-    else:
-      return False
+      self.negativeEpisode = True
 
   def updatePostReward(self, reward, allDone, cover):
     if self.mode == 'test':
@@ -84,13 +86,17 @@ class BoxSearchEnvironment(Environment, Named):
       self.testRecord['rewards'].append( reward )
       self.testRecord['scores'].append( self.scores[:] )
       if self.state.actionChosen == bs.PLACE_LANDMARK:
-        self.cnn.coverRegion(self.state.box)
+        #negImg = random.randint(0,len(self.negativeSamples)-1)
+        self.cnn.coverRegion(self.state.box) #, self.negativeSamples[negImg])
         self.state.reset()
+      if self.state.stepsWithoutLandmark > TEST_TIME_OUT:
+        self.state.reset(True)
     elif self.mode == 'train':
       # We do not cover false landmarks during training
       if self.state.actionChosen == bs.PLACE_LANDMARK and len(cover) > 0:
         # During training we only cover a carefully selected part of the ground truth box to avoid conflicts with other boxes.
-        self.cnn.coverRegion(cover)
+        #negImg = random.randint(0,len(self.negativeSamples)-1)
+        self.cnn.coverRegion(cover) #, self.negativeSamples[negImg])
         self.state.reset(True)
       if allDone:
         self.episodeDone = True
@@ -100,17 +106,20 @@ class BoxSearchEnvironment(Environment, Named):
 
   def getSensors(self):
     # Make a vector represenation of the action that brought the agent to this state (9 features)
-    #prevAction = np.zeros( (bs.NUM_ACTIONS) )
-    #prevAction[self.state.actionChosen] = 2.0 
+    prevAction = np.zeros( (bs.NUM_ACTIONS) )
+    prevAction[self.state.actionChosen] = 1.0
 
-    # Compute features of visible region and apply the sigmoid
+    # Status of the box with respect to the frame and previous step (5)
+    boxStatus = np.ones((5))*(self.state.touchEdges + [self.state.boxChanged])
+
+    # Compute features of visible region (4096 + 21)
     activations = self.cnn.getActivations(self.state.box)
 
     # Concatenate all info in the state representation vector
-    #state = np.hstack( (visibleRegion, worldState, prevAction) )
-    state = activations[config.get('convnetLayer')]
+    print activations[config.get('convnetLayer')].shape, activations['prob'].shape, boxStatus.shape, prevAction.shape
+    state = np.hstack( (activations[config.get('convnetLayer')], activations['prob'], boxStatus, prevAction) )
     self.scores = activations['prob'].tolist()
-    return {'image':self.imageList[self.idx], 'state':state}
+    return {'image':self.imageList[self.idx], 'state':state, 'negEpisode':self.negativeEpisode}
 
   def sampleAction(self):
     return self.state.sampleNextAction()
