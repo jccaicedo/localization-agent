@@ -6,6 +6,8 @@ from pybrain.rl.agents import LearningAgent
 from pybrain.rl.learners import Q, SARSA
 from pybrain.rl.experiments import Experiment
 
+import shutil
+
 class BoxSearchRunner():
 
   def __init__(self, mode):
@@ -43,6 +45,7 @@ class BoxSearchRunner():
       self.test()
 
   def train(self):
+    networkFile = config.get('networkDir') + config.get('snapshotPrefix') + '_iter_' + config.get('trainingIterationsPerBatch') + '.caffemodel'
     interactions = config.geti('trainInteractions')
     minEpsilon = config.getf('minTrainingEpsilon')
     epochSize = len(self.environment.imageList)/1
@@ -79,6 +82,7 @@ class BoxSearchRunner():
       self.task.flushStats()
       self.doValidation(epoch)
       s = cu.toc('Epoch done in ',s)
+      shutil.copy(networkFile, networkFile + '.' + str(epoch))
       epoch += 1
 
   def test(self):
