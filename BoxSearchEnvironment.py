@@ -95,8 +95,8 @@ class BoxSearchEnvironment(Environment, Named):
       if allDone:
         self.episodeDone = True
     # Terminate episode with a single detected instance
-    if self.state.actionChosen == bs.PLACE_LANDMARK:
-      self.episodeDone = True
+    #if self.state.actionChosen == bs.PLACE_LANDMARK:
+    #  self.episodeDone = True
 
   def getSensors(self):
     # Make a vector represenation of the action that brought the agent to this state (9 features)
