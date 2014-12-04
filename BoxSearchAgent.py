@@ -8,6 +8,7 @@ import MemoryUsage
 
 import RLConfig as config
 import BoxSearchState as bss
+import random
 
 STATE_FEATURES = config.geti('stateFeatures')/config.geti('temporalWindow')
 NUM_ACTIONS = config.geti('outputActions')
@@ -36,6 +37,7 @@ class BoxSearchAgent():
       self.actionsH = [0 for i in range(NUM_ACTIONS)]
       self.observation = np.zeros( (TEMPORAL_WINDOW, STATE_FEATURES), np.float32 )
       self.image = obs['image']
+      self.negative = obs['negEpisode']
       self.timer = 0
       self.avgReward = 0.0
     for t in range(TEMPORAL_WINDOW-1):
@@ -45,7 +47,7 @@ class BoxSearchAgent():
     self.reward = None
 
   def getAction(self):
-    assert self.observation != None
+    assert self.observation is not None
     assert self.action == None
     assert self.reward == None
 
@@ -57,18 +59,24 @@ class BoxSearchAgent():
     return (self.action,float(v))
 
   def giveReward(self, r):
-    assert self.observation != None
+    assert self.observation is not None
     assert self.action != None
     assert self.reward == None
 
     self.reward = r
     self.avgReward = (self.avgReward*(self.timer-1) + r)/(self.timer)
-    obs = self.observation.reshape( (TEMPORAL_WINDOW*STATE_FEATURES))
+    obs = self.observation.reshape((TEMPORAL_WINDOW*STATE_FEATURES))
     if self.replayMemory != None:
-      self.replayMemory.add(self.image, self.timer, self.action, obs, self.reward)
-      if self.action == bss.PLACE_LANDMARK and self.reward > 0: # Oversample terminal state
-        for copy in range(HISTORY_FACTOR):
-          self.replayMemory.add(self.image+'_'+str(copy), self.timer, self.action, obs, self.reward)
+      if not self.negative:
+        self.replayMemory.add(self.image, self.timer, self.action, obs, self.reward)
+        # Oversample terminal state
+        if self.action == bss.PLACE_LANDMARK and self.reward > 0: 
+          for copy in range(HISTORY_FACTOR):
+            self.replayMemory.add(self.image+'_'+str(copy), self.timer, self.action, obs, self.reward)
+      else:
+        # Any negative sample should be remembered as a bad landmark rather than a bad movement
+        if random.random() < 2*config.getf('negativeEpisodeProb'):
+          self.replayMemory.add(self.image, self.timer, bss.PLACE_LANDMARK, obs, -2.0)
     if self.action == bss.PLACE_LANDMARK:
       # Clean history of observations
       self.observation = np.zeros( (TEMPORAL_WINDOW, STATE_FEATURES), np.float32 )

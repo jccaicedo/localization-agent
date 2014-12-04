@@ -43,9 +43,12 @@ class ConvNet():
     result = {'prob':outputs['prob'].data.squeeze(), LAYER:outputs[LAYER].data.squeeze()}
     return result
 
-  def coverRegion(self, box):
+  def coverRegion(self, box, otherImg=None):
     boxes = [map(int,box)]
-    self.net.caffenet.CoverRegions(boxes, self.id)
+    if otherImg is not None:
+      self.net.caffenet.CoverRegions(boxes, config.get('imageDir') + otherImg + '.jpg', self.id)
+    else:
+      self.net.caffenet.CoverRegions(boxes, '', self.id)
     self.id += 1
     return True
 
