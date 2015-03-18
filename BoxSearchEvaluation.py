@@ -52,7 +52,10 @@ def loadScores(memDir, catI):
     t = 0
     for i in range(len(data['boxes'])):
       boxes.append( data['boxes'][i] )
-      scores.append( data['scores'][i][catI])
+      if catI > 0:
+        scores.append( data['scores'][i][catI])
+      else:
+        scores.append( 0 )
       values.append( data['values'][i] )
       if data['actions'][i] == 8:
         landmarks.append( data['values'][i] )
@@ -90,26 +93,15 @@ def evaluateCategory(scoredDetections, ranking, groundTruthFile, output=None):
   return prec, recall
 
 if __name__ == "__main__":
-  params = cu.loadParams('testMemDir groundTruthDir outputDir category catIndex')
-  if params['catIndex'] == 'pascal':
-    categories, catIndex = get20Categories()
-  elif params['catIndex'] == 'relations':
-    categories, catIndex = getCategories()
-  elif params['catIndex'] == 'finetunedRelations':
-    categories, catIndex = getRelationCategories()
+  params = cu.loadParams('testMemDir groundTruthFile outputDir')
 
-  catI = categories.index(params['category'])
-  scoredDetections = loadScores(params['testMemDir'], catI)
+  scoredDetections = loadScores(params['testMemDir'], -1)
   
-  groundTruthFile = params['groundTruthDir'] + '/' + categories[catI] + '_test_bboxes.txt'
-  outputFile = params['outputDir'] + '/' + categories[catI] + '.out'
-  ps,rs = evaluateCategory(scoredDetections, 'scores', groundTruthFile, outputFile)
-  pv,rv = evaluateCategory(scoredDetections, 'values', groundTruthFile, outputFile)
+  groundTruthFile = params['groundTruthFile']
+  outputFile = params['outputDir'] + '/' + 'result.out'
   pl,rl = evaluateCategory(scoredDetections, 'landmarks', groundTruthFile, outputFile)
   line = lambda x,y,z: x + '\t{:5.3f}\t{:5.3f}\n'.format(y,z)
   out = open(params['outputDir'] + '/evaluation.txt','w')
-  out.write(categories[catI] + '\tPrecision\tRecall\n')
-  out.write(line('Scores',ps,rs))
-  out.write(line('Values',pv,rv))
+  out.write('\tPrecision\tRecall\n')
   out.write(line('Landmarks',pl,rl))
   out.close()

@@ -103,13 +103,16 @@ class BoxSearchRunner():
       categories, catIndex = bse.getCategories()
     elif indexType == 'finetunedRelations':
       categories, catIndex = bse.getRelationCategories()
-    catI = categories.index(category)
+    if category in categories:
+        catI = categories.index(category)
+    else:
+        catI = -1
     scoredDetections = bse.loadScores(config.get('testMemory'), catI)
     groundTruthFile = config.get('testGroundTruth')
-    ps,rs = bse.evaluateCategory(scoredDetections, 'scores', groundTruthFile)
+    #ps,rs = bse.evaluateCategory(scoredDetections, 'scores', groundTruthFile)
     pl,rl = bse.evaluateCategory(scoredDetections, 'landmarks', groundTruthFile)
     line = lambda x,y,z: x + '\t{:5.3f}\t{:5.3f}\n'.format(y,z)
-    print line('Validation Scores:',ps,rs)
+    #print line('Validation Scores:',ps,rs)
     print line('Validation Landmarks:',pl,rl)
 
   
