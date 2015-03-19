@@ -10,13 +10,15 @@ if __name__ == '__main__':
     images = sorted([name.strip().replace('.jpg', '') for name in os.listdir(os.path.join(baseDir, 'img')) if name.endswith('.jpg')])
     gt = [map(int, line.strip().replace(',', '\t').split()) for line in open(os.path.join(baseDir, 'groundtruth_rect.txt'))]
     size = len(images)
+    #30 frames ~= 1 seg
+    trainSamples = 30
     if not size == len(gt):
         print 'Images: {} GtTs: {}'.format(size, len(gt))
         sys.exit(1)
     ids = range(size)
     random.shuffle(ids)
-    trainIds = ids[:size/2]
-    testIds = ids[size/2:]
+    trainIds = ids[:trainSamples]
+    testIds = ids[trainSamples:]
     all = open(os.path.join(baseDir, 'allImagesList.txt'), 'w')
     train = open(os.path.join(baseDir, 'train.txt'), 'w')
     test = open(os.path.join(baseDir, 'test.txt'), 'w')
