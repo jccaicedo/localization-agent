@@ -39,6 +39,7 @@ class BoxSearchRunner():
     if self.mode == 'train':
       self.agent.persistMemory = True
       self.agent.startReplayMemory(len(self.environment.imageList), config.geti('trainInteractions'))
+      #self.agent.assignPriorMemory(self.environment.priorMemory)
       self.train()
     elif self.mode == 'test':
       self.agent.persistMemory = False

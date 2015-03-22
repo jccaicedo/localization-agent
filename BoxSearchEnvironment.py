@@ -2,6 +2,7 @@ __author__ = "Juan C. Caicedo, caicedo@illinois.edu"
 
 from pybrain.utilities import Named
 from pybrain.rl.environments.environment import Environment
+from PriorMemory import PriorMemory
 
 import BoxSearchState as bs
 import ConvNet as cn
@@ -21,6 +22,7 @@ def tanh(x, a=5, b=0.5, c=2.0):
   return c*np.tanh(a*x + b)
 
 TEST_TIME_OUT = config.geti('testTimeOut')
+ACTION_HISTORY_SIZE = bs.NUM_ACTIONS*config.geti('actionHistoryLength')
 
 class BoxSearchEnvironment(Environment, Named):
 
@@ -39,6 +41,7 @@ class BoxSearchEnvironment(Environment, Named):
     if self.mode == 'train':
       self.negativeProbability = config.getf('negativeEpisodeProb')
       random.shuffle(self.imageList)
+      #self.priorMemory = PriorMemory(config.get('allObjectsBoxes'), self.groundTruth, self.cnn)
     self.loadNextEpisode()
 
   def performAction(self, action):
@@ -57,7 +60,8 @@ class BoxSearchEnvironment(Environment, Named):
     if self.idx < len(self.imageList):
       # Initialize state
       self.cnn.prepareImage(self.imageList[self.idx])
-      self.state = bs.BoxSearchState(self.imageList[self.idx], groundTruth=self.groundTruth, randomStart=self.mode=='train')
+      restartMode = {'train':'Random','test':'Full'}
+      self.state = bs.BoxSearchState(self.imageList[self.idx], groundTruth=self.groundTruth, boxReset=restartMode[self.mode])
       print 'Environment::LoadNextEpisode => Image',self.idx,self.imageList[self.idx],'('+str(self.state.visibleImage.size[0])+','+str(self.state.visibleImage.size[1])+')'
     else:
       if self.mode == 'train':
@@ -74,8 +78,8 @@ class BoxSearchEnvironment(Environment, Named):
     if self.mode == 'train' and random.random() < self.negativeProbability:
       idx = random.randint(0,len(self.negativeSamples)-1)
       self.cnn.prepareImage(self.negativeSamples[idx])
-      self.state = bs.BoxSearchState(self.negativeSamples[idx], groundTruth=self.groundTruth, randomStart=True)
-      print 'Environment::LoadNextEpisode => Random Negative:',idx,self.negativeSamples[idx]
+      self.state = bs.BoxSearchState(self.negativeSamples[idx], groundTruth=self.groundTruth, boxReset='Random')
+      print 'Environment::LoadNextEpisode => Random Negative:',self.negativeSamples[idx]
       self.negativeEpisode = True
 
   def updatePostReward(self, reward, allDone, cover):
@@ -90,14 +94,14 @@ class BoxSearchEnvironment(Environment, Named):
         self.cnn.coverRegion(self.state.box) #, self.negativeSamples[negImg])
         self.state.reset()
       if self.state.stepsWithoutLandmark > TEST_TIME_OUT:
-        self.state.reset(True)
+        self.state.reset('Quadrants')
     elif self.mode == 'train':
       # We do not cover false landmarks during training
       if self.state.actionChosen == bs.PLACE_LANDMARK and len(cover) > 0:
         # During training we only cover a carefully selected part of the ground truth box to avoid conflicts with other boxes.
         #negImg = random.randint(0,len(self.negativeSamples)-1)
         self.cnn.coverRegion(cover) #, self.negativeSamples[negImg])
-        self.state.reset(True)
+        self.state.reset('Random')
       if allDone:
         self.episodeDone = True
     # Terminate episode with a single detected instance
@@ -106,19 +110,23 @@ class BoxSearchEnvironment(Environment, Named):
 
   def getSensors(self):
     # Make a vector represenation of the action that brought the agent to this state (9 features)
-    prevAction = np.zeros( (bs.NUM_ACTIONS) )
-    prevAction[self.state.actionChosen] = 1.0
-
+    #prevAction = np.zeros( (bs.NUM_ACTIONS) )
+    #prevAction[self.state.actionChosen] = 1.0
     # Status of the box with respect to the frame and previous step (5)
-    boxStatus = np.ones((5))*(self.state.touchEdges + [self.state.boxChanged])
+    #boxStatus = np.ones((5))*(self.state.touchEdges + [self.state.boxChanged])
 
     # Compute features of visible region (4096 + 21)
     activations = self.cnn.getActivations(self.state.box)
 
+    # Action history (90)
+    actions = np.ones((ACTION_HISTORY_SIZE))*self.state.actionHistory
+
     # Concatenate all info in the state representation vector
-    print activations[config.get('convnetLayer')].shape, activations['prob'].shape, boxStatus.shape, prevAction.shape
-    state = np.hstack( (activations[config.get('convnetLayer')], activations['prob'], boxStatus, prevAction) )
-    self.scores = activations['prob'].tolist()
+    #print activations[config.get('convnetLayer')].shape, activations['prob'].shape, boxStatus.shape, prevAction.shape
+    #state = np.hstack( (activations[config.get('convnetLayer')], activations['prob'], boxStatus, prevAction) )
+    #state = np.hstack( (activations[config.get('convnetLayer')], activations[config.get('convnetLayer')+'_stt']) )
+    state = np.hstack( (activations[config.get('convnetLayer')], actions) )
+    self.scores = activations['prob'][0:20].tolist()
     return {'image':self.imageList[self.idx], 'state':state, 'negEpisode':self.negativeEpisode}
 
   def sampleAction(self):

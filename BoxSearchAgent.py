@@ -8,6 +8,7 @@ import MemoryUsage
 
 import RLConfig as config
 import BoxSearchState as bss
+import PriorMemory as prm
 import random
 
 STATE_FEATURES = config.geti('stateFeatures')/config.geti('temporalWindow')
@@ -29,9 +30,13 @@ class BoxSearchAgent():
     self.learner = learner
     self.avgReward = 0
     self.replayMemory = None
+    self.priorMemory = None
 
   def startReplayMemory(self, memoryImages, recordsPerImage):
     self.replayMemory = ReplayMemory(memoryImages, recordsPerImage)
+
+  def assignPriorMemory(self, prior):
+    self.priorMemory = prior
 
   def integrateObservation(self, obs):
     if obs['image'] != self.image:
@@ -95,6 +100,8 @@ class BoxSearchAgent():
     print 'Agent:learn:'
     if self.learner != None and self.replayMemory != None:
       self.learner.learn(self.replayMemory, self.controller)
+      #if self.priorMemory != None:
+      #  self.learner.learnFromPriors(self.priorMemory)
       self.controller.loadNetwork()
 
 class ReplayMemory():

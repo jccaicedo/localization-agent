@@ -10,6 +10,7 @@ import numpy as np
 import RLConfig as config
 
 MIN_ACCEPTABLE_IOU = config.getf('minAcceptableIoU')
+DETECTION_REWARD = config.getf('detectionReward')
 
 def center(box):
   return [ (box[2] + box[0])/2.0 , (box[3] + box[1])/2.0 ]
@@ -33,6 +34,28 @@ class BoxSearchTask(Task):
     reward = self.computeObjectReward(self.env.state.box, self.env.state.actionChosen)
     allDone = reduce(lambda x,y: x and y, self.control['DONE'])
     self.env.updatePostReward(reward, allDone, self.cover)
+    return reward
+
+  def computeObjectRewardV2(self, box, actionChosen, update=True):
+    self.cover = []
+    iou, idx = self.matchBoxes(box)
+    if iou <= 0.0:
+      reward = -2.0
+    else:
+      deltaIoU = iou - self.control['IOU'][idx]
+      reward = np.sign( deltaIoU )
+      if deltaIoU > 0 and update: 
+        self.control['IOU'][idx] = iou
+      if actionChosen == bss.PLACE_LANDMARK:
+        if iou >= MIN_ACCEPTABLE_IOU:
+          reward = DETECTION_REWARD
+          if update: 
+            self.coverSample(idx)
+            for j in range(len(self.control['IOU'])):
+              if not self.control['DONE'][j]:
+                self.control['IOU'][j] = 0.0
+        else:
+          reward = -DETECTION_REWARD
     return reward
 
   def computeObjectReward(self, box, actionChosen, update=True):
@@ -60,9 +83,9 @@ class BoxSearchTask(Task):
               if not self.control['DONE'][j]:
                 self.control['IOU'][j] = 0.0
         if iou < MIN_ACCEPTABLE_IOU:
-          reward = -1.0
+          reward = -DETECTION_REWARD
         else:
-          reward = 3.0
+          reward = DETECTION_REWARD
     return reward
 
   def performAction(self, action):
@@ -98,6 +121,8 @@ class BoxSearchTask(Task):
   def coverSample(self, idx):
     self.control['DONE'][idx] = True
     self.cover = self.boxes[idx][:]
+    return
+    '''
     conflicts = []
     for j in range(len(self.control['DONE'])):
       if not self.control['DONE'][j]:
@@ -120,6 +145,7 @@ class BoxSearchTask(Task):
       elif nov >= 0.5: # Assume the example is done for now
         self.control['DONE'][j] = True
         self.control['SKIP'][j] = True
+    '''
 
   def displayEpisodePerformance(self):
     if self.image != '':

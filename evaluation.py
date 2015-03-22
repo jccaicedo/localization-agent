@@ -81,8 +81,6 @@ def evaluateDetections(groundTruth,detections,minOverlap,outFile=None,overlapMea
     if det[0] in groundTruth.keys():
       for j in range(0,len(groundTruth[det[0]])):
         bbox = groundTruth[det[0]][j]
-        #overlap = ldet.IoU(bbox[0:4],det[2:6])
-        #overlap = ldet.overlap(det[2:6],bbox[0:4])
         overlap = overlapMeasure(det[2:6],bbox[0:4])
         if overlap > maxOverlap:
           maxOverlap = overlap

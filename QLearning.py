@@ -7,7 +7,20 @@ import scipy.io
 import caffe
 
 import RLConfig as config
+import BoxSearchState as bs
 from pybrain.rl.learners.valuebased.valuebased import ValueBasedLearner
+
+DETECTION_REWARD = config.getf('detectionReward')
+ACTION_HISTORY_SIZE = bs.NUM_ACTIONS*config.geti('actionHistoryLength')
+ACTION_HISTORY_LENTH = config.geti('actionHistoryLength')
+NETWORK_INPUTS = config.geti('stateFeatures')/config.geti('temporalWindow')
+REPLAY_MEMORY_SIZE = config.geti('trainingIterationsPerBatch')*config.geti('trainingBatchSize')
+
+def generateRandomActionHistory():
+  actions = np.zeros((ACTION_HISTORY_SIZE))
+  history = [i*bs.NUM_ACTIONS + np.random.randint(0,bs.PLACE_LANDMARK) for i in range(ACTION_HISTORY_LENTH)]
+  actions[history] = 1
+  return actions
 
 class QLearning(ValueBasedLearner):
 
@@ -26,13 +39,12 @@ class QLearning(ValueBasedLearner):
   def learn(self, memory, controller):
     print '# Identify memory records stored by the agent',memory.O.shape, memory.A.shape,memory.R.shape
     totalMemorySize = memory.usableRecords
-    replayMemorySize = config.geti('trainingIterationsPerBatch')*config.geti('trainingBatchSize')
 
     print '# Select a random sample of records'
-    recordsToPull = [random.randint(0,totalMemorySize-2) for i in range(replayMemorySize)]
-    samples = np.zeros( (replayMemorySize, memory.O.shape[1], 1, 1), np.float32 )
-    targets = np.zeros( (replayMemorySize, 3, 1, 1), np.float32 )
-    nextStates = np.zeros( (replayMemorySize, memory.O.shape[1], 1, 1), np.float32 )
+    recordsToPull = [random.randint(0,totalMemorySize-2) for i in range(REPLAY_MEMORY_SIZE)]
+    samples = np.zeros( (REPLAY_MEMORY_SIZE, memory.O.shape[1], 1, 1), np.float32 )
+    targets = np.zeros( (REPLAY_MEMORY_SIZE, 3, 1, 1), np.float32 )
+    nextStates = np.zeros( (REPLAY_MEMORY_SIZE, memory.O.shape[1], 1, 1), np.float32 )
     trainingSet = []
     terminalStates = []
     for i in range(len(recordsToPull)):
@@ -53,6 +65,31 @@ class QLearning(ValueBasedLearner):
 
     print '# Update network'
     self.netManager.doNetworkTraining(samples, targets)
+
+  def learnFromPriors(self, priors):
+    print '# Prior records given to the agent', priors.N.shape, priors.P.shape
+    negativeRecords = priors.N.shape[0]
+    maxNegAllowed = REPLAY_MEMORY_SIZE - priors.P.shape[0]
+
+    print '# Select a random sample of records'
+    recordsToPull = [random.randint(0,negativeRecords-1) for i in range(maxNegAllowed)]
+    samples = np.zeros( (REPLAY_MEMORY_SIZE, NETWORK_INPUTS, 1, 1), np.float32 )
+    targets = np.zeros( (REPLAY_MEMORY_SIZE, 3, 1, 1), np.float32 )
+    trainingSet = []
+    for i in range(len(recordsToPull)):
+      r = recordsToPull[i]
+      samples[i,:,0,0] = np.hstack( (priors.N[r,:], generateRandomActionHistory()) )
+      targets[i,:,0,0] = np.array([bs.PLACE_LANDMARK, -DETECTION_REWARD, 0.0], np.float32)
+    j = 0
+    for i in range(len(recordsToPull), REPLAY_MEMORY_SIZE):
+      samples[i,:,0,0] = np.hstack( (priors.P[j,:], generateRandomActionHistory()) )
+      targets[i,:,0,0] = np.array([bs.PLACE_LANDMARK, DETECTION_REWARD, 0.0], np.float32)
+      j += 1
+
+    print '# Update network'
+    np.random.shuffle(samples)
+    self.netManager.doNetworkTraining(samples, targets)
+
 
 class CaffeMultiLayerPerceptronManagement():
 

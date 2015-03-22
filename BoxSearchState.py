@@ -25,23 +25,25 @@ PLACE_LANDMARK     = 8
 MIN_ASPECT_RATIO = 0.15
 MAX_ASPECT_RATIO = 6.00
 MIN_BOX_SIDE     = 10
-STEP_FACTOR      = 0.20
-DELTA_SIZE       = 0.20
+STEP_FACTOR      = config.getf('boxResizeStep')
+DELTA_SIZE       = config.getf('boxResizeStep')
 
 # OTHER DEFINITIONS
 NUM_ACTIONS = 9
 RESET_BOX_FACTOR = 2
+QUADRANT_SIZE = 0.7
 
 def fingerprint(b):
   return '_'.join( map(str, map(int, b)) )
 
 class BoxSearchState():
 
-  def __init__(self, imageName, randomStart=False, groundTruth=None):
+  def __init__(self, imageName, boxReset='Full', groundTruth=None):
     self.imageName = imageName
     self.visibleImage = Image.open(config.get('imageDir') + '/' + self.imageName + '.jpg')
     self.box = [0,0,0,0]
-    self.reset(randomStart)
+    self.resets = 1
+    self.reset(boxReset)
     self.landmarkIndex = {}
     self.actionChosen = 2
     self.actionValue = 0
@@ -51,11 +53,13 @@ class BoxSearchState():
       self.task.groundTruth = self.groundTruth
       self.task.loadGroundTruth(self.imageName)
     self.stepsWithoutLandmark = 0
+    self.actionHistory = [0 for i in range(NUM_ACTIONS*config.geti('actionHistoryLength'))]
 
   def performAction(self, action):
     self.actionChosen = action[0]
     self.actionValue = action[1]
     self.stepsWithoutLandmark += 1
+    self.actionHistory = [1 if x == action[0] else 0 for x in range(NUM_ACTIONS)] + self.actionHistory[:-NUM_ACTIONS]
 
     if action[0] == X_COORD_UP:           newBox = self.xCoordUp()
     elif action[0] == Y_COORD_UP:         newBox = self.yCoordUp()
@@ -254,15 +258,16 @@ class BoxSearchState():
   #def skipRegion(self):
   #  return self.box
 
-  def reset(self, randomStart=False):
+  def reset(self, boxReset='Full'):
     oldBox = self.box[:]
     self.stepsWithoutLandmark = 0
-    if not randomStart:
+    if boxReset == 'Full':
       self.box = map(float, [0,0,self.visibleImage.size[0]-1,self.visibleImage.size[1]-1])
       self.boxW = self.box[2]+1.0
       self.boxH = self.box[3]+1.0
       self.aspectRatio = self.boxH/self.boxW
-    else:
+    elif boxReset == 'Random':
+      # Random Reset:
       wlimit = self.visibleImage.size[0]/(RESET_BOX_FACTOR*2)
       hlimit = self.visibleImage.size[1]/(RESET_BOX_FACTOR*2)
       a = random.randint(wlimit, self.visibleImage.size[0] - wlimit)
@@ -272,6 +277,25 @@ class BoxSearchState():
       self.box = map(float, [a-c, b-d, a+c, b+d] )
       self.boxW = float(RESET_BOX_FACTOR)*c
       self.boxH = float(RESET_BOX_FACTOR)*d
+      self.aspectRatio = self.boxH/self.boxW
+    elif boxReset == 'Quadrants':
+      # Ordered Resets:
+      w = self.visibleImage.size[0]   
+      h = self.visibleImage.size[1]
+      if self.resets == 1:
+        self.box = map(float, [0,0,w*QUADRANT_SIZE,h*QUADRANT_SIZE])
+      elif self.resets == 2:
+        self.box = map(float, [w*(1-QUADRANT_SIZE), 0, w, h*QUADRANT_SIZE])
+      elif self.resets == 3:
+        self.box = map(float, [0, h*(1-QUADRANT_SIZE), w*QUADRANT_SIZE, h])
+      elif self.resets == 4:
+        self.box = map(float, [w*(1-QUADRANT_SIZE), h*(1-QUADRANT_SIZE), w, h])
+      else:
+        self.box = map(float, [0,0,w-1,h-1])
+        self.resets = 0
+      self.resets += 1
+      self.boxW = w*QUADRANT_SIZE
+      self.boxH = h*QUADRANT_SIZE
       self.aspectRatio = self.boxH/self.boxW
     self.updateStatus(oldBox)
 
