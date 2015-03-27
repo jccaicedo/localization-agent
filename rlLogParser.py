@@ -81,4 +81,4 @@ ax[1,2].set_title('% Landmarks in Validation Set')
 
 
 # Save Plot
-plt.savefig(params['outdir'] + '/report.png')
+plt.savefig(params['outdir'] + '/report' + config.get('category') + '.png')
