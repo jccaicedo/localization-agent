@@ -109,15 +109,12 @@ class BoxSearchEnvironment(Environment, Named):
     prevAction = np.zeros( (bs.NUM_ACTIONS) )
     prevAction[self.state.actionChosen] = 1.0
 
-    # Status of the box with respect to the frame and previous step (5)
-    boxStatus = np.ones((5))*(self.state.touchEdges + [self.state.boxChanged])
-
     # Compute features of visible region (4096 + 21)
     activations = self.cnn.getActivations(self.state.box)
 
     # Concatenate all info in the state representation vector
-    print activations[config.get('convnetLayer')].shape, activations['prob'].shape, boxStatus.shape, prevAction.shape
-    state = np.hstack( (activations[config.get('convnetLayer')], activations['prob'], boxStatus, prevAction) )
+    print activations[config.get('convnetLayer')].shape, prevAction.shape
+    state = np.hstack( (activations[config.get('convnetLayer')], prevAction) )
     self.scores = activations['prob'].tolist()
     return {'image':self.imageList[self.idx], 'state':state, 'negEpisode':self.negativeEpisode}
 
