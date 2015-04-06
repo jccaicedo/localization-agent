@@ -58,6 +58,7 @@ class BoxSearchRunner():
       print 'Epoch',epoch,': Exploration (epsilon=1.0)'
       self.runEpoch(interactions, len(self.environment.imageList))
       self.task.flushStats()
+      self.doValidation(epoch)
       s = cu.toc('Epoch done in ',s)
       epoch += 1
     self.learner = QLearning()
