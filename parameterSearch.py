@@ -14,7 +14,7 @@ if __name__ == '__main__':
     outputDir = sys.argv[3]
     learningRates = [0.01, 0.001, 0.0001, 0.00001]
     explorationEpochsList = [5]
-    epsilonGreedyEpochsList = [0]
+    epsilonGreedyEpochsList = [5]
     exploitLearningEpochsList = [0]
     categories = ['Tiger1', 'Doll', 'Basketball']
     trainingIterationsPerBatches = [10]
@@ -48,14 +48,18 @@ if __name__ == '__main__':
         networkDir = config.get('networkDir')
         snapshotPrefix = config.get('snapshotPrefix')
         testMemory = config.get('testMemory')
-        if os.exists(testMemory):
+        if os.path.exists(testMemory):
             print 'Removing {}'.format(testMemory)
             shutil.rmtree(testMemory)
+        os.mkdir(testMemory)
         for fileName in os.listdir(networkDir):
             if fileName.startswith(snapshotPrefix):
                 print 'Removing {}'.format(fileName)
                 os.remove(os.path.join(networkDir, fileName))
         outFile = open(os.path.join(outputDir, configName + '.out'), 'w')
         errFile = open(os.path.join(outputDir, configName + '.err'), 'w')
-        process = subprocess.Popen(['python', 'BoxSearchRunner.py', configPath], stdout=outFile, stderr=errFile)
+        process = subprocess.Popen(['time', 'python', 'BoxSearchRunner.py', configPath], stdout=outFile, stderr=errFile)
         process.wait()
+        if not process.returncode == 0:
+            print 'Aborting! Return code for {}: {}'.format(configName, process.returncode)
+            sys.exit()
