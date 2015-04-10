@@ -10,7 +10,7 @@ def parse_gt(gtPath):
     '''
     #some file are comma-separated instead of tab-separated
     gtFile = open(gtPath)
-    gt = numpy.array([map(int, line.strip().replace(',', '\t').split()) for line in gtFile])
+    gt = numpy.array([map(float, line.strip().replace(',', '\t').split()) for line in gtFile])
     gtFile.close()
     logging.debug('Found {} lines in ground truth file {}'.format(len(gt), gtPath))
     return gt
@@ -46,3 +46,24 @@ def dataset_gt(gtsDir, pattern='groundtruth_rect.txt'):
         gtsDict[sequenceName] = sequenceGt
         logging.debug('Parsed gt for sequence {}'.format(sequenceName))
     return gtsDict
+
+def measure_inertia(bbSequence, measure):
+    inertia = numpy.zeros((bbSequence.shape[0]-1,1))
+    bbDiag = bbSequence.copy()
+    bbDiag[:, 2:] += bbDiag[:, :2]
+    for index in xrange(len(inertia)):
+        inertia[index] = measure(bbDiag[index], bbDiag[index+1])
+    return inertia
+
+def plot_inertias(gtsDict, measure, subplots):
+    index = 1
+    rows, columns = subplots
+    for key in gtsDict:
+        if index < rows*columns:
+            plt.subplot(rows, columns, index)
+            inertia = measure_inertia(gtsDict[key], measure=measure)
+            plt.plot(numpy.linspace(0,1, inertia.shape[0]), inertia)
+            plt.xticks([0,1])
+            plt.yticks([0,1])
+            plt.title(key)
+            index += 1
