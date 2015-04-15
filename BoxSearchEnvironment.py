@@ -56,6 +56,11 @@ class BoxSearchEnvironment(Environment, Named):
     self.idx += 1
     if self.idx < len(self.imageList):
       # Initialize state
+      previousImageName = str(int(self.imageList[self.idx])-1)
+      print 'Preparing starting image {}'.format(previousImageName)
+      self.cnn.prepareImage(previousImageName)
+      print 'Initial box for {} at {}'.format(previousImageName, self.groundTruth[previousImageName])
+      self.startingActivations = self.cnn.getActivations( self.groundTruth[previousImageName][0])
       self.cnn.prepareImage(self.imageList[self.idx])
       self.state = bs.BoxSearchState(self.imageList[self.idx], groundTruth=self.groundTruth, randomStart=self.mode=='train')
       print 'Environment::LoadNextEpisode => Image',self.idx,self.imageList[self.idx],'('+str(self.state.visibleImage.size[0])+','+str(self.state.visibleImage.size[1])+')'
@@ -113,8 +118,8 @@ class BoxSearchEnvironment(Environment, Named):
     activations = self.cnn.getActivations(self.state.box)
 
     # Concatenate all info in the state representation vector
-    print activations[config.get('convnetLayer')].shape, prevAction.shape
-    state = np.hstack( (activations[config.get('convnetLayer')], prevAction) )
+    print activations[config.get('convnetLayer')].shape, prevAction.shape, self.startingActivations[config.get('convnetLayer')].shape
+    state = np.hstack( (activations[config.get('convnetLayer')], self.startingActivations[config.get('convnetLayer')], prevAction) )
     self.scores = activations['prob'].tolist()
     return {'image':self.imageList[self.idx], 'state':state, 'negEpisode':self.negativeEpisode}
 
