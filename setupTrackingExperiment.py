@@ -2,13 +2,71 @@ import os
 import random
 import sys
 
+import benchmarkUtils as benchutils
+
+def write_gt(baseDir, name, images, ids, gt):
+    gtFile = open(os.path.join(baseDir, name), 'w')
+    for i in range(len(ids)):
+        bbox = map(int, gt[ids[i]])
+        gtFile.write('{} {} {} {} {}'.format(images[ids[i]], bbox[0], bbox[1], bbox[0]+bbox[2], bbox[1]+bbox[3])+'\n')
+    gtFile.close()
+
+def write_database(baseDir, name, images, ids):
+    dbFile = open(os.path.join(baseDir, name), 'w')
+    for i in range(len(ids)):
+        dbFile.write(str(images[ids[i]])+'\n')
+    dbFile.close()
+
+def sequential_link(seqDir, textDir, outputDir, excludes=['Football1', 'David', 'Freeman3', 'Freeman4', 'Jogging'], suffix='.jpg', proportion=0.5, pattern='groundtruth_rect.txt'):
+    sequences = sorted([sequence for sequence in os.listdir(seqDir) if sequence not in excludes])
+    trainSize = int(len(sequences)*proportion)
+    randomSequences = list(sequences)
+    random.shuffle(randomSequences)
+    trainSequences = randomSequences[:trainSize]
+    testSequences = randomSequences[trainSize:]
+    trainDatabase = []
+    testDatabase = []
+    databaseGt = []
+    index = 0
+    omittedIndexes = []
+    for sequence in sequences:
+        if sequence in excludes:
+            continue
+        seqPath = os.path.join(seqDir, sequence)
+        gt = benchutils.parse_gt(os.path.join(seqPath, pattern))
+        print seqPath
+        frames = [aFrame for aFrame in sorted(os.listdir(os.path.join(seqPath, 'img'))) if aFrame.endswith(suffix)]
+        if not len(frames) == len(gt):
+            raise Exception('Mismatching frame and gt length ({} vs. {})'.format(len(frames), len(gt)))
+        gtIndex = 0
+        if sequence in trainSequences:
+            editDatabase = trainDatabase
+        elif sequence in testSequences:
+            editDatabase = testDatabase
+        for frame in frames:
+            os.symlink(os.path.join(seqDir, sequence, 'img', frame), os.path.join(outputDir, str(index)+suffix))
+            if not int(frame.replace(suffix, '')) == 1:
+                editDatabase.append(index)
+            else:
+                print 'Omitted frame {} for sequence {} at index {}'.format(frame, sequence, index)
+                omittedIndexes.append(index)
+            databaseGt.append(gt[gtIndex])
+            gtIndex += 1
+            index += 1
+    linkNames = sorted([int(link.replace('.jpg', '')) for link in os.listdir(outputDir)])
+    print 'Links: {} train: {} test: {} gt: {}'.format(len(linkNames), len(trainDatabase), len(testDatabase), len(databaseGt))
+    write_database(textDir, 'train.txt', linkNames, trainDatabase)
+    write_gt(textDir, 'train_gt.txt', linkNames, trainDatabase + omittedIndexes, databaseGt)
+    write_database(textDir, 'test.txt', linkNames, testDatabase)
+    write_gt(textDir, 'test_gt.txt', linkNames, testDatabase + omittedIndexes, databaseGt)
+
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print 'Usage: python', sys.argv[0], 'sequenceDir'
         sys.exit(0)
     baseDir = sys.argv[1]
     images = sorted([name.strip().replace('.jpg', '') for name in os.listdir(os.path.join(baseDir, 'img')) if name.endswith('.jpg')])
-    gt = [map(int, line.strip().replace(',', '\t').split()) for line in open(os.path.join(baseDir, 'groundtruth_rect.txt'))]
+    gt = benchutils.parse_gt(os.path.join(baseDir, 'groundtruth_rect.txt'))
     size = len(images)
     #30 frames ~= 1 seg
     trainSamples = 30

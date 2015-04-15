@@ -12,11 +12,12 @@ if __name__ == '__main__':
     configTemplatePath = sys.argv[1]
     configDir = sys.argv[2]
     outputDir = sys.argv[3]
-    learningRates = [0.01, 0.001, 0.0001, 0.00001]
+    learningRates = [0.001]
     explorationEpochsList = [5]
     epsilonGreedyEpochsList = [5]
     exploitLearningEpochsList = [0]
-    categories = ['Tiger1', 'Doll', 'Basketball']
+    categories = ['FramePairTracker']
+    basePath = '/home/fmpaezri'
     trainingIterationsPerBatches = [10]
     trainingBatchSizes = [32]
 
@@ -30,7 +31,7 @@ if __name__ == '__main__':
                         for trainingIterationsPerBatch in trainingIterationsPerBatches:
                             for trainingBatchSize in trainingBatchSizes:
                                 parametersDict = {'learningRate': learningRate, 'explorationEpochs': explorationEpochs, 'epsilonGreedyEpochs': epsilonGreedyEpochs, 'exploitLearningEpochs': exploitLearningEpochs, 'category': category, 'trainingIterationsPerBatch': trainingIterationsPerBatch, 'trainingBatchSize': trainingBatchSize}
-                                aConfig = configTemplate.format(**parametersDict)
+                                aConfig = configTemplate.format(basePath=basePath, **parametersDict)
                                 configName = 'rl{}.config'.format('_'.join(['{key}{value}'.format(key=key, value=value) for key, value in parametersDict.iteritems()]))
                                 configPath = os.path.join(configDir, configName)
                                 print 'Generating config file {}'.format(configPath)
