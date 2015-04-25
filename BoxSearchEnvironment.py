@@ -49,6 +49,7 @@ class BoxSearchEnvironment(Environment, Named):
 
   def loadNextEpisode(self):
     self.episodeDone = False
+    self.extraSteps = 5
     self.negativeEpisode = False
     if self.selectNegativeSample(): return
     # Save actions performed during this episode
@@ -90,8 +91,7 @@ class BoxSearchEnvironment(Environment, Named):
       self.testRecord['rewards'].append( reward )
       self.testRecord['scores'].append( self.scores[:] )
       if self.state.actionChosen == bs.PLACE_LANDMARK:
-        #negImg = random.randint(0,len(self.negativeSamples)-1)
-        self.cnn.coverRegion(self.state.box) #, self.negativeSamples[negImg])
+        self.cnn.coverRegion(self.state.box)
         self.state.reset()
       if self.state.stepsWithoutLandmark > TEST_TIME_OUT:
         self.state.reset('Quadrants')
@@ -99,34 +99,22 @@ class BoxSearchEnvironment(Environment, Named):
       # We do not cover false landmarks during training
       if self.state.actionChosen == bs.PLACE_LANDMARK and len(cover) > 0:
         # During training we only cover a carefully selected part of the ground truth box to avoid conflicts with other boxes.
-        #negImg = random.randint(0,len(self.negativeSamples)-1)
-        self.cnn.coverRegion(cover) #, self.negativeSamples[negImg])
+        self.cnn.coverRegion(cover)
         self.state.reset('Random')
       if allDone:
-        self.episodeDone = True
-    # Terminate episode with a single detected instance
-    #if self.state.actionChosen == bs.PLACE_LANDMARK:
-    #  self.episodeDone = True
+        self.extraSteps -= 1
+        if self.extraSteps <= 0:
+          self.episodeDone = True
 
   def getSensors(self):
-    # Make a vector represenation of the action that brought the agent to this state (9 features)
-    #prevAction = np.zeros( (bs.NUM_ACTIONS) )
-    #prevAction[self.state.actionChosen] = 1.0
-    # Status of the box with respect to the frame and previous step (5)
-    #boxStatus = np.ones((5))*(self.state.touchEdges + [self.state.boxChanged])
-
-    # Compute features of visible region (4096 + 21)
+    # Compute features of visible region (4096)
     activations = self.cnn.getActivations(self.state.box)
-
     # Action history (90)
     actions = np.ones((ACTION_HISTORY_SIZE))*self.state.actionHistory
 
     # Concatenate all info in the state representation vector
-    #print activations[config.get('convnetLayer')].shape, activations['prob'].shape, boxStatus.shape, prevAction.shape
-    #state = np.hstack( (activations[config.get('convnetLayer')], activations['prob'], boxStatus, prevAction) )
-    #state = np.hstack( (activations[config.get('convnetLayer')], activations[config.get('convnetLayer')+'_stt']) )
     state = np.hstack( (activations[config.get('convnetLayer')], actions) )
-    self.scores = activations['prob'][0:20].tolist()
+    self.scores = activations['prob'][0:21].tolist()
     return {'image':self.imageList[self.idx], 'state':state, 'negEpisode':self.negativeEpisode}
 
   def sampleAction(self):

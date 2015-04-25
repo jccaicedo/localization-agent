@@ -20,6 +20,7 @@ Y_COORD_DOWN       = 5
 SCALE_DOWN         = 6
 ASPECT_RATIO_DOWN  = 7
 PLACE_LANDMARK     = 8
+SKIP_REGION        = 9
 
 # BOX LIMITS
 MIN_ASPECT_RATIO = 0.15
@@ -29,7 +30,7 @@ STEP_FACTOR      = config.getf('boxResizeStep')
 DELTA_SIZE       = config.getf('boxResizeStep')
 
 # OTHER DEFINITIONS
-NUM_ACTIONS = 9
+NUM_ACTIONS = config.geti('outputActions')
 RESET_BOX_FACTOR = 2
 QUADRANT_SIZE = 0.7
 
@@ -49,9 +50,9 @@ class BoxSearchState():
     self.actionValue = 0
     self.groundTruth = groundTruth
     if self.groundTruth is not None:
-      self.task = bst.BoxSearchTask()
-      self.task.groundTruth = self.groundTruth
-      self.task.loadGroundTruth(self.imageName)
+      self.taskSimulator = bst.BoxSearchTask()
+      self.taskSimulator.groundTruth = self.groundTruth
+      self.taskSimulator.loadGroundTruth(self.imageName)
     self.stepsWithoutLandmark = 0
     self.actionHistory = [0 for i in range(NUM_ACTIONS*config.geti('actionHistoryLength'))]
 
@@ -70,13 +71,12 @@ class BoxSearchState():
     elif action[0] == SCALE_DOWN:         newBox = self.scaleDown()
     elif action[0] == ASPECT_RATIO_DOWN:  newBox = self.aspectRatioDown()
     elif action[0] == PLACE_LANDMARK:     newBox = self.placeLandmark()
-    #elif action[0] == SKIP_REGION:        newBox = self.skipRegion()
+    if NUM_ACTIONS == 10 and action[0] == SKIP_REGION:        newBox = self.skipRegion()
 
-    self.updateStatus(newBox)
     self.box = newBox
     self.boxW = self.box[2] - self.box[0]
     self.boxH = self.box[3] - self.box[1]
-    self.task.computeObjectReward(self.box, self.actionChosen)
+    self.taskSimulator.computeObjectReward(self.box, self.actionChosen)
     return self.box
 
   def xCoordUp(self):
@@ -255,17 +255,30 @@ class BoxSearchState():
     self.stepsWithoutLandmark = 0
     return self.box
 
-  #def skipRegion(self):
-  #  return self.box
+  def skipRegion(self, updateCounter=True):
+    w = self.visibleImage.size[0]   
+    h = self.visibleImage.size[1]
+    newBox = self.box[:]
+    if self.resets % 4 == 1:
+      newBox = map(float, [0,0,w*QUADRANT_SIZE,h*QUADRANT_SIZE])
+    elif self.resets % 4 == 2:
+      newBox = map(float, [w*(1-QUADRANT_SIZE), 0, w, h*QUADRANT_SIZE])
+    elif self.resets % 4 == 3:
+      newBbox = map(float, [0, h*(1-QUADRANT_SIZE), w*QUADRANT_SIZE, h])
+    elif self.resets % 4 == 0:
+      newBox = map(float, [w*(1-QUADRANT_SIZE), h*(1-QUADRANT_SIZE), w, h])
+    else:
+      newBox = map(float, [0,0,w-1,h-1])
+    if updateCounter: self.resets += 1
+    return newBox
 
   def reset(self, boxReset='Full'):
-    oldBox = self.box[:]
+    #oldBox = self.box[:]
     self.stepsWithoutLandmark = 0
     if boxReset == 'Full':
       self.box = map(float, [0,0,self.visibleImage.size[0]-1,self.visibleImage.size[1]-1])
       self.boxW = self.box[2]+1.0
       self.boxH = self.box[3]+1.0
-      self.aspectRatio = self.boxH/self.boxW
     elif boxReset == 'Random':
       # Random Reset:
       wlimit = self.visibleImage.size[0]/(RESET_BOX_FACTOR*2)
@@ -277,31 +290,11 @@ class BoxSearchState():
       self.box = map(float, [a-c, b-d, a+c, b+d] )
       self.boxW = float(RESET_BOX_FACTOR)*c
       self.boxH = float(RESET_BOX_FACTOR)*d
-      self.aspectRatio = self.boxH/self.boxW
     elif boxReset == 'Quadrants':
       # Ordered Resets:
-      w = self.visibleImage.size[0]   
-      h = self.visibleImage.size[1]
-      if self.resets == 1:
-        self.box = map(float, [0,0,w*QUADRANT_SIZE,h*QUADRANT_SIZE])
-      elif self.resets == 2:
-        self.box = map(float, [w*(1-QUADRANT_SIZE), 0, w, h*QUADRANT_SIZE])
-      elif self.resets == 3:
-        self.box = map(float, [0, h*(1-QUADRANT_SIZE), w*QUADRANT_SIZE, h])
-      elif self.resets == 4:
-        self.box = map(float, [w*(1-QUADRANT_SIZE), h*(1-QUADRANT_SIZE), w, h])
-      else:
-        self.box = map(float, [0,0,w-1,h-1])
-        self.resets = 0
-      self.resets += 1
-      self.boxW = w*QUADRANT_SIZE
-      self.boxH = h*QUADRANT_SIZE
-      self.aspectRatio = self.boxH/self.boxW
-    self.updateStatus(oldBox)
-
-  def updateStatus(self, newBox):
-    self.boxChanged = reduce(lambda x,y: x and y, [ newBox[i] == self.box[i] for i in range(4) ])
-    self.touchEdges = [newBox[0] < 1, newBox[1] < 1, newBox[2] >= self.visibleImage.size[0]-2, newBox[3] >= self.visibleImage.size[1]-2]
+      self.box = self.skipRegion()
+      self.boxW = self.box[2] - self.box[0]
+      self.boxH = self.box[3] - self.box[1]
 
   def sampleNextAction(self):
     if self.groundTruth is None:
@@ -317,10 +310,11 @@ class BoxSearchState():
       nextBoxes.append( self.scaleDown() )
       nextBoxes.append( self.aspectRatioDown() )
       nextBoxes.append( self.placeLandmark() )
+      if NUM_ACTIONS == 10: nextBoxes.append( self.skipRegion(False) )
 
       rewards = []
       for a in range(len(nextBoxes)):
-        r = self.task.computeObjectReward(nextBoxes[a], a, False)
+        r = self.taskSimulator.computeObjectReward(nextBoxes[a], a, False)
         rewards.append(r)
       positiveActions = [i for i in range(len(nextBoxes)) if rewards[i]  > 0 ]
       negativeActions = [i for i in range(len(nextBoxes)) if rewards[i] <= 0 ]

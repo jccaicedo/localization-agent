@@ -22,8 +22,7 @@ class QNetwork(ActionValueInterface):
   def __init__(self):
     self.net = None
     print 'QNetwork::Init. Loading ',self.networkFile
-    if os.path.exists(self.networkFile):
-      self.loadNetwork()
+    self.loadNetwork()
     self.sampler = defaultSampler
 
   def releaseNetwork(self):
@@ -37,8 +36,10 @@ class QNetwork(ActionValueInterface):
       self.net = caffe.Net(modelFile, self.networkFile)
       self.net.set_phase_test()
       self.net.set_mode_gpu()
+      print 'QNetwork loaded'
     else:
       self.net = None
+      print 'QNetwork not found'
     
   def getMaxAction(self, state):
     values = self.getActionValues(state)

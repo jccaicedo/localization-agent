@@ -129,9 +129,16 @@ if __name__ == "__main__":
   from BoxSearchAgent import BoxSearchAgent
   import BoxSearchEvaluation as bse
 
-  ## Run Training and Testing
-  rl = BoxSearchRunner('train')
-  rl.run()
-  rl = BoxSearchRunner('test')
-  rl.run()
+  if len(sys.argv) == 2:
+    ## Run Training and Testing
+    rl = BoxSearchRunner('train')
+    rl.run()
+    rl = BoxSearchRunner('test')
+    rl.run()
+  elif len(sys.argv) == 3:
+    # Run only the requested mode
+    rl = BoxSearchRunner(sys.argv[2])
+    rl.run()
+
+
 

@@ -10,7 +10,7 @@ from caffe import wrapperv0
 import RLConfig as config
 
 LAYER = config.get('convnetLayer')
-MARK_WITH = config.getf('markWidth')
+MARK_WIDTH = config.getf('markWidth')
 
 class ConvNet():
 
@@ -66,8 +66,8 @@ class ConvNet():
       # Create two perpendicular boxes
       w = box[2]-box[0]
       h = box[3]-box[1]
-      b1 = map(int, [box[0] + w*0.5 - w*MARK_WITH, box[1], box[0] + w*0.5 + w*MARK_WITH, box[3]])
-      b2 = map(int, [box[0], box[1] + h*0.5 - h*MARK_WITH, box[2], box[1] + h*0.5 + h*MARK_WITH])
+      b1 = map(int, [box[0] + w*0.5 - w*MARK_WIDTH, box[1], box[0] + w*0.5 + w*MARK_WIDTH, box[3]])
+      b2 = map(int, [box[0], box[1] + h*0.5 - h*MARK_WIDTH, box[2], box[1] + h*0.5 + h*MARK_WIDTH])
       boxes = [b1, b2]
       self.net.caffenet.CoverRegions(boxes, '', self.id)
     self.id += 1

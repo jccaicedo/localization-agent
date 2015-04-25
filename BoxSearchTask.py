@@ -32,7 +32,10 @@ class BoxSearchTask(Task):
   def getReward(self):
     gt = self.loadGroundTruth(self.env.imageList[self.env.idx])
     reward = self.computeObjectReward(self.env.state.box, self.env.state.actionChosen)
-    allDone = reduce(lambda x,y: x and y, self.control['DONE'])
+    if len(gt) > 0:
+      allDone = reduce(lambda x,y: x and y, self.control['DONE'])
+    else:
+      allDone = True
     self.env.updatePostReward(reward, allDone, self.cover)
     return reward
 
@@ -63,7 +66,12 @@ class BoxSearchTask(Task):
     self.cover = []
     iou, idx = self.matchBoxes(box)
     if iou <= 0.0:
-      reward = -2.0
+      if actionChosen == bss.SKIP_REGION:
+        reward = 0.1
+      elif actionChosen == bss.PLACE_LANDMARK:
+        reward = -DETECTION_REWARD
+      else:
+        reward = -1.0
     else:
       improvedIoU = False
       if iou > self.control['IOU'][idx]:
@@ -86,6 +94,8 @@ class BoxSearchTask(Task):
           reward = -DETECTION_REWARD
         else:
           reward = DETECTION_REWARD
+      if actionChosen == bss.SKIP_REGION:
+        reward = -DETECTION_REWARD
     return reward
 
   def performAction(self, action):
@@ -150,8 +160,8 @@ class BoxSearchTask(Task):
   def displayEpisodePerformance(self):
     if self.image != '':
       detected = len( [1 for i in range(len(self.boxes)) if self.control['IOU'][i] >= 0.5 and not self.control['SKIP'][i]] )
-      recall = (float(detected)/len(self.boxes))
-      maxIoU = max(self.control['IOU'])
+      recall = (float(detected)/len(self.boxes)) if len(self.boxes) > 0 else 0
+      maxIoU = max(self.control['IOU']+[0])
       landmarks = sum( self.control['DONE'] ) - sum( self.control['SKIP'] )
       print self.image,'Objects detected [min(IoU) > 0.5]:',detected,'of',len(self.boxes),
       print 'Recall:',recall,
