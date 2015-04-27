@@ -13,7 +13,7 @@ if __name__ == '__main__':
     configDir = sys.argv[2]
     outputDir = sys.argv[3]
     learningRates = [0.001]
-    explorationEpochsList = [5]
+    explorationEpochsList = [0]
     epsilonGreedyEpochsList = [5]
     exploitLearningEpochsList = [0]
     categories = ['FramePairTracker']
