@@ -37,15 +37,15 @@ def fingerprint(b):
 
 class BoxSearchState():
 
-  def __init__(self, imageName, randomStart=False, groundTruth=None):
+  def __init__(self, imageName, groundTruth=None):
     self.imageName = imageName
     self.visibleImage = Image.open(config.get('imageDir') + '/' + self.imageName + '.jpg')
     self.box = [0,0,0,0]
-    self.reset(randomStart)
     self.landmarkIndex = {}
     self.actionChosen = 2
     self.actionValue = 0
     self.groundTruth = groundTruth
+    self.reset()
     if self.groundTruth is not None:
       self.task = bst.BoxSearchTask()
       self.task.groundTruth = self.groundTruth
@@ -208,6 +208,7 @@ class BoxSearchState():
     return self.adjustAndClip(newBox)
 
   def adjustAndClip(self, box):
+    print 'Adjusting and clipping box {}'.format(box)
     if box[0] < 0:
       # Can we move it to the right?
       step = -box[0]
@@ -254,25 +255,14 @@ class BoxSearchState():
   #def skipRegion(self):
   #  return self.box
 
-  def reset(self, randomStart=False):
+  def reset(self):
     oldBox = self.box[:]
     self.stepsWithoutLandmark = 0
-    if not randomStart:
-      self.box = map(float, [0,0,self.visibleImage.size[0]-1,self.visibleImage.size[1]-1])
-      self.boxW = self.box[2]+1.0
-      self.boxH = self.box[3]+1.0
-      self.aspectRatio = self.boxH/self.boxW
-    else:
-      wlimit = self.visibleImage.size[0]/(RESET_BOX_FACTOR*2)
-      hlimit = self.visibleImage.size[1]/(RESET_BOX_FACTOR*2)
-      a = random.randint(wlimit, self.visibleImage.size[0] - wlimit)
-      b = random.randint(hlimit, self.visibleImage.size[1] - hlimit)
-      c = random.randint(wlimit, min(self.visibleImage.size[0] - a, a) )
-      d = random.randint(hlimit, min(self.visibleImage.size[1] - b, b) )
-      self.box = map(float, [a-c, b-d, a+c, b+d] )
-      self.boxW = float(RESET_BOX_FACTOR)*c
-      self.boxH = float(RESET_BOX_FACTOR)*d
-      self.aspectRatio = self.boxH/self.boxW
+    #self.box = map(float, [0,0,self.visibleImage.size[0]-1,self.visibleImage.size[1]-1])
+    self.box = self.groundTruth[str(int(self.imageName)-1)][0]
+    self.boxW = self.box[2]+1.0
+    self.boxH = self.box[3]+1.0
+    self.aspectRatio = self.boxH/self.boxW
     self.updateStatus(oldBox)
 
   def updateStatus(self, newBox):

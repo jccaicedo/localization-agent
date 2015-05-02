@@ -62,7 +62,7 @@ class BoxSearchEnvironment(Environment, Named):
       print 'Initial box for {} at {}'.format(previousImageName, self.groundTruth[previousImageName])
       self.startingActivations = self.cnn.getActivations( self.groundTruth[previousImageName][0])
       self.cnn.prepareImage(self.imageList[self.idx])
-      self.state = bs.BoxSearchState(self.imageList[self.idx], groundTruth=self.groundTruth, randomStart=self.mode=='train')
+      self.state = bs.BoxSearchState(self.imageList[self.idx], groundTruth=self.groundTruth)
       print 'Environment::LoadNextEpisode => Image',self.idx,self.imageList[self.idx],'('+str(self.state.visibleImage.size[0])+','+str(self.state.visibleImage.size[1])+')'
     else:
       if self.mode == 'train':
@@ -79,7 +79,7 @@ class BoxSearchEnvironment(Environment, Named):
     if self.mode == 'train' and random.random() < self.negativeProbability:
       idx = random.randint(0,len(self.negativeSamples)-1)
       self.cnn.prepareImage(self.negativeSamples[idx])
-      self.state = bs.BoxSearchState(self.negativeSamples[idx], groundTruth=self.groundTruth, randomStart=True)
+      self.state = bs.BoxSearchState(self.negativeSamples[idx], groundTruth=self.groundTruth)
       print 'Environment::LoadNextEpisode => Random Negative:',idx,self.negativeSamples[idx]
       self.negativeEpisode = True
 
@@ -95,14 +95,14 @@ class BoxSearchEnvironment(Environment, Named):
         self.cnn.coverRegion(self.state.box) #, self.negativeSamples[negImg])
         self.state.reset()
       if self.state.stepsWithoutLandmark > TEST_TIME_OUT:
-        self.state.reset(True)
+        self.state.reset()
     elif self.mode == 'train':
       # We do not cover false landmarks during training
       if self.state.actionChosen == bs.PLACE_LANDMARK and len(cover) > 0:
         # During training we only cover a carefully selected part of the ground truth box to avoid conflicts with other boxes.
         #negImg = random.randint(0,len(self.negativeSamples)-1)
         self.cnn.coverRegion(cover) #, self.negativeSamples[negImg])
-        self.state.reset(True)
+        self.state.reset()
       if allDone:
         self.episodeDone = True
     # Terminate episode with a single detected instance
