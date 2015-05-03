@@ -260,8 +260,8 @@ class BoxSearchState():
     self.stepsWithoutLandmark = 0
     #self.box = map(float, [0,0,self.visibleImage.size[0]-1,self.visibleImage.size[1]-1])
     self.box = self.groundTruth[str(int(self.imageName)-1)][0]
-    self.boxW = self.box[2]+1.0
-    self.boxH = self.box[3]+1.0
+    self.boxW = self.box[2]-self.box[0]
+    self.boxH = self.box[3]-self.box[1]
     self.aspectRatio = self.boxH/self.boxW
     self.updateStatus(oldBox)
 
