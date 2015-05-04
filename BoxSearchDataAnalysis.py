@@ -30,7 +30,7 @@ def testMemStats(memDir):
       counts = processEpisode(memDir + '/' + f)
       detections = sum([getCount(counts,i) for i in range(10)])
       if detections > 0:
-        createSequence(memDir + '/' + f, '/home/jccaicedo/data/pascalImgs/' + f.replace('.txt','.jpg'), '/home/jccaicedo/data/sequences/' + f.replace('.txt','.png'))
+        createSequence(memDir + '/' + f, '/home/jccaicedo/data/pascalImgs/' + f.replace('.txt','.jpg'), '/home/jccaicedo/data/hdSeq/' + f.replace('.txt','.png'))
       for k in counts.keys():
         try: stats[k] += counts[k]
         except: stats[k] = counts[k]
