@@ -1,7 +1,7 @@
 import os,sys
-import utils as cu
-import libDetection as det
-import evaluation as eval
+import utils.utils as cu
+import utils.libDetection as det
+import detection.evaluation as eval
 
 import json
 import scipy.io

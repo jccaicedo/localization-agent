@@ -3,11 +3,11 @@ __author__ = "Juan C. Caicedo, caicedo@illinois.edu"
 from pybrain.rl.learners.valuebased.interface import ActionValueInterface
 import caffe
 import os
-import utils as cu
+import utils.utils as cu
 import numpy as np
 import random
 
-import RLConfig as config
+import learn.rl.RLConfig as config
 
 EXPLORE = 0
 EXPLOIT = 1

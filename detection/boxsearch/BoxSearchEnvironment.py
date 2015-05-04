@@ -11,9 +11,9 @@ import random
 import numpy as np
 import json
 
-import utils as cu
-import libDetection as det
-import RLConfig as config
+import utils.utils as cu
+import utils.libDetection as det
+import learn.rl.RLConfig as config
 
 def sigmoid(x, a=1.0, b=0.0):
   return 1.0/(1.0 + np.exp(-a*x + b))

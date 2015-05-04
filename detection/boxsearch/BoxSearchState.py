@@ -1,14 +1,14 @@
 __author__ = "Juan C. Caicedo, caicedo@illinois.edu"
 
 import time
-import utils as cu
-import libDetection as det
+import utils.utils as cu
+import utils.libDetection as det
 import numpy as np
 import Image
 import random
 
 import BoxSearchTask as bst
-import RLConfig as config
+import learn.rl.RLConfig as config
 
 # ACTIONS
 X_COORD_UP         = 0

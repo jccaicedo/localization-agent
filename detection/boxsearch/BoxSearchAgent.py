@@ -1,12 +1,11 @@
 __author__ = "Juan C. Caicedo, caicedo@illinois.edu"
 
-import RLConfig as config
+import learn.rl.RLConfig as config
 
 import numpy as np
 import scipy.io
-import MemoryUsage
+import utils.MemoryUsage
 
-import RLConfig as config
 import BoxSearchState as bss
 import PriorMemory as prm
 import random

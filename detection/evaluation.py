@@ -1,7 +1,7 @@
 import os,sys
 import re
-import utils as cu
-import libDetection as ldet
+import utils.utils as cu
+import utils.libDetection as ldet
 
 #Functions
 def cumsum(a):

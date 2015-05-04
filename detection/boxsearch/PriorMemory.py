@@ -1,7 +1,7 @@
-import utils as cu
+import utils.utils as cu
 import numpy as np
 
-import RLConfig as config
+import learn.rl.RLConfig as config
 
 class PriorMemory():
 
