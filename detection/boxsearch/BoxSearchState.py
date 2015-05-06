@@ -49,7 +49,6 @@ class BoxSearchState():
     self.actionChosen = 2
     self.actionValue = 0
     self.groundTruth = groundTruth
-    self.reset()
     if self.groundTruth is not None:
       self.taskSimulator = bst.BoxSearchTask()
       self.taskSimulator.groundTruth = self.groundTruth
@@ -213,7 +212,6 @@ class BoxSearchState():
     return self.adjustAndClip(newBox)
 
   def adjustAndClip(self, box):
-    print 'Adjusting and clipping box {}'.format(box)
     if box[0] < 0:
       # Can we move it to the right?
       step = -box[0]
