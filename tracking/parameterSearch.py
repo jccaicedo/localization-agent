@@ -3,7 +3,7 @@ import subprocess
 import sys
 import os
 
-import RLConfig as config
+import learn.rl.RLConfig as config
 
 if __name__ == '__main__':
     if not len(sys.argv) == 4:
@@ -13,8 +13,8 @@ if __name__ == '__main__':
     configDir = sys.argv[2]
     outputDir = sys.argv[3]
     learningRates = [0.001]
-    explorationEpochsList = [0]
-    epsilonGreedyEpochsList = [5]
+    explorationEpochsList = [1]
+    epsilonGreedyEpochsList = [2]
     exploitLearningEpochsList = [0]
     categories = ['FramePairTracker']
     basePath = '/home/fmpaezri'
@@ -59,7 +59,7 @@ if __name__ == '__main__':
                 os.remove(os.path.join(networkDir, fileName))
         outFile = open(os.path.join(outputDir, configName + '.out'), 'w')
         errFile = open(os.path.join(outputDir, configName + '.err'), 'w')
-        process = subprocess.Popen(['time', 'python', 'BoxSearchRunner.py', configPath], stdout=outFile, stderr=errFile)
+        process = subprocess.Popen(['time', 'python', 'tracking/TrackerRunner.py', configPath], stdout=outFile, stderr=errFile)
         process.wait()
         if not process.returncode == 0:
             print 'Aborting! Return code for {}: {}'.format(configName, process.returncode)

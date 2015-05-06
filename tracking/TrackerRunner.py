@@ -1,6 +1,6 @@
 import os, sys
-import RLConfig as config
-import utils as cu
+import learn.rl.RLConfig as config
+import utils.utils as cu
 
 from pybrain.rl.agents import LearningAgent
 from pybrain.rl.learners import Q, SARSA
@@ -8,17 +8,17 @@ from pybrain.rl.experiments import Experiment
 
 import shutil
 
-class BoxSearchRunner():
+class TrackerRunner():
 
   def __init__(self, mode):
     self.mode = mode
     cu.mem('Reinforcement Learning Started')
-    self.environment = BoxSearchEnvironment(config.get(mode+'Database'), mode, config.get(mode+'GroundTruth'))
+    self.environment = TrackerEnvironment(config.get(mode+'Database'), mode, config.get(mode+'GroundTruth'))
     self.controller = QNetwork()
     cu.mem('QNetwork controller created')
     self.learner = None
-    self.agent = BoxSearchAgent(self.controller, self.learner)
-    self.task = BoxSearchTask(self.environment, config.get(mode+'GroundTruth'))
+    self.agent = TrackerAgent(self.controller, self.learner)
+    self.task = TrackerTask(self.environment, config.get(mode+'GroundTruth'))
     self.experiment = Experiment(self.task, self.agent)
 
   def runEpoch(self, interactions, maxImgs):
@@ -94,24 +94,24 @@ class BoxSearchRunner():
   def doValidation(self, epoch):
     if epoch % config.geti('validationEpochs') != 0:
       return
-    auxRL = BoxSearchRunner('test')
+    auxRL = TrackerRunner('test')
     auxRL.run()
     indexType = config.get('evaluationIndexType')
     category = config.get('category')
     if indexType == 'pascal':
-      categories, catIndex = bse.get20Categories()
+      categories, catIndex = te.get20Categories()
     elif indexType == 'relations':
-      categories, catIndex = bse.getCategories()
+      categories, catIndex = te.getCategories()
     elif indexType == 'finetunedRelations':
-      categories, catIndex = bse.getRelationCategories()
+      categories, catIndex = te.getRelationCategories()
     if category in categories:
         catI = categories.index(category)
     else:
         catI = -1
-    scoredDetections = bse.loadScores(config.get('testMemory'), catI)
+    scoredDetections = te.loadScores(config.get('testMemory'), catI)
     groundTruthFile = config.get('testGroundTruth')
-    #ps,rs = bse.evaluateCategory(scoredDetections, 'scores', groundTruthFile)
-    pl,rl = bse.evaluateCategory(scoredDetections, 'landmarks', groundTruthFile)
+    #ps,rs = te.evaluateCategory(scoredDetections, 'scores', groundTruthFile)
+    pl,rl = te.evaluateCategory(scoredDetections, 'landmarks', groundTruthFile)
     line = lambda x,y,z: x + '\t{:5.3f}\t{:5.3f}\n'.format(y,z)
     #print line('Validation Scores:',ps,rs)
     print line('Validation Landmarks:',pl,rl)
@@ -119,7 +119,7 @@ class BoxSearchRunner():
   
 if __name__ == "__main__":
   if len(sys.argv) < 2:
-    print 'Use: ReinforcementLearningRunner.py configFile'
+    print 'Use: TrackerRunner.py configFile'
     sys.exit()
 
   ## Load Global Configuration
@@ -127,14 +127,14 @@ if __name__ == "__main__":
 
   from QNetwork import QNetwork
   from QLearning import QLearning
-  from BoxSearchEnvironment import BoxSearchEnvironment
-  from BoxSearchTask import BoxSearchTask
-  from BoxSearchAgent import BoxSearchAgent
-  import BoxSearchEvaluation as bse
+  from TrackerEnvironment import TrackerEnvironment
+  from TrackerTask import TrackerTask
+  from TrackerAgent import TrackerAgent
+  import TrackerEvaluation as te
 
   ## Run Training and Testing
-  rl = BoxSearchRunner('train')
+  rl = TrackerRunner('train')
   rl.run()
-  rl = BoxSearchRunner('test')
+  rl = TrackerRunner('test')
   rl.run()
 

@@ -6,7 +6,7 @@ import numpy as np
 import scipy.io
 import caffe
 
-import RLConfig as config
+import learn.rl.RLConfig as config
 from pybrain.rl.learners.valuebased.valuebased import ValueBasedLearner
 
 class QLearning(ValueBasedLearner):

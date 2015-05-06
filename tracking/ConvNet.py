@@ -7,7 +7,7 @@ import numpy as np
 import caffe
 from caffe import wrapperv0
 
-import RLConfig as config
+import learn.rl.RLConfig as config
 
 LAYER = config.get('convnetLayer')
 

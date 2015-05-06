@@ -1,13 +1,12 @@
 __author__ = "Juan C. Caicedo, caicedo@illinois.edu"
 
-import RLConfig as config
+import learn.rl.RLConfig as config
 
 import numpy as np
 import scipy.io
-import MemoryUsage
+import utils.MemoryUsage
 
-import RLConfig as config
-import BoxSearchState as bss
+import TrackerState as ts
 import random
 
 STATE_FEATURES = config.geti('stateFeatures')/config.geti('temporalWindow')
@@ -16,7 +15,7 @@ TEMPORAL_WINDOW = config.geti('temporalWindow')
 HISTORY_FACTOR = config.geti('historyFactor')
 NEGATIVE_PROBABILITY = config.getf('negativeEpisodeProb')
 
-class BoxSearchAgent():
+class TrackerAgent():
 
   image = None
   observation = None
@@ -71,14 +70,14 @@ class BoxSearchAgent():
       if not self.negative:
         self.replayMemory.add(self.image, self.timer, self.action, obs, self.reward)
         # Oversample terminal state
-        if self.action == bss.PLACE_LANDMARK and self.reward > 0: 
+        if self.action == ts.PLACE_LANDMARK and self.reward > 0: 
           for copy in range(HISTORY_FACTOR):
             self.replayMemory.add(self.image+'_'+str(copy), self.timer, self.action, obs, self.reward)
       else:
         # Any negative sample should be remembered as a bad landmark rather than a bad movement
         if random.random() < 2*NEGATIVE_PROBABILITY:
-          self.replayMemory.add(self.image, self.timer, bss.PLACE_LANDMARK, obs, -2.0)
-    if self.action == bss.PLACE_LANDMARK:
+          self.replayMemory.add(self.image, self.timer, ts.PLACE_LANDMARK, obs, -2.0)
+    if self.action == ts.PLACE_LANDMARK:
       # Clean history of observations
       self.observation = np.zeros( (TEMPORAL_WINDOW, STATE_FEATURES), np.float32 )
     self.actionsH[self.action] += 1

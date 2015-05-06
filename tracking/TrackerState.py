@@ -1,14 +1,14 @@
 __author__ = "Juan C. Caicedo, caicedo@illinois.edu"
 
 import time
-import utils as cu
-import libDetection as det
+import utils.utils as cu
+import utils.libDetection as det
 import numpy as np
 import Image
 import random
 
-import BoxSearchTask as bst
-import RLConfig as config
+import TrackerTask as tt
+import learn.rl.RLConfig as config
 
 # ACTIONS
 X_COORD_UP         = 0
@@ -35,7 +35,7 @@ RESET_BOX_FACTOR = 2
 def fingerprint(b):
   return '_'.join( map(str, map(int, b)) )
 
-class BoxSearchState():
+class TrackerState():
 
   def __init__(self, imageName, groundTruth=None):
     self.imageName = imageName
@@ -47,7 +47,7 @@ class BoxSearchState():
     self.groundTruth = groundTruth
     self.reset()
     if self.groundTruth is not None:
-      self.task = bst.BoxSearchTask()
+      self.task = tt.TrackerTask()
       self.task.groundTruth = self.groundTruth
       self.task.loadGroundTruth(self.imageName)
     self.stepsWithoutLandmark = 0

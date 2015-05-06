@@ -1,13 +1,13 @@
 __author__ = "Juan C. Caicedo, caicedo@illinois.edu"
 
 from pybrain.rl.environments import Task
-import BoxSearchState as bss
+import TrackerState as ts
 
-import utils as cu
-import libDetection as det
+import utils.utils as cu
+import utils.libDetection as det
 import numpy as np
 
-import RLConfig as config
+import learn.rl.RLConfig as config
 
 MIN_ACCEPTABLE_IOU = config.getf('minAcceptableIoU')
 
@@ -17,7 +17,7 @@ def center(box):
 def euclideanDist(c1, c2):
   return (c1[0] - c2[0])**2 + (c1[1] - c2[1])**2
 
-class BoxSearchTask(Task):
+class TrackerTask(Task):
 
   def __init__(self, environment=None, groundTruthFile=None):
     Task.__init__(self, environment)
@@ -46,13 +46,13 @@ class BoxSearchTask(Task):
       if iou > self.control['IOU'][idx]:
         if update: self.control['IOU'][idx] = iou
         improvedIoU = True
-      if not improvedIoU and actionChosen != bss.PLACE_LANDMARK:
+      if not improvedIoU and actionChosen != ts.PLACE_LANDMARK:
         reward = -1.0
       elif improvedIoU and iou < 0.5:
         reward = 1.0
       elif improvedIoU and iou >= 0.5:
         reward = 2.0
-      elif actionChosen == bss.PLACE_LANDMARK:
+      elif actionChosen == ts.PLACE_LANDMARK:
         if iou >= MIN_ACCEPTABLE_IOU:
           if update: 
             self.coverSample(idx)
