@@ -1,14 +1,4 @@
-try:
-    import cv2
-except ImportError:
-    print 'Error loading cv2, trying with mpl'
-
-try:
-    import matplotlib
-    import matplotlib.pyplot
-except ImportError:
-    print 'Error loading mpl, no more visualization methods available'
-
+import cv2
 import os
 import benchmarkUtils as benchutils
 

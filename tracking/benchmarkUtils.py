@@ -4,22 +4,30 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import os
 
-def parse_gt(gtPath):
+def parse_gt(gtPath, style='corners'):
     '''
     Parses a line oriented bounding box description (whitespace or comma separated)
     '''
     #some file are comma-separated instead of tab-separated
     gtFile = open(gtPath)
     gt = numpy.array([map(float, line.strip().replace(',', '\t').split()) for line in gtFile])
+    #benchmark uses xo,yo,w,h instead of 'corners' x0,y0,x1,y1
+    if style == 'corners':
+        #add x0,y0 to w,h
+        gt[:,2:] += gt[:,:2]
     gtFile.close()
     logging.debug('Found {} lines in ground truth file {}'.format(len(gt), gtPath))
     return gt
 
-def plot_gt(gt, formatString=''):
+def plot_gt(gt, formatString='', style='corners'):
     '''
     Plots the different columns of a parsed bounding box sequence
     '''
-    expectedLabels = ['X lower left coord.', 'Y lower left coord.', 'Width', 'Height']
+    #TODO: review x,y axes convention and change labels
+    if style == 'corners':
+        expectedLabels = ['X lower left coord.', 'Y lower left coord.', 'X upper right coord.', 'Y upper right coord.']
+    elif style == 'dims':
+        expectedLabels = ['X lower left coord.', 'Y lower left coord.', 'Width', 'Height']
     if not len(expectedLabels) == gt.shape[1]:
         raise Exception('Label and column mismatch ({} vs. {})'.format(len(expectedLabels), gt.shape[1]))
     for column in xrange(len(expectedLabels)):
@@ -48,9 +56,9 @@ def dataset_gt(gtsDir, pattern='groundtruth_rect.txt'):
     return gtsDict
 
 def measure_inertia(bbSequence, measure):
+    '''Applies an inertia mesure over consecutive pairs of gt using "corners" style'''
     inertia = numpy.zeros((bbSequence.shape[0]-1,1))
     bbDiag = bbSequence.copy()
-    bbDiag[:, 2:] += bbDiag[:, :2]
     for index in xrange(len(inertia)):
         inertia[index] = measure(bbDiag[index], bbDiag[index+1])
     return inertia
