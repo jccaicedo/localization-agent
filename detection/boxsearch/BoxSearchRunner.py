@@ -1,6 +1,6 @@
 import os, sys
-import RLConfig as config
-import utils as cu
+import learn.rl.RLConfig as config
+import utils.utils as cu
 
 from pybrain.rl.agents import LearningAgent
 from pybrain.rl.learners import Q, SARSA
@@ -39,6 +39,7 @@ class BoxSearchRunner():
     if self.mode == 'train':
       self.agent.persistMemory = True
       self.agent.startReplayMemory(len(self.environment.imageList), config.geti('trainInteractions'))
+      #self.agent.assignPriorMemory(self.environment.priorMemory)
       self.train()
     elif self.mode == 'test':
       self.agent.persistMemory = False
@@ -116,7 +117,8 @@ class BoxSearchRunner():
     #print line('Validation Scores:',ps,rs)
     print line('Validation Landmarks:',pl,rl)
 
-  
+
+#def main():
 if __name__ == "__main__":
   if len(sys.argv) < 2:
     print 'Use: ReinforcementLearningRunner.py configFile'
@@ -132,9 +134,17 @@ if __name__ == "__main__":
   from BoxSearchAgent import BoxSearchAgent
   import BoxSearchEvaluation as bse
 
-  ## Run Training and Testing
-  rl = BoxSearchRunner('train')
-  rl.run()
-  rl = BoxSearchRunner('test')
-  rl.run()
+  print 'Hello'
+
+  if len(sys.argv) == 2:
+    ## Run Training and Testing
+    rl = BoxSearchRunner('train')
+    rl.run()
+    rl = BoxSearchRunner('test')
+    rl.run()
+  elif len(sys.argv) == 3:
+    # Run only the requested mode
+    rl = BoxSearchRunner(sys.argv[2])
+    rl.run()
+
 

@@ -1,7 +1,7 @@
 import os,sys
-import utils as cu
-import libDetection as det
-import evaluation as eval
+import utils.utils as cu
+import utils.libDetection as det
+import detection.evaluation as eval
 
 import json
 import scipy.io
@@ -86,10 +86,13 @@ def evaluateCategory(scoredDetections, ranking, groundTruthFile, output=None):
   gtBoxes = [x.split() for x in open(groundTruthFile)]
   numPositives = len(gtBoxes)
   groundTruth = eval.loadGroundTruthAnnotations(gtBoxes)
-  results = eval.evaluateDetections(groundTruth, detections, 0.5)
+  o1 = output
+  o2 = output
   if output is not None:
-    output = output + '.' + ranking
-  prec, recall = eval.computePrecisionRecall(numPositives, results['tp'], results['fp'], output)
+    o1 = output + '.' + ranking
+    o2 = o1 + '.detections'
+  results = eval.evaluateDetections(groundTruth, detections, 0.5, outFile=o2)
+  prec, recall = eval.computePrecisionRecall(numPositives, results['tp'], results['fp'], o1)
   return prec, recall
 
 if __name__ == "__main__":

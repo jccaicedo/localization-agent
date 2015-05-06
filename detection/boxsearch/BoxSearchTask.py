@@ -3,13 +3,14 @@ __author__ = "Juan C. Caicedo, caicedo@illinois.edu"
 from pybrain.rl.environments import Task
 import BoxSearchState as bss
 
-import utils as cu
-import libDetection as det
+import utils.utils as cu
+import utils.libDetection as det
 import numpy as np
 
-import RLConfig as config
+import learn.rl.RLConfig as config
 
 MIN_ACCEPTABLE_IOU = config.getf('minAcceptableIoU')
+DETECTION_REWARD = config.getf('detectionReward')
 
 def center(box):
   return [ (box[2] + box[0])/2.0 , (box[3] + box[1])/2.0 ]
@@ -31,8 +32,33 @@ class BoxSearchTask(Task):
   def getReward(self):
     gt = self.loadGroundTruth(self.env.imageList[self.env.idx])
     reward = self.computeObjectReward(self.env.state.box, self.env.state.actionChosen)
-    allDone = reduce(lambda x,y: x and y, self.control['DONE'])
+    if len(gt) > 0:
+      allDone = reduce(lambda x,y: x and y, self.control['DONE'])
+    else:
+      allDone = True
     self.env.updatePostReward(reward, allDone, self.cover)
+    return reward
+
+  def computeObjectRewardV2(self, box, actionChosen, update=True):
+    self.cover = []
+    iou, idx = self.matchBoxes(box)
+    if iou <= 0.0:
+      reward = -2.0
+    else:
+      deltaIoU = iou - self.control['IOU'][idx]
+      reward = np.sign( deltaIoU )
+      if deltaIoU > 0 and update: 
+        self.control['IOU'][idx] = iou
+      if actionChosen == bss.PLACE_LANDMARK:
+        if iou >= MIN_ACCEPTABLE_IOU:
+          reward = DETECTION_REWARD
+          if update: 
+            self.coverSample(idx)
+            for j in range(len(self.control['IOU'])):
+              if not self.control['DONE'][j]:
+                self.control['IOU'][j] = 0.0
+        else:
+          reward = -DETECTION_REWARD
     return reward
 
   def computeObjectReward(self, box, actionChosen, update=True):
@@ -40,7 +66,12 @@ class BoxSearchTask(Task):
     self.cover = []
     iou, idx = self.matchBoxes(box)
     if iou <= 0.0:
-      reward = -2.0
+      if actionChosen == bss.SKIP_REGION:
+        reward = 0.1
+      elif actionChosen == bss.PLACE_LANDMARK:
+        reward = -DETECTION_REWARD
+      else:
+        reward = -1.0
     else:
       improvedIoU = False
       if iou > self.control['IOU'][idx]:
@@ -60,9 +91,11 @@ class BoxSearchTask(Task):
               if not self.control['DONE'][j]:
                 self.control['IOU'][j] = 0.0
         if iou < MIN_ACCEPTABLE_IOU:
-          reward = -1.0
+          reward = -DETECTION_REWARD
         else:
-          reward = 3.0
+          reward = DETECTION_REWARD
+      if actionChosen == bss.SKIP_REGION:
+        reward = -DETECTION_REWARD
     return reward
 
   def performAction(self, action):
@@ -98,6 +131,8 @@ class BoxSearchTask(Task):
   def coverSample(self, idx):
     self.control['DONE'][idx] = True
     self.cover = self.boxes[idx][:]
+    return
+    '''
     conflicts = []
     for j in range(len(self.control['DONE'])):
       if not self.control['DONE'][j]:
@@ -120,12 +155,13 @@ class BoxSearchTask(Task):
       elif nov >= 0.5: # Assume the example is done for now
         self.control['DONE'][j] = True
         self.control['SKIP'][j] = True
+    '''
 
   def displayEpisodePerformance(self):
     if self.image != '':
       detected = len( [1 for i in range(len(self.boxes)) if self.control['IOU'][i] >= 0.5 and not self.control['SKIP'][i]] )
-      recall = (float(detected)/len(self.boxes))
-      maxIoU = max(self.control['IOU'])
+      recall = (float(detected)/len(self.boxes)) if len(self.boxes) > 0 else 0
+      maxIoU = max(self.control['IOU']+[0])
       landmarks = sum( self.control['DONE'] ) - sum( self.control['SKIP'] )
       print self.image,'Objects detected [min(IoU) > 0.5]:',detected,'of',len(self.boxes),
       print 'Recall:',recall,
