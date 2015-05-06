@@ -17,7 +17,7 @@ imageList = [x.replace('\n','') for x in open(params['testImageList'])]
 task = Checker()
 start = cu.tic()
 result = processData(imageList,params['featuresDir'],params['featuresExt'],task)
-toc('All images checked',start)
+cu.toc('All images checked',start)
 totalP = 0
 for data in result:
   img,r = data
