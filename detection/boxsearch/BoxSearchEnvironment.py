@@ -60,11 +60,6 @@ class BoxSearchEnvironment(Environment, Named):
     self.idx += 1
     if self.idx < len(self.imageList):
       # Initialize state
-      previousImageName = str(int(self.imageList[self.idx])-1)
-      print 'Preparing starting image {}'.format(previousImageName)
-      self.cnn.prepareImage(previousImageName)
-      print 'Initial box for {} at {}'.format(previousImageName, self.groundTruth[previousImageName])
-      self.startingActivations = self.cnn.getActivations( self.groundTruth[previousImageName][0])
       self.cnn.prepareImage(self.imageList[self.idx])
       restartMode = {'train':'Random','test':'Full'}
       self.state = bs.BoxSearchState(self.imageList[self.idx], groundTruth=self.groundTruth, boxReset=restartMode[self.mode])
