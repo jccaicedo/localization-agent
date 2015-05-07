@@ -3,9 +3,9 @@ import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
-import utils as cu
+import utils.utils as cu
 
-import RLConfig as config
+import learn.rl.RLConfig as config
 
 params = cu.loadParams("config caffeLog rlLog outdir")
 config.readConfiguration(params["config"])
