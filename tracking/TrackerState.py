@@ -6,6 +6,7 @@ import utils.libDetection as det
 import numpy as np
 import Image
 import random
+import os
 
 import TrackerTask as tt
 import learn.rl.RLConfig as config
@@ -39,7 +40,7 @@ class TrackerState():
 
   def __init__(self, imageName, groundTruth=None):
     self.imageName = imageName
-    self.visibleImage = Image.open(config.get('imageDir') + '/' + self.imageName + '.jpg')
+    self.visibleImage = Image.open(os.path.join(config.get('sequenceDir'), self.imageName + '.jpg'))
     self.box = [0,0,0,0]
     self.landmarkIndex = {}
     self.actionChosen = 2
@@ -208,7 +209,6 @@ class TrackerState():
     return self.adjustAndClip(newBox)
 
   def adjustAndClip(self, box):
-    print 'Adjusting and clipping box {}'.format(box)
     if box[0] < 0:
       # Can we move it to the right?
       step = -box[0]
@@ -258,8 +258,11 @@ class TrackerState():
   def reset(self):
     oldBox = self.box[:]
     self.stepsWithoutLandmark = 0
-    #self.box = map(float, [0,0,self.visibleImage.size[0]-1,self.visibleImage.size[1]-1])
-    self.box = self.groundTruth[str(int(self.imageName)-1)][0]
+    tokens = self.imageName.split('/')
+    sequenceName = tokens[0]
+    imageName = tokens[-1]
+    previousImageName = os.path.join(sequenceName, tokens[1], '{:04d}'.format(int(imageName)-1))
+    self.box = self.groundTruth[previousImageName][0]
     self.boxW = self.box[2]-self.box[0]
     self.boxH = self.box[3]-self.box[1]
     self.aspectRatio = self.boxH/self.boxW

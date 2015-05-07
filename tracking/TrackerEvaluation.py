@@ -2,6 +2,7 @@ import os,sys
 import utils.utils as cu
 import utils.libDetection as det
 import detection.evaluation as eval
+import learn.rl.RLConfig as config
 
 import json
 import scipy.io
@@ -40,37 +41,39 @@ def loadScores(memDir, catI):
   sumOfPercentBoxesUsed = 0
   totalImages = 0
   scoredDetections = {}
-  for f in os.listdir(memDir):
-    if not f.endswith('.txt'): continue
-    imageName = f.replace('.txt','')
-    totalImages += 1
-    data = json.load( open(memDir + f, 'r') )
-    boxes = []
-    scores = []
-    values = []
-    landmarks = []
-    t = 0
-    for i in range(len(data['boxes'])):
-      boxes.append( data['boxes'][i] )
-      if catI > 0:
-        scores.append( data['scores'][i][catI])
-      else:
-        scores.append( 0 )
-      values.append( data['values'][i] )
-      if data['actions'][i] == 8:
-        landmarks.append( data['values'][i] )
-      else:
-        landmarks.append( float('-inf') )
-      totalNumberOfBoxes += 1
-      t += 1
-    scoredDetections[imageName] = {'boxes':boxes, 'scores':scores, 'values':values, 'landmarks':landmarks}
-    print imageName,'detections:',len(boxes)
-    #if totalImages > 5: break
+  for seqDir in os.listdir(memDir):
+    for f in os.listdir(os.path.join(memDir, seqDir, config.get('imageDir'))):
+      if not f.endswith('.txt'): continue
+      memoryRecordPath = os.path.join(memDir, seqDir, config.get('imageDir'), f)
+      imageName = memoryRecordPath.replace('.txt','')
+      totalImages += 1
+      data = json.load( open(memoryRecordPath, 'r') )
+      boxes = []
+      scores = []
+      values = []
+      landmarks = []
+      t = 0
+      for i in range(len(data['boxes'])):
+        boxes.append( data['boxes'][i] )
+        if catI > 0:
+          scores.append( data['scores'][i][catI])
+        else:
+          scores.append( 0 )
+        values.append( data['values'][i] )
+        if data['actions'][i] == 8:
+          landmarks.append( data['values'][i] )
+        else:
+          landmarks.append( float('-inf') )
+        totalNumberOfBoxes += 1
+        t += 1
+      scoredDetections[imageName] = {'boxes':boxes, 'scores':scores, 'values':values, 'landmarks':landmarks}
+      print imageName,'detections:',len(boxes)
+      #if totalImages > 5: break
 
   print 'Average boxes per image: {:5.1f}'.format(totalNumberOfBoxes/float(totalImages))
   return scoredDetections
 
-def evaluateCategory(scoredDetections, ranking, groundTruthFile, output=None):
+def evaluateCategory(scoredDetections, ranking, groundTruth, output=None):
   performance = []
   detections = []
   for img in scoredDetections.keys():
@@ -83,9 +86,8 @@ def evaluateCategory(scoredDetections, ranking, groundTruthFile, output=None):
       for i in range(len(fBoxes)):
         detections.append( [img, fScores[i]] + fBoxes[i] )
   detections.sort(key=lambda x:x[1], reverse=True)
-  gtBoxes = [x.split() for x in open(groundTruthFile)]
-  numPositives = len(gtBoxes)
-  groundTruth = eval.loadGroundTruthAnnotations(gtBoxes)
+  #TODO: correct discount of positives
+  numPositives = len(groundTruth.keys())
   results = eval.evaluateDetections(groundTruth, detections, 0.5)
   if output is not None:
     output = output + '.' + ranking

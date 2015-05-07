@@ -19,7 +19,7 @@ def euclideanDist(c1, c2):
 
 class TrackerTask(Task):
 
-  def __init__(self, environment=None, groundTruth):
+  def __init__(self, environment=None, groundTruth=None):
     Task.__init__(self, environment)
     self.groundTruth = groundTruth
     self.image = ''

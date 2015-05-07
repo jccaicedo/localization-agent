@@ -109,9 +109,8 @@ class TrackerRunner():
     else:
         catI = -1
     scoredDetections = te.loadScores(config.get('testMemory'), catI)
-    groundTruthFile = config.get('testGroundTruth')
-    #ps,rs = te.evaluateCategory(scoredDetections, 'scores', groundTruthFile)
-    pl,rl = te.evaluateCategory(scoredDetections, 'landmarks', groundTruthFile)
+    groundTruth = auxRL.environment.groundTruth
+    pl,rl = te.evaluateCategory(scoredDetections, 'landmarks', groundTruth)
     line = lambda x,y,z: x + '\t{:5.3f}\t{:5.3f}\n'.format(y,z)
     #print line('Validation Scores:',ps,rs)
     print line('Validation Landmarks:',pl,rl)

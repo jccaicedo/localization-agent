@@ -7,7 +7,7 @@ class Sequence(object):
     def __init__(self):
         super(Sequence, self).__init__()
         self.frames = []
-        self.boxes = {}
+        self.boxes = []
         self.path = None
         self.marker = 0
 
@@ -16,7 +16,7 @@ def fromdir(dirPath, gtPath, suffix='.jpg'):
     aSequence.frames = sorted([framePath.replace(suffix, '') for framePath in os.listdir(dirPath) if framePath.endswith(suffix)])
     aSequence.path = dirPath
     aSequence.marker = 0
-    aSequence.boxes[gtPath] = benchutils.parse_gt(gtPath)
+    aSequence.boxes = benchutils.parse_gt(gtPath)
     return aSequence
 
 def view(aSequence, winname='view', suffix='.jpg'):

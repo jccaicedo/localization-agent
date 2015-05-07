@@ -133,8 +133,8 @@ import re
 
 def parseSequenceSpec(sequenceSpec):
     pattern = re.compile('^([^\[]+)(\[(\d+):(\d+)\])?$')
-    match = pattern.match()
-    return match.groups
+    match = pattern.match(sequenceSpec)
+    return match.groups()
 
 def mem(msg):
   print msg,'{:5.2f}'.format(MemoryUsage.memory()/(1024**3)),'GB'

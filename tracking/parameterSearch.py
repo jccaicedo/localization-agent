@@ -59,7 +59,7 @@ if __name__ == '__main__':
                 os.remove(os.path.join(networkDir, fileName))
         outFile = open(os.path.join(outputDir, configName + '.out'), 'w')
         errFile = open(os.path.join(outputDir, configName + '.err'), 'w')
-        process = subprocess.Popen(['time', 'python', 'tracking/TrackerRunner.py', configPath], stdout=outFile, stderr=errFile)
+        process = subprocess.Popen(['time', 'python', 'tracking/TrackerRunner.py', configPath, 'train'], stdout=outFile, stderr=errFile)
         process.wait()
         if not process.returncode == 0:
             print 'Aborting! Return code for {}: {}'.format(configName, process.returncode)

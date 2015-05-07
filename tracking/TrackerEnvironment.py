@@ -31,16 +31,17 @@ class TrackerEnvironment(Environment, Named):
     self.cnn = cn.ConvNet()
     self.testRecord = None
     self.idx = -1
-    self.sequenceDatabase = [x.strip() for x in open(sequenceDatabase)]]
+    self.sequenceDatabase = [x.strip() for x in open(sequenceDatabase)]
     self.sequenceSpecs = [cu.parseSequenceSpec(aSequenceSpec) for aSequenceSpec in self.sequenceDatabase]
     self.imageList = []
-    self.imageSuffix = config.get['frameSuffix']
-    self.sequenceDir = config.get['sequenceDir']
+    self.imageSuffix = config.get('frameSuffix')
+    self.sequenceDir = config.get('sequenceDir')
+    self.groundTruth = {}
     #TODO: how to handle duplicates, etc
     for i in range(len(self.sequenceSpecs)):
         seqName, seqSpan, seqStart, seqEnd = self.sequenceSpecs[i]
-        imageDir = os.path.join(self.sequenceDir, seqName, config.get['imageDir'])
-        gtPath = os.path.join(self.sequenceDir, seqName, config.get['gtFile'])
+        imageDir = os.path.join(self.sequenceDir, seqName, config.get('imageDir'))
+        gtPath = os.path.join(self.sequenceDir, seqName, config.get('gtFile'))
         aSequence = sequence.fromdir(imageDir, gtPath, suffix=self.imageSuffix)
         #no seqSpan means full sequence
         #frames start at 2 in list, but include 0 in gt
@@ -53,9 +54,10 @@ class TrackerEnvironment(Environment, Named):
             if start < 1 or end >= len(aSequence.frames) or start > end:
                 raise ValueError('Start {} or end {} outisde of bounds {},{}'.format(start, end, 1, len(aSequence.frames)))
         for j in range(start, end):
+            imageKey = os.path.join(seqName, config.get('imageDir'), aSequence.frames[j])
             if j > start:
-                self.imageList.append(os.path.join(seqName, aSequence.frames[j]))
-            self.groundTruth[os.path.join(seqName, aSequence.frames[j])] = [aSequence.boxes[j].tolist()]
+                self.imageList.append(imageKey)
+            self.groundTruth[imageKey] = [aSequence.boxes[j].tolist()]
     if self.mode == 'train':
       random.shuffle(self.imageList)
     self.loadNextEpisode()
@@ -67,16 +69,20 @@ class TrackerEnvironment(Environment, Named):
     self.episodeDone = False
     # Save actions performed during this episode
     if self.mode == 'test' and self.testRecord != None:
-      with open(config.get('testMemory') + self.imageList[self.idx] + '.txt', 'w') as outfile:
+      episodeMemPath = os.path.join(config.get('testMemory'), self.imageList[self.idx] + '.txt')
+      episodeMemDir = os.path.dirname(episodeMemPath)
+      if not os.path.exists(episodeMemDir):
+          os.makedirs(episodeMemDir)
+      with open(episodeMemPath, 'w') as outfile:
         json.dump(self.testRecord, outfile)
     # Load a new episode
     self.idx += 1
     if self.idx < len(self.imageList):
       # Initialize state
-      tokens =  = self.imageList[self.idx].split('/')
+      tokens = self.imageList[self.idx].split('/')
       sequenceName = tokens[0]
-      imageName = tokens[1]
-      previousImageName = os.path.join(sequenceName, '{:04d}'.format(int(imageName)-1))
+      imageName = tokens[-1]
+      previousImageName = os.path.join(sequenceName, tokens[1], '{:04d}'.format(int(imageName)-1))
       print 'Preparing starting image {}'.format(previousImageName)
       self.cnn.prepareImage(previousImageName)
       print 'Initial box for {} at {}'.format(previousImageName, self.groundTruth[previousImageName])
@@ -103,22 +109,17 @@ class TrackerEnvironment(Environment, Named):
       self.testRecord['rewards'].append( reward )
       self.testRecord['scores'].append( self.scores[:] )
       if self.state.actionChosen == ts.PLACE_LANDMARK:
-        self.cnn.coverRegion(self.state.box)
         self.state.reset()
       if self.state.stepsWithoutLandmark > TEST_TIME_OUT:
         self.state.reset()
     elif self.mode == 'train':
-      # We do not cover false landmarks during training
       if self.state.actionChosen == ts.PLACE_LANDMARK and len(cover) > 0:
-        # During training we only cover a carefully selected part of the ground truth box to avoid conflicts with other boxes.
-        #negImg = random.randint(0,len(self.negativeSamples)-1)
-        self.cnn.coverRegion(cover) #, self.negativeSamples[negImg])
         self.state.reset()
       if allDone:
         self.episodeDone = True
     # Terminate episode with a single detected instance
-    #if self.state.actionChosen == ts.PLACE_LANDMARK:
-    #  self.episodeDone = True
+    if self.state.actionChosen == ts.PLACE_LANDMARK:
+      self.episodeDone = True
 
   def getSensors(self):
     # Make a vector represenation of the action that brought the agent to this state (9 features)
