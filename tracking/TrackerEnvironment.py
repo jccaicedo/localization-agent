@@ -5,10 +5,12 @@ from pybrain.rl.environments.environment import Environment
 
 import TrackerState as ts
 import ConvNet as cn
+import sequence
 
 import random
 import numpy as np
 import json
+import os
 
 import utils.utils as cu
 import utils.libDetection as det
@@ -24,20 +26,37 @@ TEST_TIME_OUT = config.geti('testTimeOut')
 
 class TrackerEnvironment(Environment, Named):
 
-  def __init__(self, imageList, mode, groundTruthFile=None):
+  def __init__(self, sequenceDatabase, mode):
     self.mode = mode
     self.cnn = cn.ConvNet()
     self.testRecord = None
     self.idx = -1
-    self.imageList = [x.strip() for x in open(imageList)]
-    self.groundTruth = cu.loadBoxIndexFile(groundTruthFile)
-    #self.imageList = self.rankImages()
-    #self.imageList = self.imageList[0:10]
-    allImgs = set([x.strip() for x in open(config.get('allImagesList'))])
-    self.negativeSamples = list(allImgs.difference(set(self.groundTruth.keys())))
-    self.negativeEpisode = False
+    self.sequenceDatabase = [x.strip() for x in open(sequenceDatabase)]]
+    self.sequenceSpecs = [cu.parseSequenceSpec(aSequenceSpec) for aSequenceSpec in self.sequenceDatabase]
+    self.imageList = []
+    self.imageSuffix = config.get['frameSuffix']
+    self.sequenceDir = config.get['sequenceDir']
+    #TODO: how to handle duplicates, etc
+    for i in range(len(self.sequenceSpecs)):
+        seqName, seqSpan, seqStart, seqEnd = self.sequenceSpecs[i]
+        imageDir = os.path.join(self.sequenceDir, seqName, config.get['imageDir'])
+        gtPath = os.path.join(self.sequenceDir, seqName, config.get['gtFile'])
+        aSequence = sequence.fromdir(imageDir, gtPath, suffix=self.imageSuffix)
+        #no seqSpan means full sequence
+        #frames start at 2 in list, but include 0 in gt
+        if seqSpan is None:
+            start = 0
+            end = len(aSequence.frames)-1
+        else:
+            start = int(seqStart)
+            end = int(seqEnd)
+            if start < 1 or end >= len(aSequence.frames) or start > end:
+                raise ValueError('Start {} or end {} outisde of bounds {},{}'.format(start, end, 1, len(aSequence.frames)))
+        for j in range(start, end):
+            if j > start:
+                self.imageList.append(os.path.join(seqName, aSequence.frames[j]))
+            self.groundTruth[os.path.join(seqName, aSequence.frames[j])] = [aSequence.boxes[j].tolist()]
     if self.mode == 'train':
-      self.negativeProbability = config.getf('negativeEpisodeProb')
       random.shuffle(self.imageList)
     self.loadNextEpisode()
 
@@ -46,8 +65,6 @@ class TrackerEnvironment(Environment, Named):
 
   def loadNextEpisode(self):
     self.episodeDone = False
-    self.negativeEpisode = False
-    if self.selectNegativeSample(): return
     # Save actions performed during this episode
     if self.mode == 'test' and self.testRecord != None:
       with open(config.get('testMemory') + self.imageList[self.idx] + '.txt', 'w') as outfile:
@@ -56,7 +73,10 @@ class TrackerEnvironment(Environment, Named):
     self.idx += 1
     if self.idx < len(self.imageList):
       # Initialize state
-      previousImageName = str(int(self.imageList[self.idx])-1)
+      tokens =  = self.imageList[self.idx].split('/')
+      sequenceName = tokens[0]
+      imageName = tokens[1]
+      previousImageName = os.path.join(sequenceName, '{:04d}'.format(int(imageName)-1))
       print 'Preparing starting image {}'.format(previousImageName)
       self.cnn.prepareImage(previousImageName)
       print 'Initial box for {} at {}'.format(previousImageName, self.groundTruth[previousImageName])
@@ -75,14 +95,6 @@ class TrackerEnvironment(Environment, Named):
     if self.mode == 'test':
       self.testRecord = {'boxes':[], 'actions':[], 'values':[], 'rewards':[], 'scores':[]}
 
-  def selectNegativeSample(self):
-    if self.mode == 'train' and random.random() < self.negativeProbability:
-      idx = random.randint(0,len(self.negativeSamples)-1)
-      self.cnn.prepareImage(self.negativeSamples[idx])
-      self.state = ts.TrackerState(self.negativeSamples[idx], groundTruth=self.groundTruth)
-      print 'Environment::LoadNextEpisode => Random Negative:',idx,self.negativeSamples[idx]
-      self.negativeEpisode = True
-
   def updatePostReward(self, reward, allDone, cover):
     if self.mode == 'test':
       self.testRecord['boxes'].append( self.state.box )
@@ -91,8 +103,7 @@ class TrackerEnvironment(Environment, Named):
       self.testRecord['rewards'].append( reward )
       self.testRecord['scores'].append( self.scores[:] )
       if self.state.actionChosen == ts.PLACE_LANDMARK:
-        #negImg = random.randint(0,len(self.negativeSamples)-1)
-        self.cnn.coverRegion(self.state.box) #, self.negativeSamples[negImg])
+        self.cnn.coverRegion(self.state.box)
         self.state.reset()
       if self.state.stepsWithoutLandmark > TEST_TIME_OUT:
         self.state.reset()
@@ -118,10 +129,9 @@ class TrackerEnvironment(Environment, Named):
     activations = self.cnn.getActivations(self.state.box)
 
     # Concatenate all info in the state representation vector
-    print activations[config.get('convnetLayer')].shape, prevAction.shape, self.startingActivations[config.get('convnetLayer')].shape
     state = np.hstack( (activations[config.get('convnetLayer')], self.startingActivations[config.get('convnetLayer')], prevAction) )
     self.scores = activations['prob'].tolist()
-    return {'image':self.imageList[self.idx], 'state':state, 'negEpisode':self.negativeEpisode}
+    return {'image':self.imageList[self.idx], 'state':state}
 
   def sampleAction(self):
     return self.state.sampleNextAction()

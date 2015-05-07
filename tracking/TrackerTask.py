@@ -19,10 +19,9 @@ def euclideanDist(c1, c2):
 
 class TrackerTask(Task):
 
-  def __init__(self, environment=None, groundTruthFile=None):
+  def __init__(self, environment=None, groundTruth):
     Task.__init__(self, environment)
-    if groundTruthFile is not None:
-      self.groundTruth = cu.loadBoxIndexFile(groundTruthFile)
+    self.groundTruth = groundTruth
     self.image = ''
     self.epochRecall = []
     self.epochMaxIoU = []

@@ -129,5 +129,12 @@ def loadBoxIndexFile(filename, idx=1):
       images[k[0]] = [ map(float,k[idx:]) ]
   return images
 
+import re
+
+def parseSequenceSpec(sequenceSpec):
+    pattern = re.compile('^([^\[]+)(\[(\d+):(\d+)\])?$')
+    match = pattern.match()
+    return match.groups
+
 def mem(msg):
   print msg,'{:5.2f}'.format(MemoryUsage.memory()/(1024**3)),'GB'

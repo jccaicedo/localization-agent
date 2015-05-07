@@ -13,12 +13,12 @@ class TrackerRunner():
   def __init__(self, mode):
     self.mode = mode
     cu.mem('Reinforcement Learning Started')
-    self.environment = TrackerEnvironment(config.get(mode+'Database'), mode, config.get(mode+'GroundTruth'))
+    self.environment = TrackerEnvironment(config.get(mode+'Database'), mode)
     self.controller = QNetwork()
     cu.mem('QNetwork controller created')
     self.learner = None
     self.agent = TrackerAgent(self.controller, self.learner)
-    self.task = TrackerTask(self.environment, config.get(mode+'GroundTruth'))
+    self.task = TrackerTask(self.environment, self.environment.groundTruth)
     self.experiment = Experiment(self.task, self.agent)
 
   def runEpoch(self, interactions, maxImgs):
@@ -119,7 +119,7 @@ class TrackerRunner():
   
 if __name__ == "__main__":
   if len(sys.argv) < 2:
-    print 'Use: TrackerRunner.py configFile'
+    print 'Use: {} configFile'.format(sys.argv[0])
     sys.exit()
 
   ## Load Global Configuration
@@ -132,9 +132,12 @@ if __name__ == "__main__":
   from TrackerAgent import TrackerAgent
   import TrackerEvaluation as te
 
-  ## Run Training and Testing
-  rl = TrackerRunner('train')
-  rl.run()
-  rl = TrackerRunner('test')
-  rl.run()
-
+  if len(sys.argv) == 2:
+    ## Run Training and Testing
+    rl = TrackerRunner('train')
+    rl.run()
+    rl = TrackerRunner('test')
+    rl.run()
+  elif len(sys.argv) == 3:
+    rl = TrackerRunner(sys.argv[2])
+    rl.run()

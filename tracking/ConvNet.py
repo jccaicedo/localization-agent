@@ -33,7 +33,7 @@ class ConvNet():
   def prepareImage(self, image):
     if self.image != '':
       self.net.caffenet.ReleaseImageData()
-    self.image = config.get('imageDir') + image + '.jpg'
+    self.image = os.path.join(config.get('sequenceDir'), image + config.get['frameSuffix'])
     self.net.caffenet.InitializeImage(self.image, self.imgDim, self.imageMean, self.cropSize)
 
   def getActivations(self, box):
