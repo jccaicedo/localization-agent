@@ -5,6 +5,8 @@ import random
 import pickle
 import re
 import MemoryUsage
+import re
+import json
 
 floatType = np.float32
 topHards = 5000
@@ -129,12 +131,14 @@ def loadBoxIndexFile(filename, idx=1):
       images[k[0]] = [ map(float,k[idx:]) ]
   return images
 
-import re
-
 def parseSequenceSpec(sequenceSpec):
     pattern = re.compile('^([^\[]+)(\[(\d+):(\d+)\])?$')
     match = pattern.match(sequenceSpec)
     return match.groups()
+
+def load_memory(memoryPath):
+    data = json.load(open(memoryPath, 'r'))
+    return data
 
 def mem(msg):
   print msg,'{:5.2f}'.format(MemoryUsage.memory()/(1024**3)),'GB'
