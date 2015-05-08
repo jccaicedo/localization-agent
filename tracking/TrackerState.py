@@ -9,6 +9,7 @@ import random
 import os
 
 import TrackerTask as tt
+import TrackerEnvironment as te
 import learn.rl.RLConfig as config
 
 # ACTIONS
@@ -262,7 +263,11 @@ class TrackerState():
     sequenceName = tokens[0]
     imageName = tokens[-1]
     previousImageName = os.path.join(sequenceName, tokens[1], '{:04d}'.format(int(imageName)-1))
-    self.box = self.groundTruth[previousImageName][0]
+    if self.mode == 'test':
+        initialBox = te.selectInitBox(previousImageName, self.groundTruth)
+      else:
+        initialBox = self.groundTruth[previousImageName][0]
+    self.box = initialBox
     self.boxW = self.box[2]-self.box[0]
     self.boxH = self.box[3]-self.box[1]
     self.aspectRatio = self.boxH/self.boxW

@@ -22,6 +22,23 @@ def sigmoid(x, a=1.0, b=0.0):
 def tanh(x, a=5, b=0.5, c=2.0):
   return c*np.tanh(a*x + b)
 
+def selectInitBox(imageKey, groundTruth):
+    tokens = imageKey.split('/')
+    sequenceName = tokens[0]
+    imageName = tokens[-1]
+    previousImageName = os.path.join(sequenceName, tokens[1], '{:04d}'.format(int(imageName)-1))
+    episodeMemPath = os.path.join(config.get('testMemory'), imageKey + '.txt')
+    #TODO: use a better way to know to track starting bbox
+    if os.path.exists(episodeMemPath):
+        testMemory = cu.load_memory(episodeMemPath)
+        if ts.PLACE_LANDMARK in testMemory['actions']:
+            landmarkIndex = testMemory['actions'].index(ts.PLACE_LANDMARK)
+            return testMemory['boxes'][landmarkIndex]
+          else:
+              return selectInitBox(previousImageName, groundTruth)
+    elif imageKey in groundTruth:
+        return groundTruth[imageKey][0]
+
 TEST_TIME_OUT = config.geti('testTimeOut')
 
 class TrackerEnvironment(Environment, Named):
@@ -85,8 +102,12 @@ class TrackerEnvironment(Environment, Named):
       previousImageName = os.path.join(sequenceName, tokens[1], '{:04d}'.format(int(imageName)-1))
       print 'Preparing starting image {}'.format(previousImageName)
       self.cnn.prepareImage(previousImageName)
-      print 'Initial box for {} at {}'.format(previousImageName, self.groundTruth[previousImageName])
-      self.startingActivations = self.cnn.getActivations( self.groundTruth[previousImageName][0])
+      if self.mode == 'test':
+        initialBox = selectInitBox(previousImageName, self.groundTruth)
+      else:
+        initialBox = self.groundTruth[previousImageName][0]
+      print 'Initial box for {} at {}'.format(previousImageName, initialBox)
+      self.startingActivations = self.cnn.getActivations( initialBox)
       self.cnn.prepareImage(self.imageList[self.idx])
       self.state = ts.TrackerState(self.imageList[self.idx], groundTruth=self.groundTruth)
       print 'Environment::LoadNextEpisode => Image',self.idx,self.imageList[self.idx],'('+str(self.state.visibleImage.size[0])+','+str(self.state.visibleImage.size[1])+')'
@@ -136,6 +157,7 @@ class TrackerEnvironment(Environment, Named):
 
   def sampleAction(self):
     return self.state.sampleNextAction()
+
      
   def rankImages(self):
     keys = self.groundTruth.keys()
