@@ -31,11 +31,12 @@ def show_box(index, data, patch):
     return patch
 
 def view_memory(configPath, sequenceName):
+    config.readConfiguration(configPath)
     imageSuffix = config.get('frameSuffix')
     sequenceDir = config.get('sequenceDir')
     testMemoryDir = config.get('testMemory')
     seqDatabasePath = config.get('testDatabase')
-    seqDatabase = [x.strip() for x in open(seqDatabasePath, 'r']
+    seqDatabase = [x.strip() for x in open(seqDatabasePath, 'r')]
     
     if not sequenceName in seqDatabase:
         raise ValueError('{} not present in contents of {}'.format(seqName, seqDatabasePath))
@@ -58,17 +59,23 @@ def view_memory(configPath, sequenceName):
     cv2.namedWindow(sequenceName)
     for frameIndex in range(start, end):
         aFrame = cv2.imread(os.path.join(aSequence.path, aSequence.frames[frameIndex]+imageSuffix))
-        frameBbox = aSequence.boxes[frameIndex]
+        frameBbox = map(int, aSequence.boxes[frameIndex].tolist())
         gtFrame = aFrame.copy()
-        cv2.rectangle(gtFrame, frameBbox[0,:2], frameBbox[0,2:], cv2.cv.CV_RGB(0,255,0))
+        cv2.rectangle(gtFrame, tuple(frameBbox[:2]), tuple(frameBbox[2:]), cv2.cv.CV_RGB(0,255,0))
         
         testMemoryPath = os.path.join(testMemoryDir, seqName, config.get('imageDir'), '{:04d}{}'.format(frameIndex, '.txt'))
+        print testMemoryPath
         if os.path.exists(testMemoryPath):
-            testMemory = cu.loadMemory(os.path.join(testMemoryDir, seqName, config.get('imageDir'), '{:04d}{}'.format(frameIndex, '.txt')))
+            testMemory = cu.load_memory(os.path.join(testMemoryDir, seqName, config.get('imageDir'), '{:04d}{}'.format(frameIndex, '.txt')))
             for boxIndex in range(len(testMemory['boxes'])):
-                interactionBox = testMemory['boxes'][boxIndex]
+                if testMemory['actions'][boxIndex] == 8:
+                    boxColor = cv2.cv.CV_RGB(0,0,255)
+                else:
+                    boxColor = cv2.cv.CV_RGB(255,0,0)
+                    continue
+                interactionBox = map(int, testMemory['boxes'][boxIndex])
                 interactionFrame = gtFrame.copy()
-                cv2.rectangle(interactionFrame, interactionBox[0,:2], interactionBox[0,2:], cv2.cv.CV_RGB(0,0,255))
+                cv2.rectangle(interactionFrame, tuple(interactionBox[:2]), tuple(interactionBox[2:]), boxColor)
                 cv2.imshow(sequenceName, interactionFrame)
                 cv2.waitKey(30)
         else:
