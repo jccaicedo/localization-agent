@@ -30,7 +30,7 @@ def show_box(index, data, patch):
     patch.set_height(height)
     return patch
 
-def view_memory(configPath, sequenceName):
+def view_memory(configPath, sequenceName, tofile=False, outputDir='/tmp'):
     config.readConfiguration(configPath)
     imageSuffix = config.get('frameSuffix')
     sequenceDir = config.get('sequenceDir')
@@ -64,7 +64,6 @@ def view_memory(configPath, sequenceName):
         cv2.rectangle(gtFrame, tuple(frameBbox[:2]), tuple(frameBbox[2:]), cv2.cv.CV_RGB(0,255,0))
         
         testMemoryPath = os.path.join(testMemoryDir, seqName, config.get('imageDir'), '{:04d}{}'.format(frameIndex, '.txt'))
-        print testMemoryPath
         if os.path.exists(testMemoryPath):
             testMemory = cu.load_memory(os.path.join(testMemoryDir, seqName, config.get('imageDir'), '{:04d}{}'.format(frameIndex, '.txt')))
             for boxIndex in range(len(testMemory['boxes'])):
@@ -72,12 +71,23 @@ def view_memory(configPath, sequenceName):
                     boxColor = cv2.cv.CV_RGB(0,0,255)
                 else:
                     boxColor = cv2.cv.CV_RGB(255,0,0)
-                    continue
                 interactionBox = map(int, testMemory['boxes'][boxIndex])
                 interactionFrame = gtFrame.copy()
                 cv2.rectangle(interactionFrame, tuple(interactionBox[:2]), tuple(interactionBox[2:]), boxColor)
-                cv2.imshow(sequenceName, interactionFrame)
-                cv2.waitKey(30)
+                if tofile:
+                    outputPath = os.path.join(outputDir, seqName, '{:04d}_{}{}'.format(frameIndex, boxIndex, imageSuffix))
+                    if not os.path.exists(os.path.dirname(outputPath)):
+                        os.makedirs(os.path.dirname(outputPath))
+                    cv2.imwrite(outputPath, interactionFrame)
+                else:
+                    cv2.imshow(sequenceName, interactionFrame)
+                    cv2.waitKey(30)
         else:
-            cv2.imshow(sequenceName, gtFrame)
-            cv2.waitKey(30)
+            if tofile:
+                outputPath = os.path.join(outputDir, seqName, '{:04d}{}'.format(frameIndex, imageSuffix))
+                if not os.path.exists(os.path.dirname(outputPath)):
+                    os.makedirs(os.path.dirname(outputPath))
+                cv2.imwrite(outputPath, gtFrame)
+            else:
+                cv2.imshow(sequenceName, gtFrame)
+                cv2.waitKey(30)
