@@ -1,8 +1,11 @@
 import os
 import random
 import sys
+import random
 
-import benchmarkUtils as benchutils
+import tracking.benchmarkUtils as benchutils
+import tracking.sequence
+
 
 def write_gt(baseDir, name, images, ids, gt):
     gtFile = open(os.path.join(baseDir, name), 'w')
@@ -16,6 +19,29 @@ def write_database(baseDir, name, images, ids):
     for i in range(len(ids)):
         dbFile.write(str(images[ids[i]])+'\n')
     dbFile.close()
+
+def sampleSequences(seqDir, trainPath, testPath, trainProp=0.02, trainSeq=36, sampleThreshold=5, excludes=['Football1', 'David', 'Freeman3', 'Freeman4', 'Jogging']):
+    seqDirs = [aSeqDir for aSeqDir in os.listdir(seqDir) if aSeqDir not in excludes]
+    random.shuffle(seqDirs)
+    trainSequences = seqDirs[:trainSeq]
+    testSequences = seqDirs[trainSeq:]
+    #Test on full sequences
+    testFile = open(testPath, 'w')
+    for testSequence in testSequences:
+        testFile.write(testSequence + '\n')
+    testFile.close()
+    trainFile = open(trainPath, 'w')
+    for trainSequence in trainSequences:
+        aSequence = tracking.sequence.fromdir(os.path.join(seqDir, trainSequence, 'img'), os.path.join(seqDir, trainSequence, 'groundtruth_rect.txt'))
+        sampleSize = trainProp*len(aSequence.frames)
+        if sampleSize < sampleThreshold:
+            sampleSize = sampleThreshold
+        sampleSize = int(sampleSize)
+        #step of 2 to avoid consecutive sampling
+        sampleFrames = random.sample(xrange(2, len(aSequence.frames), 2), sampleSize)
+        for sampleFrame in sampleFrames:
+            trainFile.write(trainSequence + '[{}:{}]'.format(sampleFrame, sampleFrame) + '\n')
+    trainFile.close()
 
 def sequential_link(seqDir, textDir, outputDir, excludes=['Football1', 'David', 'Freeman3', 'Freeman4', 'Jogging'], suffix='.jpg', proportion=0.5, pattern='groundtruth_rect.txt'):
     sequences = sorted([sequence for sequence in os.listdir(seqDir) if sequence not in excludes])
