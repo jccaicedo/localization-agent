@@ -39,7 +39,7 @@ def fingerprint(b):
 
 class TrackerState():
 
-  def __init__(self, imageName, groundTruth=None):
+  def __init__(self, imageName, mode, groundTruth=None):
     self.imageName = imageName
     self.visibleImage = Image.open(os.path.join(config.get('sequenceDir'), self.imageName + '.jpg'))
     self.box = [0,0,0,0]
@@ -47,6 +47,7 @@ class TrackerState():
     self.actionChosen = 2
     self.actionValue = 0
     self.groundTruth = groundTruth
+    self.mode = mode
     self.reset()
     if self.groundTruth is not None:
       self.task = tt.TrackerTask()

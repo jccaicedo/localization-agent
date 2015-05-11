@@ -34,8 +34,8 @@ def selectInitBox(imageKey, groundTruth):
         if ts.PLACE_LANDMARK in testMemory['actions']:
             landmarkIndex = testMemory['actions'].index(ts.PLACE_LANDMARK)
             return testMemory['boxes'][landmarkIndex]
-          else:
-              return selectInitBox(previousImageName, groundTruth)
+        else:
+            return selectInitBox(previousImageName, groundTruth)
     elif imageKey in groundTruth:
         return groundTruth[imageKey][0]
 
@@ -109,7 +109,7 @@ class TrackerEnvironment(Environment, Named):
       print 'Initial box for {} at {}'.format(previousImageName, initialBox)
       self.startingActivations = self.cnn.getActivations( initialBox)
       self.cnn.prepareImage(self.imageList[self.idx])
-      self.state = ts.TrackerState(self.imageList[self.idx], groundTruth=self.groundTruth)
+      self.state = ts.TrackerState(self.imageList[self.idx], self.mode, groundTruth=self.groundTruth)
       print 'Environment::LoadNextEpisode => Image',self.idx,self.imageList[self.idx],'('+str(self.state.visibleImage.size[0])+','+str(self.state.visibleImage.size[1])+')'
     else:
       if self.mode == 'train':
