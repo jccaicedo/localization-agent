@@ -20,7 +20,7 @@ def write_database(baseDir, name, images, ids):
         dbFile.write(str(images[ids[i]])+'\n')
     dbFile.close()
 
-def sampleSequences(seqDir, trainPath, testPath, trainProp=0.02, trainSeq=36, sampleThreshold=5, excludes=['Football1', 'David', 'Freeman3', 'Freeman4', 'Jogging']):
+def sampleSequences(seqDir, trainPath, testPath, trainProp=0.02, trainSeq=40, sampleThreshold=5, excludes=['Football1', 'David', 'Freeman3', 'Freeman4', 'Jogging']):
     seqDirs = [aSeqDir for aSeqDir in os.listdir(seqDir) if aSeqDir not in excludes]
     random.shuffle(seqDirs)
     trainSequences = seqDirs[:trainSeq]
@@ -40,7 +40,7 @@ def sampleSequences(seqDir, trainPath, testPath, trainProp=0.02, trainSeq=36, sa
         #step of 2 to avoid consecutive sampling
         sampleFrames = random.sample(xrange(2, len(aSequence.frames), 2), sampleSize)
         for sampleFrame in sampleFrames:
-            trainFile.write(trainSequence + '[{}:{}]'.format(sampleFrame, sampleFrame) + '\n')
+            trainFile.write(trainSequence + '[{}:{}]'.format(sampleFrame, sampleFrame+1) + '\n')
     trainFile.close()
 
 def sequential_link(seqDir, textDir, outputDir, excludes=['Football1', 'David', 'Freeman3', 'Freeman4', 'Jogging'], suffix='.jpg', proportion=0.5, pattern='groundtruth_rect.txt'):

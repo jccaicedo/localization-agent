@@ -68,7 +68,7 @@ class TrackerEnvironment(Environment, Named):
         else:
             start = int(seqStart)
             end = int(seqEnd)
-            if start < 1 or end >= len(aSequence.frames) or start > end:
+            if start < 1 or end >= len(aSequence.frames) or start > end or start == end:
                 raise ValueError('Start {} or end {} outisde of bounds {},{}'.format(start, end, 1, len(aSequence.frames)))
         for j in range(start, end):
             imageKey = os.path.join(seqName, config.get('imageDir'), aSequence.frames[j])
