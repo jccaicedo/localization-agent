@@ -38,9 +38,9 @@ def view_memory(configPath, sequenceName, tofile=False, outputDir='/tmp'):
     seqDatabasePath = config.get('testDatabase')
     seqDatabase = [x.strip() for x in open(seqDatabasePath, 'r')]
     
+    seqName, seqSpan, seqStart, seqEnd = cu.parseSequenceSpec(sequenceName)
     if not sequenceName in seqDatabase:
         raise ValueError('{} not present in contents of {}'.format(seqName, seqDatabasePath))
-    seqName, seqSpan, seqStart, seqEnd = cu.parseSequenceSpec(sequenceName)
     imageDir = os.path.join(sequenceDir, seqName, config.get('imageDir'))
     gtPath = os.path.join(sequenceDir, seqName, config.get('gtFile'))
     aSequence = sequence.fromdir(imageDir, gtPath, suffix=imageSuffix)
@@ -54,7 +54,7 @@ def view_memory(configPath, sequenceName, tofile=False, outputDir='/tmp'):
         start = int(seqStart)
         end = int(seqEnd)
         if start < 1 or end >= len(aSequence.frames) or start > end:
-            raise ValueError('Start {} or end {} outisde of bounds {},{}'.format(start, end, 1, len(aSequence.frames)))
+            raise ValueError('Start {} or end {} outside of bounds {}-{}'.format(start, end, 1, len(aSequence.frames)))
 
     cv2.namedWindow(sequenceName)
     for frameIndex in range(start, end):
