@@ -38,7 +38,7 @@ def sampleSequences(seqDir, trainPath, testPath, trainProp=0.02, trainSeq=40, sa
             sampleSize = sampleThreshold
         sampleSize = int(sampleSize)
         #step of 2 to avoid consecutive sampling
-        sampleFrames = random.sample(xrange(2, len(aSequence.frames), 2), sampleSize)
+        sampleFrames = random.sample(xrange(1, len(aSequence.frames)+1, 2), sampleSize)
         for sampleFrame in sampleFrames:
             trainFile.write(trainSequence + '[{}:{}]'.format(sampleFrame, sampleFrame+1) + '\n')
     trainFile.close()

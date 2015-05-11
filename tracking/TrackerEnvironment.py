@@ -38,6 +38,8 @@ def selectInitBox(imageKey, groundTruth):
             return selectInitBox(previousImageName, groundTruth)
     elif imageKey in groundTruth:
         return groundTruth[imageKey][0]
+    else:
+        raise Exception('Unexpected condition for image key {}'.format(imageKey))
 
 TEST_TIME_OUT = config.geti('testTimeOut')
 
@@ -63,18 +65,18 @@ class TrackerEnvironment(Environment, Named):
         #no seqSpan means full sequence
         #frames start at 2 in list, but include 0 in gt
         if seqSpan is None:
-            start = 0
-            end = len(aSequence.frames)-1
+            start = 1
+            end = len(aSequence.frames)
         else:
             start = int(seqStart)
             end = int(seqEnd)
-            if start < 1 or end >= len(aSequence.frames) or start > end or start == end:
-                raise ValueError('Start {} or end {} outisde of bounds {},{}'.format(start, end, 1, len(aSequence.frames)))
-        for j in range(start, end):
-            imageKey = os.path.join(seqName, config.get('imageDir'), aSequence.frames[j])
+            if start < 1 or end > len(aSequence.frames) or start >= end:
+                raise ValueError('Start {} or end {} outside of bounds {},{}'.format(start, end, 1, len(aSequence.frames)))
+        for j in range(start, end+1):
+            imageKey = os.path.join(seqName, config.get('imageDir'), aSequence.frames[j-1])
             if j > start:
                 self.imageList.append(imageKey)
-            self.groundTruth[imageKey] = [aSequence.boxes[j].tolist()]
+            self.groundTruth[imageKey] = [aSequence.boxes[j-1].tolist()]
     if self.mode == 'train':
       random.shuffle(self.imageList)
     self.loadNextEpisode()

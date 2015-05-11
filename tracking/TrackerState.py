@@ -266,7 +266,7 @@ class TrackerState():
     previousImageName = os.path.join(sequenceName, tokens[1], '{:04d}'.format(int(imageName)-1))
     if self.mode == 'test':
         initialBox = te.selectInitBox(previousImageName, self.groundTruth)
-      else:
+    else:
         initialBox = self.groundTruth[previousImageName][0]
     self.box = initialBox
     self.boxW = self.box[2]-self.box[0]
