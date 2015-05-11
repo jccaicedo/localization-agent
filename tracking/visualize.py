@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import cv2
 import os
 
-import libDetection as libDet
+import utils.libDetection as libDet
 import learn.rl.RLConfig as config
 import utils.utils as cu
 import sequence
@@ -56,7 +56,8 @@ def view_memory(configPath, sequenceName, tofile=False, outputDir='/tmp'):
         if start < 1 or end >= len(aSequence.frames) or start > end:
             raise ValueError('Start {} or end {} outisde of bounds {},{}'.format(start, end, 1, len(aSequence.frames)))
 
-    cv2.namedWindow(sequenceName)
+    if not tofile:
+        cv2.namedWindow(sequenceName)
     for frameIndex in range(start, end):
         aFrame = cv2.imread(os.path.join(aSequence.path, aSequence.frames[frameIndex]+imageSuffix))
         frameBbox = map(int, aSequence.boxes[frameIndex].tolist())
