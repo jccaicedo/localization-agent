@@ -10,4 +10,4 @@ sequencesUnzippedDir:=/tmp/tracker_benchmark
 videosDir:=/tmp/tracker_benchmark/videos
 
 generateVideos:
-	for aSequenceDir in $$(ls $(sequencesUnzippedDir)); do if [ -d $(sequencesUnzippedDir)/$$aSequenceDir/img ]; then avconv -f image2 -i $(sequencesUnzippedDir)/$$aSequenceDir/img/%04d.jpg -r 30 $(videosDir)/$$aSequenceDir.mp4; else echo "img dir $(sequencesUnzippedDir)/$$aSequenceDir/img not found"; fi; done
+	for aSequenceDir in $$(ls $(sequencesUnzippedDir)); do if [ -d $(sequencesUnzippedDir)/$$aSequenceDir/img ]; then time avconv -f image2 -r 30 -i $(sequencesUnzippedDir)/$$aSequenceDir/img/%04d.jpg -r 30 $(videosDir)/$$aSequenceDir.mp4; else echo "img dir $(sequencesUnzippedDir)/$$aSequenceDir/img not found"; fi; done
