@@ -173,3 +173,10 @@ def performance_metrics(configPath):
         dists[sequenceName] = numpy.sqrt(map(euclideanDist, gtCenters, trackingCenters))
 
     return dists, ious
+
+def performance_plots(configPath):
+    dists, ious = performance_metrics(configPath)
+    
+    assert dists.keys() == ious.keys(), 'Different sequences in performance dictionaries'
+
+    
