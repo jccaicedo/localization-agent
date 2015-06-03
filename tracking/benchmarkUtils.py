@@ -193,11 +193,14 @@ def performance_plots(configPath, plot=False):
             iousPercents[seqIndex, thresholdIndex] = numpy.greater_equal(ious[seqName], iouThresholds[thresholdIndex]).mean()
     
     if plot:
+        yticks = numpy.linspace(0,1,11,endpoint=True)
         plt.subplot(1,2,1)
         plt.plot(distThresholds, distsPercents.mean(axis=0))
+        plt.yticks(yticks)
         plt.title('Precision')
         plt.subplot(1,2,2)
         plt.plot(iouThresholds, iousPercents.mean(axis=0))
+        plt.yticks(yticks)
         plt.title('Success')
         plt.show()
 
