@@ -4,7 +4,7 @@ import time
 import utils.utils as cu
 import utils.libDetection as det
 import numpy as np
-import Image
+from PIL import Image
 import random
 import os
 
