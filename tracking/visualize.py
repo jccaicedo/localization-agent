@@ -30,6 +30,8 @@ def show_box(index, data, patch):
     patch.set_height(height)
     return patch
 
+PLACE_LANDMARK = 8
+
 def view_memory(configPath, sequenceName, tofile=False, outputDir='/tmp'):
     config.readConfiguration(configPath)
     imageSuffix = config.get('frameSuffix')
@@ -64,11 +66,11 @@ def view_memory(configPath, sequenceName, tofile=False, outputDir='/tmp'):
         gtFrame = aFrame.copy()
         cv2.rectangle(gtFrame, tuple(frameBbox[:2]), tuple(frameBbox[2:]), cv2.cv.CV_RGB(0,255,0))
         
-        testMemoryPath = os.path.join(testMemoryDir, seqName, config.get('imageDir'), '{:04d}{}'.format(frameIndex, '.txt'))
+        testMemoryPath = os.path.join(testMemoryDir, seqName, config.get('imageDir'), '{:04d}{}'.format(frameIndex+1, '.txt'))
         if os.path.exists(testMemoryPath):
-            testMemory = cu.load_memory(os.path.join(testMemoryDir, seqName, config.get('imageDir'), '{:04d}{}'.format(frameIndex, '.txt')))
+            testMemory = cu.load_memory(testMemoryPath)
             for boxIndex in range(len(testMemory['boxes'])):
-                if testMemory['actions'][boxIndex] == 8:
+                if testMemory['actions'][boxIndex] == PLACE_LANDMARK:
                     boxColor = cv2.cv.CV_RGB(0,0,255)
                 else:
                     boxColor = cv2.cv.CV_RGB(255,0,0)
@@ -76,7 +78,7 @@ def view_memory(configPath, sequenceName, tofile=False, outputDir='/tmp'):
                 interactionFrame = gtFrame.copy()
                 cv2.rectangle(interactionFrame, tuple(interactionBox[:2]), tuple(interactionBox[2:]), boxColor)
                 if tofile:
-                    outputPath = os.path.join(outputDir, seqName, '{:04d}_{}{}'.format(frameIndex, boxIndex, imageSuffix))
+                    outputPath = os.path.join(outputDir, seqName, '{:04d}_{}{}'.format(frameIndex+1, boxIndex, imageSuffix))
                     if not os.path.exists(os.path.dirname(outputPath)):
                         os.makedirs(os.path.dirname(outputPath))
                     cv2.imwrite(outputPath, interactionFrame)
@@ -85,7 +87,7 @@ def view_memory(configPath, sequenceName, tofile=False, outputDir='/tmp'):
                     cv2.waitKey(30)
         else:
             if tofile:
-                outputPath = os.path.join(outputDir, seqName, '{:04d}{}'.format(frameIndex, imageSuffix))
+                outputPath = os.path.join(outputDir, seqName, '{:04d}{}'.format(frameIndex+1, imageSuffix))
                 if not os.path.exists(os.path.dirname(outputPath)):
                     os.makedirs(os.path.dirname(outputPath))
                 cv2.imwrite(outputPath, gtFrame)

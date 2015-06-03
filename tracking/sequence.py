@@ -19,16 +19,22 @@ def fromdir(dirPath, gtPath, suffix='.jpg'):
     aSequence.boxes = benchutils.parse_gt(gtPath)
     return aSequence
 
-def view(aSequence, winname='view', suffix='.jpg', fps=30):
+try:
+
     import cv2
-    cv2.namedWindow(winname)
-    period = 1000.0 / fps
-    for aFrame in aSequence.frames:
-        start = time.time()
-        framePath = os.path.join(aSequence.path, aFrame+suffix)
-        frame = cv2.imread(framePath)
-        cv2.imshow(winname, frame)
-        end = time.time()
-        cv2.waitKey(int(period-(end - start)*1000))
-    cv2.destroyWindow(winname)
-    cv2.waitKey(1)
+
+    def view(aSequence, winname='view', suffix='.jpg', fps=30):
+        cv2.namedWindow(winname)
+        period = 1000.0 / fps
+        for aFrame in aSequence.frames:
+            start = time.time()
+            framePath = os.path.join(aSequence.path, aFrame+suffix)
+            frame = cv2.imread(framePath)
+            cv2.imshow(winname, frame)
+            end = time.time()
+            cv2.waitKey(int(period-(end - start)*1000))
+        cv2.destroyWindow(winname)
+        cv2.waitKey(1)
+
+except:
+    print 'Error importing cv2, dependend functions undefined'
