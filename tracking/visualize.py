@@ -30,6 +30,8 @@ def show_box(index, data, patch):
     patch.set_height(height)
     return patch
 
+PLACE_LANDMARK = 8
+
 def view_memory(configPath, sequenceName, tofile=False, outputDir='/tmp'):
     config.readConfiguration(configPath)
     imageSuffix = config.get('frameSuffix')
@@ -66,9 +68,9 @@ def view_memory(configPath, sequenceName, tofile=False, outputDir='/tmp'):
         
         testMemoryPath = os.path.join(testMemoryDir, seqName, config.get('imageDir'), '{:04d}{}'.format(frameIndex, '.txt'))
         if os.path.exists(testMemoryPath):
-            testMemory = cu.load_memory(os.path.join(testMemoryDir, seqName, config.get('imageDir'), '{:04d}{}'.format(frameIndex, '.txt')))
+            testMemory = cu.load_memory(testMemoryPath)
             for boxIndex in range(len(testMemory['boxes'])):
-                if testMemory['actions'][boxIndex] == 8:
+                if testMemory['actions'][boxIndex] == PLACE_LANDMARK:
                     boxColor = cv2.cv.CV_RGB(0,0,255)
                 else:
                     boxColor = cv2.cv.CV_RGB(255,0,0)

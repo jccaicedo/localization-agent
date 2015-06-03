@@ -4,6 +4,11 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import os
 
+import utils.libDetection as libDet
+import learn.rl.RLConfig as config
+import utils.utils as cu
+import sequence
+
 def parse_gt(gtPath, style='corners'):
     '''
     Parses a line oriented bounding box description (whitespace or comma separated)
@@ -75,3 +80,96 @@ def plot_inertias(gtsDict, measure, subplots):
             plt.yticks([0,1])
             plt.title(key)
             index += 1
+
+#taken from TrackerTask
+def center(box):
+  return [ (box[2] + box[0])/2.0 , (box[3] + box[1])/2.0 ]
+
+def euclideanDist(c1, c2):
+  return (c1[0] - c2[0])**2 + (c1[1] - c2[1])**2
+
+PLACE_LANDMARK = 8
+
+def landmark_tracking(configPath):
+    '''Generates a dictionary mapping sequence names to list of tracked boxes'''
+    config.readConfiguration(configPath)
+    imageSuffix = config.get('frameSuffix')
+    sequenceDir = config.get('sequenceDir')
+    testMemoryDir = config.get('testMemory')
+    seqDatabasePath = config.get('testDatabase')
+    seqDatabase = [x.strip() for x in open(seqDatabasePath, 'r')]
+
+    trackingResults = {}
+
+    for sequenceName in seqDatabase:
+        seqName, seqSpan, seqStart, seqEnd = cu.parseSequenceSpec(sequenceName)
+        imageDir = os.path.join(sequenceDir, seqName, config.get('imageDir'))
+        gtPath = os.path.join(sequenceDir, seqName, config.get('gtFile'))
+        aSequence = sequence.fromdir(imageDir, gtPath, suffix=imageSuffix)
+
+        #no seqSpan means full sequence
+        #frames start at 2 in list, but include 0 in gt
+        if seqSpan is None:
+            start = 1
+            end = len(aSequence.frames)+1
+        else:
+            start = int(seqStart)
+            end = int(seqEnd)
+            if start < 1 or end >= len(aSequence.frames) or start > end:
+                raise ValueError('Start {} or end {} outside of bounds {}-{}'.format(start, end, 1, len(aSequence.frames)))
+
+        if sequenceName not in trackingResults:
+            trackingResults[sequenceName] = []
+        
+        for frameIndex in range(start, end):
+            testMemoryPath = os.path.join(testMemoryDir, seqName, config.get('imageDir'), '{:04d}{}'.format(frameIndex, '.txt'))
+            if os.path.exists(testMemoryPath):
+                testMemory = cu.load_memory(testMemoryPath) 
+                if PLACE_LANDMARK in testMemory['actions']:
+                    landmarkIndex = testMemory['actions'].index(PLACE_LANDMARK)
+                    trackingResults[sequenceName].append(testMemory['boxes'][landmarkIndex])
+                else:
+                    trackingResults[sequenceName].append(trackingResults[sequenceName][-1])
+            else:
+                trackingResults[sequenceName].append(aSequence.boxes[start-1])
+    
+    return trackingResults
+
+def performance_metrics(configPath):
+    trackingResults = landmark_tracking(configPath)
+    config.readConfiguration(configPath)
+    imageSuffix = config.get('frameSuffix')
+    sequenceDir = config.get('sequenceDir')
+    seqDatabasePath = config.get('testDatabase')
+    seqDatabase = [x.strip() for x in open(seqDatabasePath, 'r')]
+
+    dists = {}
+    ious = {}
+
+    for sequenceName in seqDatabase:
+        seqName, seqSpan, seqStart, seqEnd = cu.parseSequenceSpec(sequenceName)
+        imageDir = os.path.join(sequenceDir, seqName, config.get('imageDir'))
+        gtPath = os.path.join(sequenceDir, seqName, config.get('gtFile'))
+        aSequence = sequence.fromdir(imageDir, gtPath, suffix=imageSuffix)
+
+        #no seqSpan means full sequence
+        #frames start at 2 in list, but include 0 in gt
+        if seqSpan is None:
+            start = 1
+            end = len(aSequence.frames)+1
+        else:
+            start = int(seqStart)
+            end = int(seqEnd)
+            if start < 1 or end >= len(aSequence.frames) or start > end:
+                raise ValueError('Start {} or end {} outside of bounds {}-{}'.format(start, end, 1, len(aSequence.frames)))
+
+        if sequenceName not in trackingResults:
+            ious[sequenceName] = []
+            dists[sequenceName] = []
+        
+        ious[sequenceName] = map(libDet.IoU, aSequence.boxes[start-1:end-1], trackingResults[sequenceName])
+        gtCenters = map(center, aSequence.boxes[start-1:end-1])
+        trackingCenters = map(center, trackingResults[sequenceName])
+        dists[sequenceName] = numpy.sqrt(map(euclideanDist, gtCenters, trackingCenters))
+
+    return dists, ious
