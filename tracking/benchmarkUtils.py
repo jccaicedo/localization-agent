@@ -174,9 +174,31 @@ def performance_metrics(configPath):
 
     return dists, ious
 
-def performance_plots(configPath):
+def performance_plots(configPath, plot=False):
     dists, ious = performance_metrics(configPath)
     
     assert dists.keys() == ious.keys(), 'Different sequences in performance dictionaries'
 
+    #TODO; make parameterizable
+    steps = 10
+    iouThresholds = numpy.linspace(0,1,steps,endpoint=True)
+    distThresholds = numpy.linspace(1,50,steps,endpoint=True)
+
+    distsPercents = numpy.zeros((len(dists.keys()), steps))
+    iousPercents = numpy.zeros((len(ious.keys()), steps))
+
+    for seqIndex, seqName in enumerate(dists.keys()):
+        for thresholdIndex in xrange(steps):
+            distsPercents[seqIndex, thresholdIndex] = numpy.less_equal(dists[seqName], distThresholds[thresholdIndex]).mean()
+            iousPercents[seqIndex, thresholdIndex] = numpy.greater_equal(ious[seqName], iouThresholds[thresholdIndex]).mean()
     
+    if plot:
+        plt.subplot(1,2,1)
+        plt.plot(distThresholds, distsPercents.mean(axis=0))
+        plt.title('Precision')
+        plt.subplot(1,2,2)
+        plt.plot(iouThresholds, iousPercents.mean(axis=0))
+        plt.title('Success')
+        plt.show()
+
+    return distsPercents, iousPercents
