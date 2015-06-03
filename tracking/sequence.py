@@ -1,4 +1,3 @@
-import cv2
 import os
 import benchmarkUtils as benchutils
 import time
@@ -21,6 +20,7 @@ def fromdir(dirPath, gtPath, suffix='.jpg'):
     return aSequence
 
 def view(aSequence, winname='view', suffix='.jpg', fps=30):
+    import cv2
     cv2.namedWindow(winname)
     period = 1000.0 / fps
     for aFrame in aSequence.frames:

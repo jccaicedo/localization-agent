@@ -13,7 +13,7 @@ class TrackerRunner():
   def __init__(self, mode):
     self.mode = mode
     cu.mem('Reinforcement Learning Started')
-    self.environment = TrackerEnvironment(config.get(mode+'Database'), mode)
+    self.environment = TrackerAugmentedEnvironment(config.get(mode+'Database'), mode)
     self.controller = QNetwork()
     cu.mem('QNetwork controller created')
     self.learner = None
@@ -126,7 +126,7 @@ if __name__ == "__main__":
 
   from QNetwork import QNetwork
   from QLearning import QLearning
-  from TrackerEnvironment import TrackerEnvironment
+  from TrackerAugmentedEnvironment import TrackerAugmentedEnvironment
   from TrackerTask import TrackerTask
   from TrackerAgent import TrackerAgent
   import TrackerEvaluation as te
