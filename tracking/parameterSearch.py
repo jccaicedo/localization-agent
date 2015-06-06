@@ -14,7 +14,7 @@ if __name__ == '__main__':
     outputDir = sys.argv[3]
     learningRates = [0.001]
     explorationEpochsList = [1]
-    epsilonGreedyEpochsList = [2]
+    epsilonGreedyEpochsList = [1]
     exploitLearningEpochsList = [0]
     categories = ['FramePairTracker']
     basePath = '/home/jccaicedo/data/tracking/exp01/'

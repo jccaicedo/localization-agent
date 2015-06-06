@@ -117,13 +117,15 @@ def sharpness(img, value):
 # SHAPE TRANSFORMATIONS
 #################################
 
+MIN_BOX_SIDE = 20
+
 def identityShape(w, h, factor):
   return (w, h)
 
 def scale(w0, h0, factor):
   w = w0 + np.sign(factor)*w0*abs(factor)
   h = h0 + np.sign(factor)*h0*abs(factor)
-  return (int(w),int(h))
+  return (int(max(w,MIN_BOX_SIDE)),int(max(h,MIN_BOX_SIDE)))
 
 def aspectRatio(w0, h0, factor):
   w,h = w0, h0
@@ -131,7 +133,7 @@ def aspectRatio(w0, h0, factor):
     h = h0 + h0*(factor-1)
   else:
     w = w0 + w0*(1-factor)
-  return (int(w),int(h))
+  return (int(max(w,MIN_BOX_SIDE)),int(max(h,MIN_BOX_SIDE)))
 
 #################################
 # OCCLUSSIONS
@@ -149,8 +151,6 @@ class OcclussionGenerator():
       hb = maxSize*np.random.rand()
       box = map(int, [x1, y1, x1+wb, y1+hb])
       self.boxes.append(box)
-    print 'Occluders:',num
-    print self.boxes
 
   def occlude(self, img, source):
     for b in self.boxes:
@@ -192,7 +192,7 @@ class TrajectorySimulator():
     self.occluder = OcclussionGenerator(self.scene.size[0], self.scene.size[1], min(self.objSize)*0.5)
     self.trajectory = Trajectory(self.scene.size[0], self.scene.size[1])
     self.render()
-    self.step += 1
+    print '@TrajectorySimulator: New simulation with scene {} and object {}:{}'.format(sceneFile, objectFile, box)
 
   def scaleObject(self):
     # Initial scale of the object is 
@@ -229,16 +229,21 @@ class TrajectorySimulator():
     if self.step < self.trajectory.X.shape[0]:
       self.transform()
       self.render()
-      #self.saveFrame()
       self.step += 1
       return True
     else:
       return False
 
-  def saveFrame(self):
-    fname = 'frame_' + str(self.step).zfill(4) + '.jpg'
-    frame = self.sceneView.resize( (self.sceneView.size[0]/2, self.sceneView.size[1]/2), Image.ANTIALIAS )
-    frame.save(fname)
+  def saveFrame(self, outDir):
+    fname = outDir + '/img/' + str(self.step).zfill(4) + '.jpg'
+    self.sceneView.save(fname)
+    if self.step <= 1:
+      out = open(outDir + '/groundtruth_rect.txt', 'w')
+    else:
+      out = open(outDir + '/groundtruth_rect.txt', 'a')
+    box = map(int,[self.box[0], self.box[1], self.box[2]-self.box[0], self.box[3]-self.box[1]])
+    out.write( ' '.join(map(str,box)) + '\n' )
+    out.close()
 
   def convertToGif(self):
     os.system('convert -delay 1x30 frame*jpg animation.gif')
@@ -246,5 +251,5 @@ class TrajectorySimulator():
 
 ## Recommended Usage:
 # o = TrajectorySimulator('bogota.jpg','crop_vp.jpg',[0,0,168,210])
-# while o.nextStep(): continue
+# while o.nextStep(): o.saveFrame(dir)
 # o.sceneView

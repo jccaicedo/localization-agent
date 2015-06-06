@@ -6,6 +6,7 @@ from pybrain.rl.environments.environment import Environment
 import TrackerState as ts
 import ConvNet as cn
 import sequence
+import TrajectorySimulator as tsim
 
 import random
 import numpy as np
@@ -14,6 +15,7 @@ import os, sys
 
 import utils.utils as cu
 import utils.libDetection as det
+import benchmarkUtils as benchutils
 import learn.rl.RLConfig as config
 
 def sigmoid(x, a=1.0, b=0.0):
@@ -22,222 +24,282 @@ def sigmoid(x, a=1.0, b=0.0):
 def tanh(x, a=5, b=0.5, c=2.0):
   return c*np.tanh(a*x + b)
 
-def selectInitBox(imageKey, groundTruth):
-    tokens = imageKey.split('/')
-    sequenceName = tokens[0]
-    imageName = tokens[-1]
-    previousImageName = os.path.join(sequenceName, tokens[1], '{:04d}'.format(int(imageName)-1))
-    episodeMemPath = os.path.join(config.get('testMemory'), imageKey + '.txt')
-    #TODO: use a better way to know to track starting bbox
-    if os.path.exists(episodeMemPath):
-        testMemory = cu.load_memory(episodeMemPath)
-        if ts.PLACE_LANDMARK in testMemory['actions']:
-            landmarkIndex = testMemory['actions'].index(ts.PLACE_LANDMARK)
-            return testMemory['boxes'][landmarkIndex]
-        else:
-            return selectInitBox(previousImageName, groundTruth)
-    elif imageKey in groundTruth:
-        return groundTruth[imageKey][0]
-    else:
-        raise Exception('Unexpected condition for image key {}'.format(imageKey))
-
 TEST_TIME_OUT = config.geti('testTimeOut')
 
 class TrackerAugmentedEnvironment(Environment, Named):
 
   def __init__(self, sequenceDatabase, mode):
-    print sequenceDatabase
-    sys.exit()
     self.mode = mode
     self.cnn = cn.ConvNet()
     self.testRecord = None
-    self.idx = -1
+    self.frameIdx = -1
+    self.episodeIdx = -1
     self.sequenceDatabase = [x.strip() for x in open(sequenceDatabase)]
     self.sequenceSpecs = [cu.parseSequenceSpec(aSequenceSpec) for aSequenceSpec in self.sequenceDatabase]
-    self.imageList = []
     self.imageSuffix = config.get('frameSuffix')
     self.sequenceDir = config.get('sequenceDir')
-    self.groundTruth = {}
+    self.numEpisodesPerEpoch = config.geti('trainingEpisodesPerEpoch')
+    self.episodeCounter = 0
+
     #TODO: how to handle duplicates, etc
+    self.episodes = []
     for i in range(len(self.sequenceSpecs)):
-        seqName, seqSpan, seqStart, seqEnd = self.sequenceSpecs[i]
-        imageDir = os.path.join(self.sequenceDir, seqName, config.get('imageDir'))
-        gtPath = os.path.join(self.sequenceDir, seqName, config.get('gtFile'))
-        aSequence = sequence.fromdir(imageDir, gtPath, suffix=self.imageSuffix)
-        #no seqSpan means full sequence
-        #frames start at 2 in list, but include 0 in gt
-        if seqSpan is None:
-            start = 1
-            end = len(aSequence.frames)
-        else:
-            start = int(seqStart)
-            end = int(seqEnd)
-            if start < 1 or end > len(aSequence.frames) or start >= end:
-                raise ValueError('Start {} or end {} outside of bounds {},{}'.format(start, end, 1, len(aSequence.frames)))
-        for j in range(start, end+1):
-            imageKey = os.path.join(seqName, config.get('imageDir'), aSequence.frames[j-1])
-            if j > start:
-                self.imageList.append(imageKey)
-            self.groundTruth[imageKey] = [aSequence.boxes[j-1].tolist()]
-    if self.mode == 'train':
-      random.shuffle(self.imageList)
+      e = TrackingEpisode(self.sequenceSpecs[i], self.sequenceDir, self.imageSuffix)
+      self.episodes.append(e)
+
+    if mode == 'train':
+      self.objectBoxes = cu.loadBoxIndexFile(config.get('objectBoxesFile'))
+      self.objectImageDir = config.get('objectImageDir')
+      #self.generateRandomSequence()
+
     self.loadNextEpisode()
+
+  def generateRandomSequence(self):
+    sequenceDir = self.sequenceDir + '/' + self.episodes[0].seqName # change 0 for current sequence pointer?
+    scene = np.random.randint(len(self.objectBoxes.keys()))
+    obj = np.random.randint(len(self.objectBoxes.keys()))
+    simulator = tsim.TrajectorySimulator(self.objectImageDir + '/' + self.objectBoxes.keys()[scene] + '.jpg', 
+                            self.objectImageDir + '/' + self.objectBoxes.keys()[obj] + '.jpg' , 
+                            map(int, self.objectBoxes[self.objectBoxes.keys()[obj]][0]) )
+    while simulator.nextStep(): 
+      simulator.saveFrame(sequenceDir)
 
   def performAction(self, action):
       self.state.performAction(action)
 
-  def loadNextEpisode(self):
-    self.episodeDone = False
-    # Save actions performed during this episode
+  def loadNextFrame(self):
+    if self.frameIdx > 0 and not self.landmarkFound:
+      self.episodes[self.episodeIdx].notifyFrameDone(self.frameIdx, None, self.mode)
+    self.landmarkFound = False
+    self.frameIdx += 1
+    # Save actions performed in this frame
     if self.mode == 'test' and self.testRecord != None:
-      episodeMemPath = os.path.join(config.get('testMemory'), self.imageList[self.idx] + '.txt')
+      episodeMemPath = os.path.join(config.get('testMemory'), self.currentFrameName() + '.txt')
       episodeMemDir = os.path.dirname(episodeMemPath)
       if not os.path.exists(episodeMemDir):
           os.makedirs(episodeMemDir)
       with open(episodeMemPath, 'w') as outfile:
         json.dump(self.testRecord, outfile)
-    # Load a new episode
-    self.idx += 1
-    if self.idx < len(self.imageList):
-      # Initialize state
-      tokens = self.imageList[self.idx].split('/')
-      sequenceName = tokens[0]
-      imageName = tokens[-1]
-      previousImageName = os.path.join(sequenceName, tokens[1], '{:04d}'.format(int(imageName)-1))
-      print 'Preparing starting image {}'.format(previousImageName)
-      self.cnn.prepareImage(previousImageName)
-      if self.mode == 'test':
-        initialBox = selectInitBox(previousImageName, self.groundTruth)
-      else:
-        initialBox = self.groundTruth[previousImageName][0]
-      print 'Initial box for {} at {}'.format(previousImageName, initialBox)
-      self.startingActivations = self.cnn.getActivations( initialBox)
-      self.cnn.prepareImage(self.imageList[self.idx])
-      self.state = ts.TrackerState(self.imageList[self.idx], self.mode, groundTruth=self.groundTruth)
-      print 'Environment::LoadNextEpisode => Image',self.idx,self.imageList[self.idx],'('+str(self.state.visibleImage.size[0])+','+str(self.state.visibleImage.size[1])+')'
-    else:
-      if self.mode == 'train':
-        random.shuffle(self.imageList)
-        self.idx = -1
-        self.loadNextEpisode()
-      else:
-        print 'No more images available'
+    if self.mode == 'train' and self.testRecord != None:
+      self.episodes[self.episodeIdx].saveRecord(self.frameIdx-1, self.testRecord)
+    # Initialize state
+    self.cnn.prepareImage(self.currentFrameName())
+    initialBox = self.episodes[self.episodeIdx].getNextInitialBox()
+    self.state = ts.TrackerState(self.currentFrameName(), self.mode, initialBox['box'], groundTruth=self.getGroundTruth())
+    w,h = self.state.visibleImage.size
+    print 'Environment::LoadNextFrame => Image',self.frameIdx,self.currentFrameName(),'('+str(w)+','+str(h)+')@',initialBox
     # Restart record for new episode
-    if self.mode == 'test':
-      self.testRecord = {'boxes':[], 'actions':[], 'values':[], 'rewards':[], 'scores':[]}
+    #if self.mode == 'test':
+    self.testRecord = {'boxes':[], 'actions':[], 'values':[], 'rewards':[]}
+    if self.frameIdx == self.numFrames()-1:
+      self.episodeDone = True
 
-  def updatePostReward(self, reward, allDone, cover):
-    if self.mode == 'test':
+  def loadNextEpisode(self):
+    self.episodeDone = False
+    self.frameIdx = -1
+    if self.mode == 'train':
+      self.episodes[self.episodeIdx].dumpLog()
+      self.episodeIdx = 0
+      if self.episodeCounter < self.numEpisodesPerEpoch:
+        self.episodeCounter += 1
+        self.generateRandomSequence()
+        self.episodes[self.episodeIdx].reloadGroundTruths()
+        self.episodes[self.episodeIdx].cleanHistory()
+      else:
+        print 'All training episodes done'
+        return
+    else:
+      if self.episodeIdx < len(self.episodes)-1:
+        self.episodes[self.episodeIdx].cleanHistory()
+        self.episodeIdx += 1
+      else:
+        print 'All test episodes done'
+        return
+    print '***********************************************************'
+    print 'Environment::LoadNextEpisode => Frames:',self.numFrames(),'Boxes:',len(self.getGroundTruth())
+    print '***********************************************************'
+    self.episodes[self.episodeIdx].setupTargetObject(self.cnn)
+
+  def numEpisodes(self):
+    # One episode is one video sequence
+    if self.mode == "train":
+      return self.numEpisodesPerEpoch
+    elif self.mode == "test":
+      return len(self.episodes)
+
+  def numFrames(self):
+    return len(self.episodes[self.episodeIdx].imageList)
+
+  def getGroundTruth(self):
+    return self.episodes[self.episodeIdx].groundTruth
+
+  def currentFrameName(self):
+    return self.episodes[self.episodeIdx].imageList[self.frameIdx]
+
+  def currentFrameGroundTruth(self):
+    return self.getGroundTruth()[self.currentFrameName()]
+
+  def epochDone(self):
+    self.episodeCounter = 0
+    self.episodeIdx = -1
+
+  def updatePostReward(self, reward):
+    # Save interaction info
+    if True: #self.mode == 'test':
       self.testRecord['boxes'].append( self.state.box )
       self.testRecord['actions'].append( self.state.actionChosen )
       self.testRecord['values'].append( self.state.actionValue )
       self.testRecord['rewards'].append( reward )
-      self.testRecord['scores'].append( self.scores[:] )
-      if self.state.actionChosen == ts.PLACE_LANDMARK:
-        self.state.reset()
-      if self.state.stepsWithoutLandmark > TEST_TIME_OUT:
-        self.state.reset()
-    elif self.mode == 'train':
-      if self.state.actionChosen == ts.PLACE_LANDMARK and len(cover) > 0:
-        self.state.reset()
-      if allDone:
-        self.episodeDone = True
     # Terminate episode with a single detected instance
     if self.state.actionChosen == ts.PLACE_LANDMARK:
-      self.episodeDone = True
+      self.landmarkFound = True
+      self.episodes[self.episodeIdx].notifyFrameDone(self.frameIdx, self.state.box, self.mode)
 
   def getSensors(self):
-    # Make a vector represenation of the action that brought the agent to this state (9 features)
-    prevAction = np.zeros( (ts.NUM_ACTIONS) )
-    prevAction[self.state.actionChosen] = 1.0
-
-    # Compute features of visible region (4096 + 21)
+    # Compute features of visible region
     activations = self.cnn.getActivations(self.state.box)
-
-    # Concatenate all info in the state representation vector
-    state = np.hstack( (activations[config.get('convnetLayer')], self.startingActivations[config.get('convnetLayer')], prevAction) )
-    self.scores = activations['prob'].tolist()
-    return {'image':self.imageList[self.idx], 'state':state}
+    state = self.episodes[self.episodeIdx].computeSimilarities(activations[config.get('convnetLayer')])
+    return {'image':self.currentFrameName(), 'state':state}
 
   def sampleAction(self):
     return self.state.sampleNextAction()
 
-     
-  def rankImages(self):
-    keys = self.groundTruth.keys()
-    keys.sort()
-    # Rank by number of objects in the scene (from many to few)
-    objectCounts = [len(self.groundTruth[k]) for k in keys]
-    countRank = np.argsort(objectCounts)[::-1]
-    countDist = dict([(i,0) for i in range(max(objectCounts)+1)])
-    for o in objectCounts:
-      countDist[o] += 1
-    print 'Distribution of object counts (# objects vs # images):',countDist
-    print 'Images with largest number of objects:',[keys[i] for i in countRank[0:10]]
-    # Rank by object size (from small to large)
-    minObjectArea = [ min(map(det.area, self.groundTruth[k])) for k in keys ]
-    smallRank = np.argsort(minObjectArea)
-    intervals = [ (500*400/i) for i in range(1,21) ]
-    sizeDist = dict([ (i,0) for i in intervals ])
-    for a in minObjectArea:
-      counted = False
-      for r in intervals:
-        if a >= r: 
-          sizeDist[r] += 1
-          counted = True
-          break
-      if not counted: sizeDist[r] += 1
-    print 'Distribution of smallest objects area (area vs # images):',[ (i,sizeDist[i]) for i in intervals]
-    print 'Images with the smallest objects:',[keys[i] for i in smallRank[0:10]]
-    # Rank by object size (from large to small)
-    maxObjectArea = [ max(map(det.area, self.groundTruth[k])) for k in keys ]
-    bigRank = np.argsort(minObjectArea)
-    intervals = [ (500*400/i) for i in range(1,21) ]
-    sizeDist = dict([ (i,0) for i in intervals ])
-    for a in maxObjectArea:
-      counted = False
-      for r in intervals:
-        if a >= r: 
-          sizeDist[r] += 1
-          counted = True
-          break
-      if not counted: sizeDist[r] += 1
-    print 'Distribution of biggest objects area (area vs # images):',[ (i,sizeDist[i]) for i in intervals]
-    print 'Images with the biggest objects:',[keys[i] for i in bigRank[0:10]]
-    # Rank images by instance occlusion (from very occluded to isolated)
-    maxInstanceOcclusion = []
-    for k in keys:
-      if len(self.groundTruth[k]) == 1:
-        maxInstanceOcclusion.append(0)
-      else:
-        maxIoU = 0
-        for i in range(len(self.groundTruth[k])):
-          for j in range(i+1,len(self.groundTruth[k])):
-            iou = det.IoU(self.groundTruth[k][i], self.groundTruth[k][j])
-            if iou > maxIoU:
-              maxIoU = iou
-        maxInstanceOcclusion.append(maxIoU)
-    occlusionRank = np.argsort(maxInstanceOcclusion)[::-1]
-    intervals = [ 1.0/i for i in range(1,21) ]
-    occlusionDist = dict([(i,0) for i in intervals])
-    for o in maxInstanceOcclusion:
-      counted = False
-      for r in intervals:
-        if o >= r:
-          occlusionDist[r] += 1
-          counted = True
-          break
-      if not counted: occlusionDist[r] += 1
-    print 'Distribution of object occlusion (occlusion vs # images):',[(i,occlusionDist[i]) for i in intervals]
-    print 'Images with the most occluded objects:',[keys[i] for i in occlusionRank[0:10]]
-    # Rank combination
-    rank = dict([(k,0) for k in keys])
-    for i in range(len(keys)):
-      rank[ keys[ countRank[i] ] ] += i
-      rank[ keys[ smallRank[i]] ] += i
-      rank[ keys[ occlusionRank[i] ] ] += i
-    values = [ rank[i] for i in keys ]
-    complexityRank = np.argsort(values)
-    print 'More complex images:',[keys[i] for i in complexityRank[0:10]]
-    return [keys[i] for i in occlusionRank]
-    
+######################################
+# DISTANCE AND SIMILARITY FUNCTIONS
+######################################
+
+MAP_SHAPE = map(int, config.get('featureMapShape').split(','))
+
+def cosine(A,B):
+  return np.sum( np.multiply(A,B) ) / (np.linalg.norm(A)*np.linalg.norm(B) )
+
+def euclidean(A,B):
+  return np.sqrt( np.sum( (A - B)**2 ) )
+
+def slidingWindowIndex(dim, minLength):
+  a = range(dim-1, -1, -1) + [0 for i in range(dim-1)]
+  b = [dim for i in range(dim-1)] + range(dim, 0, -1)
+  c = [0 for i in range(dim-1)] + range(dim)
+  d = range(1,dim) + [dim for i in range(dim)]
+  full = zip(a,b,c,d)
+  idx = []
+  for t in full:
+    if t[1]-t[0] >= minLength:
+      idx.append(t)
+  return idx
+ 
+SWI = slidingWindowIndex(MAP_SHAPE[-1], 3) 
+FEATURE_DIM = len(SWI)**2
+
+def slide(A,B):
+  C = np.zeros((len(SWI)**2))
+  r = 0
+  for s in SWI:
+    for t in SWI:
+      C[r] = cosine(A[:, s[2]:s[3], t[2]:t[3]] , B[:, s[0]:s[1], t[0]:t[1]])
+      r += 1
+  return C
+
+TRACKING_HISTORY = config.geti('similarityTrackingHistory')
+FEATURE_MAP_DIMS = config.geti('featureMapDimensions')
+
+######################################
+# TRACKING EPISODE CLASS
+######################################
+
+class TrackingEpisode():
+
+  def __init__(self, sequenceSpecs, sequenceDir, imageSuffix):
+    # Basic sequence info
+    self.imageList = []
+    self.groundTruth = {}
+    self.seqName, self.seqSpan, self.seqStart, self.seqEnd = sequenceSpecs
+    imageDir = os.path.join(sequenceDir, self.seqName, config.get('imageDir'))
+    self.gtPath = os.path.join(sequenceDir, self.seqName, config.get('gtFile'))
+    aSequence = sequence.fromdir(imageDir, self.gtPath, suffix=imageSuffix)
+    #no seqSpan means full sequence
+    #frames start at 1 in list, but include 0 in gt
+    if self.seqSpan is None:
+      start = 1
+      end = len(aSequence.frames)
+    else:
+      start = int(seqStart)
+      end = int(seqEnd)
+      if start < 1 or end > len(aSequence.frames) or start >= end:
+          raise ValueError('Start {} or end {} outside of bounds {},{}'.format(start, end, 1, len(aSequence.frames)))
+    for j in range(start, end+1):
+      imageKey = os.path.join(self.seqName, config.get('imageDir'), aSequence.frames[j-1])
+      if j > start:
+        self.imageList.append(imageKey)
+      self.groundTruth[imageKey] = [aSequence.boxes[j-1].tolist()]
+    # Sequence history objects
+    self.landmarkFeatures = None
+    self.landmarkBoxes = []
+    self.lastBoxFeatures = None
+    self.boxLog = []
+
+  def reloadGroundTruths(self):
+    boxes = benchutils.parse_gt(self.gtPath)
+    j = 0
+    for key in self.groundTruth.keys():
+      self.groundTruth[key] = [boxes[j].tolist()]
+      j += 1
+
+  def setupTargetObject(self, cnn):
+    # Initialize memory
+    self.landmarkFeatures = np.zeros( [TRACKING_HISTORY]+list(MAP_SHAPE) )
+    # Find first frame and its object bounding box
+    tokens = self.imageList[0].split('/')
+    sequenceName = tokens[0]
+    imageName = tokens[-1]
+    firstImageName = os.path.join(sequenceName, tokens[1], '{:04d}'.format(int(imageName)-1))
+    self.targetObjectBox = self.groundTruth[firstImageName][0]
+    # Compute features for the object
+    cnn.prepareImage(firstImageName)
+    self.targetObjectFeatures = cnn.getActivations(self.targetObjectBox)
+    self.targetObjectFeatures = np.resize(self.targetObjectFeatures[config.get('convnetLayer')], MAP_SHAPE)
+    print 'Target Object set for {} at {}'.format(firstImageName, self.targetObjectBox)
+
+  def cleanHistory(self):
+    self.landmarkFeatures = None
+    self.landmarkBoxes = []
+    self.lastBoxFeatures = None
+    self.targetObjectFeatures = None
+
+  def computeSimilarities(self, features):
+    self.lastBoxFeatures = features
+    R = np.zeros( ((TRACKING_HISTORY+1)*FEATURE_DIM) )
+    R[0:FEATURE_DIM] = slide(features, self.targetObjectFeatures)
+    for i in range(TRACKING_HISTORY):
+      R[FEATURE_DIM*(i+1):FEATURE_DIM*(i+2)] = slide(features, self.landmarkFeatures[i,:])
+    return R
+
+  def notifyFrameDone(self, frameIdx, landmark, mode):
+    if mode == 'train' and np.random.rand() > 0.5:
+      self.landmarkBoxes.append( {'box':self.groundTruth[self.imageList[frameIdx]][0], 'type':'gt_train'} )
+      return
+    if landmark is not None:
+      self.landmarkBoxes.append( {'box':landmark, 'type':'fired'} )
+      np.roll(self.landmarkFeatures,-1,axis=0)
+      self.landmarkFeatures[0,:] = self.lastBoxFeatures
+    elif len(self.landmarkBoxes) > 0:
+      self.landmarkBoxes.append( {'box':self.landmarkBoxes[-1]['box'], 'type': 'copied'} )
+    elif len(self.landmarkBoxes) == 0:
+      self.landmarkBoxes.append( {'box':self.targetObjectBox, 'type':'target_copied'} )
+
+  def getNextInitialBox(self):
+    if len(self.landmarkBoxes) > 0:
+      return self.landmarkBoxes[-1]
+    else:
+      return {'box':self.targetObjectBox, 'type':'target'}
+      
+  def saveRecord(self, frameIdx, record):
+    record['gt'] = self.groundTruth[self.imageList[frameIdx]][0]
+    self.boxLog.append(record)
+
+  def dumpLog(self):
+    if len(self.boxLog) > 0:
+      with open(self.gtPath+'.log', 'w') as outfile:
+        json.dump(self.boxLog, outfile)
+    self.boxLog = []
+
