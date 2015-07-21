@@ -9,19 +9,39 @@ class Sequence(object):
         self.frames = []
         self.boxes = []
         self.path = None
-        self.marker = 0
+        self.source = None
+
+    def __init__(gtPath, self):
+        super(Sequence, self).__init__()
+        self.boxes = benchutils.parse_gt(gtPath)
+
+    def validate_lenghts(self):
+        if not len(self.frames) == len(self.boxes):
+            raise Exception('Number of frames ({}) and boxes ({}) do not match'.format(len(self.frames), len(self.boxes)))
 
 def fromdir(dirPath, gtPath, suffix='.jpg'):
     aSequence = Sequence()
     aSequence.frames = sorted([framePath.replace(suffix, '') for framePath in os.listdir(dirPath) if framePath.endswith(suffix)])
     aSequence.path = dirPath
-    aSequence.marker = 0
     aSequence.boxes = benchutils.parse_gt(gtPath)
+    aSequence.validate_lenghts()
     return aSequence
-
+  
 try:
 
     import cv2
+
+    def fromvideo(videoPath, gtPath):
+        aSequence = Sequence(gtPath)
+        aSequence.path = videoPath
+        aVideo = cv2.VideoCapture(aSequence.path)
+        if not aVideo.isOpened():
+            raise Exception('Unable to open video {}'.format(aSequence.path))
+        #0 based indexing
+        aSequence.frames = map(str, range(int(aVideo.get(cv2.CAP_PROP_FRAME_COUNT))))
+        aSequence.boxes = benchutils.parse_gt(gtPath)
+        aSequence.validate_lenghts()
+        return aSequence
 
     def view(aSequence, winname='view', suffix='.jpg', fps=30):
         cv2.namedWindow(winname)
