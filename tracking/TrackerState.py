@@ -27,8 +27,8 @@ PLACE_LANDMARK     = 8
 MIN_ASPECT_RATIO = 0.15
 MAX_ASPECT_RATIO = 6.00
 MIN_BOX_SIDE     = 10
-STEP_FACTOR      = 0.20
-DELTA_SIZE       = 0.20
+STEP_FACTOR      = 0.10
+DELTA_SIZE       = 0.10
 
 # OTHER DEFINITIONS
 NUM_ACTIONS = 9
@@ -39,7 +39,7 @@ def fingerprint(b):
 
 class TrackerState():
 
-  def __init__(self, imageName, mode, groundTruth=None):
+  def __init__(self, imageName, mode, initialBox, groundTruth=None):
     self.imageName = imageName
     self.visibleImage = Image.open(os.path.join(config.get('sequenceDir'), self.imageName + '.jpg'))
     self.box = [0,0,0,0]
@@ -48,11 +48,10 @@ class TrackerState():
     self.actionValue = 0
     self.groundTruth = groundTruth
     self.mode = mode
-    self.reset()
+    self.reset(initialBox)
     if self.groundTruth is not None:
       self.task = tt.TrackerTask()
-      self.task.groundTruth = self.groundTruth
-      self.task.loadGroundTruth(self.imageName)
+      self.task.loadGroundTruth(self.imageName, self.groundTruth[self.imageName])
     self.stepsWithoutLandmark = 0
 
   def performAction(self, action):
@@ -71,7 +70,6 @@ class TrackerState():
     elif action[0] == PLACE_LANDMARK:     newBox = self.placeLandmark()
     #elif action[0] == SKIP_REGION:        newBox = self.skipRegion()
 
-    self.updateStatus(newBox)
     self.box = newBox
     self.boxW = self.box[2] - self.box[0]
     self.boxH = self.box[3] - self.box[1]
@@ -257,26 +255,12 @@ class TrackerState():
   #def skipRegion(self):
   #  return self.box
 
-  def reset(self):
-    oldBox = self.box[:]
+  def reset(self, initialBox):
     self.stepsWithoutLandmark = 0
-    tokens = self.imageName.split('/')
-    sequenceName = tokens[0]
-    imageName = tokens[-1]
-    previousImageName = os.path.join(sequenceName, tokens[1], '{:04d}'.format(int(imageName)-1))
-    if self.mode == 'test':
-        initialBox = te.selectInitBox(previousImageName, self.groundTruth)
-    else:
-        initialBox = self.groundTruth[previousImageName][0]
     self.box = initialBox
     self.boxW = self.box[2]-self.box[0]
     self.boxH = self.box[3]-self.box[1]
     self.aspectRatio = self.boxH/self.boxW
-    self.updateStatus(oldBox)
-
-  def updateStatus(self, newBox):
-    self.boxChanged = reduce(lambda x,y: x and y, [ newBox[i] == self.box[i] for i in range(4) ])
-    self.touchEdges = [newBox[0] < 1, newBox[1] < 1, newBox[2] >= self.visibleImage.size[0]-2, newBox[3] >= self.visibleImage.size[1]-2]
 
   def sampleNextAction(self):
     if self.groundTruth is None:

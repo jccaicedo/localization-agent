@@ -13,32 +13,36 @@ class TrackerRunner():
   def __init__(self, mode):
     self.mode = mode
     cu.mem('Reinforcement Learning Started')
-    self.environment = TrackerEnvironment(config.get(mode+'Database'), mode)
+    self.environment = TrackerAugmentedEnvironment(config.get(mode+'Database'), mode)
     self.controller = QNetwork()
     cu.mem('QNetwork controller created')
     self.learner = None
     self.agent = TrackerAgent(self.controller, self.learner)
-    self.task = TrackerTask(self.environment, self.environment.groundTruth)
+    self.task = TrackerTask(self.environment)
     self.experiment = Experiment(self.task, self.agent)
 
-  def runEpoch(self, interactions, maxImgs):
-    img = 0
+  def runEpoch(self, interactions):
+    episode = 0
     s = cu.tic()
-    while img < maxImgs:
-      k = 0
-      while not self.environment.episodeDone and k < interactions:
-        self.experiment._oneInteraction()
-        k += 1
-      self.agent.learn()
+    while episode < self.environment.numEpisodes():
+      while not self.environment.episodeDone:
+        k = 0
+        self.environment.loadNextFrame()
+        while k < interactions and not self.environment.landmarkFound:
+          self.experiment._oneInteraction()
+          k += 1
+        self.task.displayEpisodePerformance()
+        self.agent.learn()
       self.agent.reset()
       self.environment.loadNextEpisode()
-      img += 1
-    s = cu.toc('Run epoch with ' + str(maxImgs) + ' episodes', s)
+      episode += 1
+    self.environment.epochDone()
+    s = cu.toc('Run epoch with ' + str(episode) + ' episodes', s)
 
   def run(self):
     if self.mode == 'train':
       self.agent.persistMemory = True
-      self.agent.startReplayMemory(len(self.environment.imageList), config.geti('trainInteractions'))
+      self.agent.startReplayMemory(len(self.environment.episodes[0].imageList)*self.environment.numEpisodes(), config.geti('trainInteractions'))
       self.train()
     elif self.mode == 'test':
       self.agent.persistMemory = False
@@ -48,7 +52,6 @@ class TrackerRunner():
     networkFile = config.get('networkDir') + config.get('snapshotPrefix') + '_iter_' + config.get('trainingIterationsPerBatch') + '.caffemodel'
     interactions = config.geti('trainInteractions')
     minEpsilon = config.getf('minTrainingEpsilon')
-    epochSize = len(self.environment.imageList)/1
     epsilon = 1.0
     self.controller.setEpsilonGreedy(epsilon, self.environment.sampleAction)
     epoch = 1
@@ -56,9 +59,8 @@ class TrackerRunner():
     while epoch <= exEpochs:
       s = cu.tic()
       print 'Epoch',epoch,': Exploration (epsilon=1.0)'
-      self.runEpoch(interactions, len(self.environment.imageList))
+      self.runEpoch(interactions)
       self.task.flushStats()
-      self.doValidation(epoch)
       s = cu.toc('Epoch done in ',s)
       epoch += 1
     self.learner = QLearning()
@@ -70,7 +72,7 @@ class TrackerRunner():
       if epsilon < minEpsilon: epsilon = minEpsilon
       self.controller.setEpsilonGreedy(epsilon, self.environment.sampleAction)
       print 'Epoch',epoch ,'(epsilon-greedy:{:5.3f})'.format(epsilon)
-      self.runEpoch(interactions, epochSize)
+      self.runEpoch(interactions)
       self.task.flushStats()
       self.doValidation(epoch)
       s = cu.toc('Epoch done in ',s)
@@ -79,7 +81,7 @@ class TrackerRunner():
     while epoch <= maxEpochs:
       s = cu.tic()
       print 'Epoch',epoch,'(exploitation mode: epsilon={:5.3f})'.format(epsilon)
-      self.runEpoch(interactions, epochSize)
+      self.runEpoch(interactions)
       self.task.flushStats()
       self.doValidation(epoch)
       s = cu.toc('Epoch done in ',s)
@@ -89,7 +91,7 @@ class TrackerRunner():
   def test(self):
     interactions = config.geti('testInteractions')
     self.controller.setEpsilonGreedy(config.getf('testEpsilon'))
-    self.runEpoch(interactions, len(self.environment.imageList))
+    self.runEpoch(interactions)
 
   def doValidation(self, epoch):
     if epoch % config.geti('validationEpochs') != 0:
@@ -109,12 +111,11 @@ class TrackerRunner():
     else:
         catI = -1
     scoredDetections = te.loadScores(config.get('testMemory'), catI)
-    groundTruth = auxRL.environment.groundTruth
+    groundTruth = auxRL.environment.getGroundTruth()
     pl,rl = te.evaluateCategory(scoredDetections, 'landmarks', groundTruth)
     line = lambda x,y,z: x + '\t{:5.3f}\t{:5.3f}\n'.format(y,z)
     #print line('Validation Scores:',ps,rs)
     print line('Validation Landmarks:',pl,rl)
-
   
 if __name__ == "__main__":
   if len(sys.argv) < 2:
@@ -126,7 +127,7 @@ if __name__ == "__main__":
 
   from QNetwork import QNetwork
   from QLearning import QLearning
-  from TrackerEnvironment import TrackerEnvironment
+  from TrackerAugmentedEnvironment import TrackerAugmentedEnvironment
   from TrackerTask import TrackerTask
   from TrackerAgent import TrackerAgent
   import TrackerEvaluation as te

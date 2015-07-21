@@ -12,13 +12,13 @@ from pybrain.rl.learners.valuebased.valuebased import ValueBasedLearner
 
 DETECTION_REWARD = config.getf('detectionReward')
 ACTION_HISTORY_SIZE = bs.NUM_ACTIONS*config.geti('actionHistoryLength')
-ACTION_HISTORY_LENTH = config.geti('actionHistoryLength')
+ACTION_HISTORY_LENGTH = config.geti('actionHistoryLength')
 NETWORK_INPUTS = config.geti('stateFeatures')/config.geti('temporalWindow')
 REPLAY_MEMORY_SIZE = config.geti('trainingIterationsPerBatch')*config.geti('trainingBatchSize')
 
 def generateRandomActionHistory():
   actions = np.zeros((ACTION_HISTORY_SIZE))
-  history = [i*bs.NUM_ACTIONS + np.random.randint(0,bs.PLACE_LANDMARK) for i in range(ACTION_HISTORY_LENTH)]
+  history = [i*bs.NUM_ACTIONS + np.random.randint(0,bs.PLACE_LANDMARK) for i in range(ACTION_HISTORY_LENGTH)]
   actions[history] = 1
   return actions
 

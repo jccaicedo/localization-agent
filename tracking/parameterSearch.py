@@ -14,10 +14,10 @@ if __name__ == '__main__':
     outputDir = sys.argv[3]
     learningRates = [0.001]
     explorationEpochsList = [1]
-    epsilonGreedyEpochsList = [2]
+    epsilonGreedyEpochsList = [1]
     exploitLearningEpochsList = [0]
     categories = ['FramePairTracker']
-    basePath = '/home/fmpaezri'
+    basePath = '/home/jccaicedo/data/tracking/exp01/'
     trainingIterationsPerBatches = [10]
     trainingBatchSizes = [32]
 
@@ -59,7 +59,7 @@ if __name__ == '__main__':
                 os.remove(os.path.join(networkDir, fileName))
         outFile = open(os.path.join(outputDir, configName + '.out'), 'w')
         errFile = open(os.path.join(outputDir, configName + '.err'), 'w')
-        process = subprocess.Popen(['time', 'python', 'tracking/TrackerRunner.py', configPath, 'train'], stdout=outFile, stderr=errFile)
+        process = subprocess.Popen(['time', 'python', 'run.py', 'Tracker', configPath, 'train'], stdout=outFile, stderr=errFile)
         process.wait()
         if not process.returncode == 0:
             print 'Aborting! Return code for {}: {}'.format(configName, process.returncode)
