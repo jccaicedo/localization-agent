@@ -3,6 +3,7 @@ import numpy as np
 import random
 from PIL import Image
 from PIL import ImageEnhance
+import skimage.segmentation
 
 #################################
 # GENERATION OF COSINE FUNCTIONS
@@ -169,6 +170,15 @@ class TrajectorySimulator():
     self.scene = Image.open(sceneFile)
     self.obj = Image.open(objectFile)
     self.obj = self.obj.crop(box)
+    objectArray = np.asarray(self.obj)
+    nSegments = np.random.randint(2,9)
+    segments = skimage.segmentation.slic(objectArray, n_segments=nSegments)
+    #use one segment as mask
+    segments[segments == np.random.randint(nSegments)] = 255
+    mask = np.uint8(segments)
+    #add alpha channel using selected segment mask
+    alphaObject = np.dstack((objectArray, mask))
+    self.obj = Image.fromarray(alphaObject)
     self.objSize = self.obj.size
     self.box = [0,0,0,0]
     self.step = 0
@@ -221,7 +231,8 @@ class TrajectorySimulator():
     self.sceneView = self.scene.copy()
     x = self.trajectory.X[self.step] - 0.5*self.objSize[0]
     y = self.trajectory.Y[self.step] - 0.5*self.objSize[1]
-    self.sceneView.paste(self.objView, (int(x),int(y)))
+    #paste using alpha channel as mask
+    self.sceneView.paste(self.objView, (int(x),int(y)), self.objView.split()[-1])
     self.sceneView = self.occluder.occlude(self.sceneView, self.scene)
     self.box = [max(x,0), max(y,0), min(x+self.objSize[0], self.scene.size[0]), min(y+self.objSize[1],self.scene.size[1])]
     
