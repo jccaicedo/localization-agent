@@ -165,16 +165,18 @@ class OcclussionGenerator():
 
 class TrajectorySimulator():
 
-  def __init__(self, sceneFile, objectFile, box):
+  def __init__(self, sceneFile, objectFile, box, maxSegments=9):
     # Load images
     self.scene = Image.open(sceneFile)
     self.obj = Image.open(objectFile)
     self.obj = self.obj.crop(box)
     objectArray = np.asarray(self.obj)
-    nSegments = np.random.randint(2,9)
+    nSegments = np.random.randint(2,maxSegments)
     segments = skimage.segmentation.slic(objectArray, n_segments=nSegments)
     #use one segment as mask
-    segments[segments == np.random.randint(nSegments)] = 255
+    selectedSegment = np.random.randint(nSegments)
+    segments[segments != selectedSegment] = 0
+    segments[segments == selectedSegment] = 255
     mask = np.uint8(segments)
     #add alpha channel using selected segment mask
     alphaObject = np.dstack((objectArray, mask))
@@ -256,9 +258,9 @@ class TrajectorySimulator():
     out.write( ' '.join(map(str,box)) + '\n' )
     out.close()
 
-  def convertToGif(self):
-    os.system('convert -delay 1x30 frame*jpg animation.gif')
-    os.system('rm frame*jpg')
+  def convertToGif(self, sequenceDir):
+    os.system('convert -delay 1x30 ' + sequenceDir + '/*jpg ' + sequenceDir + '/animation.gif')
+    os.system('rm ' + sequenceDir + '*jpg')
 
 ## Recommended Usage:
 # o = TrajectorySimulator('bogota.jpg','crop_vp.jpg',[0,0,168,210])
