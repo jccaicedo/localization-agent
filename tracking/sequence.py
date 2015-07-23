@@ -2,12 +2,15 @@ import os
 import benchmarkUtils as benchutils
 import time
 import numpy
+import skimage.io
     
 DIR_SOURCE = 0
 VIDEO_SOURCE = 1
 
+#TODO: method for video opening with error handling
 class Sequence(object):
 
+    #TODO: add suffix attribute
     def __init__(self, gtPath=None):
         super(Sequence, self).__init__()
         self.frames = []
@@ -23,6 +26,25 @@ class Sequence(object):
             return
         if not len(self.frames) == len(self.boxes):
             raise Exception('Number of frames ({}) and boxes ({}) do not match'.format(len(self.frames), len(self.boxes)))
+
+    def getFrame(self, n, suffix='.jpg'):
+        # 0 based indexing
+        #TODO: verify exception raising
+        if n >= len(self.frames):
+            raise Exception('Frame number {n} does not exist'.format(n))
+        if self.source == DIR_SOURCE:
+            return skimage.io.imread(os.path.join(self.path, self.frames[n]+suffix))
+        else:
+            #TODO: handle case where cv2 is not defined
+            video = cv2.VideoCapture(self.path)
+            if not video.isOpened():
+                raise Exception('Unable to open video {}'.format(self.path))
+            video.set(cv2.CAP_PROP_POS_FRAMES, n)
+            success, frame = video.read()
+            if not success:
+                raise Exception('Error reading frame {}'.format(n))
+            video.release()
+            return frame
 
 def fromdir(dirPath, gtPath, suffix='.jpg'):
     aSequence = Sequence(gtPath)
