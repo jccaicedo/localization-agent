@@ -20,6 +20,71 @@ def animate_memory(memoryDir, imageDir, gtPath, imageName, imageExtension='.jpg'
     matplotlib.animation.FuncAnimation(figure, show_box, len(data['boxes']), fargs=(data, patch), interval=250)
     plt.show()
 
+def animate_video(videoPath, fps=30):
+    video = cv2.VideoCapture(videoPath)
+    if not video.isOpened():
+        raise Exception('Error opening video')
+    success, frame = video.read()
+    if not success:
+        raise Exception('Error reading frame')
+    axes = plt.imshow(frame)
+    figure = plt.gcf()
+    #subtract 2 frames as we have already read one and assuming 0-based indexing
+    animation = matplotlib.animation.FuncAnimation(figure, play, int(video.get(cv2.CAP_PROP_FRAME_COUNT))-2, fargs=(video, axes), interval=int(1000/fps), repeat=False)
+    return animation
+    
+def play(index, video, axes):
+    success, frame = video.read()
+    if not success:
+        raise Exception('Error reading frame')
+    axes.set_data(frame)
+    return axes
+
+def animate_subtractor(videoPath, fps=30):
+    video = cv2.VideoCapture(videoPath)
+    if not video.isOpened():
+        raise Exception('Error opening video')
+    success, frame = video.read()
+    if not success:
+        raise Exception('Error reading frame')
+    subtractor = cv2.createBackgroundSubtractorMOG2(detectShadows=False)
+    foreground = cv2.cvtColor(subtractor.apply(frame, learningRate=0.001), cv2.COLOR_GRAY2RGB)
+    axes = plt.imshow(foreground)
+    figure = plt.gcf()
+    #subtract 2 frames as we have already read one and assuming 0-based indexing
+    animation = matplotlib.animation.FuncAnimation(figure, play_subtractor, int(video.get(cv2.CAP_PROP_FRAME_COUNT))-2, fargs=(video, axes, subtractor), interval=int(1000/fps), repeat=False)
+    return animation
+
+def play_subtractor(index, video, axes, subtractor):
+    success, frame = video.read()
+    if not success:
+        raise Exception('Error reading frame')
+    foreground = cv2.cvtColor(subtractor.apply(frame, learningRate=0.001), cv2.COLOR_GRAY2RGB)
+    axes.set_data(foreground)
+    return axes
+
+def animate_meanshift(videoPath, fps=30):
+    video = cv2.VideoCapture(videoPath)
+    if not video.isOpened():
+        raise Exception('Error opening video')
+    success, frame = video.read()
+    if not success:
+        raise Exception('Error reading frame')
+    meanshift = cv2.pyrMeanShiftFiltering(frame, 5, 16)
+    axes = plt.imshow(meanshift)
+    figure = plt.gcf()
+    #subtract 2 frames as we have already read one and assuming 0-based indexing
+    animation = matplotlib.animation.FuncAnimation(figure, play_meanshift, int(video.get(cv2.CAP_PROP_FRAME_COUNT))-2, fargs=(video, axes), interval=int(1000/fps), repeat=False)
+    return animation
+
+def play_meanshift(index, video, axes):
+    success, frame = video.read()
+    if not success:
+        raise Exception('Error reading frame')
+    meanshift = cv2.pyrMeanShiftFiltering(frame, 5, 16)
+    axes.set_data(meanshift)
+    return axes
+
 def show_box(index, data, patch):
     print index, data.keys()
     topLeft = (data['boxes'][index][0], data['boxes'][index][1])
