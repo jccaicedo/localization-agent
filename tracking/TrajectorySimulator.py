@@ -4,6 +4,44 @@ import random
 from PIL import Image
 from PIL import ImageEnhance
 import skimage.segmentation
+import numpy.linalg
+
+###############################
+#Sampler for affine transformations
+###############################
+
+class AffineSampler(object):
+
+    def __init__(self, scale=[1,1], angle=0, translation=[0,0], *args, **kwargs):
+        self.scale = numpy.array(scale)
+        self.angle = numpy.array(angle)
+        self.translation = numpy.array(translation)
+        super(AffineSampler, self).__init__(*args, **kwargs)
+
+    def sample(self):
+        self.scale = 0.1*numpy.random.standard_normal(self.scale.shape)+self.scale
+        self.angle = numpy.pi/36*numpy.random.standard_normal(self.angle.shape)+self.angle
+        self.translation = numpy.random.standard_normal(self.translation.shape)+self.translation
+
+    def __repr__(self):
+        return 'Scale: {}\tAngle: {}\tTranslation: {}'.format(self.scale, self.angle, self.translation)
+
+    def transform(self):
+        #The order is scale, rotate and translate
+        return numpy.dot(AffineSampler.translate(self.translation), numpy.dot(AffineSampler.rotate(self.angle), AffineSampler.scale(self.scale)))
+
+    def scale(scales):
+        return numpy.array([[scales[0], 0, 0],[0, scales[1], 0],[0, 0, 1]])
+
+    def rotate(angle):
+        return numpy.array([[numpy.cos(angle), numpy.sin(angle), 0],[-numpy.sin(angle), numpy.cos(angle), 0],[0, 0, 1]])
+
+    def translate(translation):
+        return numpy.array([[1, 0, translation[0]],[0,1,translation[1]],[0, 0, 1]])
+
+    def applyTransform(aSampler, crop):
+        aSampler.sample()
+        return crop.transform(crop.size, PIL.Image.AFFINE, tuple(numpy.linalg.inv(aSampler.transform()).flatten()[:6]))
 
 #################################
 # GENERATION OF COSINE FUNCTIONS
