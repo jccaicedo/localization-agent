@@ -40,14 +40,24 @@ class AffineSampler(object):
     def applyTranslate(self, translation):
         return numpy.array([[1, 0, translation[0]],[0,1,translation[1]],[0, 0, 1]])
 
-    def segmentCrop(self, crop, polygon=None):
+    def segmentCrop(self, image, polygon=None):
         if polygon is None:
             polygon = (0,0)+size
-        cropMask = Image.new('L', crop.size, 0)
+        cropMask = Image.new('L', image.size, 0)
         maskDraw = ImageDraw.Draw(cropMask)
         maskDraw.polygon(polygon, fill=255)
-        crop.putalpha(cropMask)
+        #maskCoords = numpy.array(polygon).reshape(len(polygon)/2,2).T
+        #bounds = map(int, (maskCoords[0].min(), maskCoords[1].min(), maskCoords[0].max(), maskCoords[1].max()))
+        bounds = self.polygonBounds(polygon)
+        imageCopy = image.copy()
+        imageCopy.putalpha(cropMask)
+        crop = imageCopy.crop(bounds)
         return crop
+
+    def polygonBounds(self, polygon):
+        maskCoords = numpy.array(polygon).reshape(len(polygon)/2,2).T
+        bounds = map(int, (maskCoords[0].min(), maskCoords[1].min(), maskCoords[0].max(), maskCoords[1].max()))
+        return bounds
 
     def applyTransform(self, crop):
         size = crop.size
@@ -58,9 +68,10 @@ class AffineSampler(object):
         correctedTransform = numpy.dot(self.applyTranslate([-left, -upper]), self.transform())
         return crop.transform(newSize, Image.AFFINE, tuple(numpy.linalg.inv(correctedTransform).flatten()[:6]))
 
-    def pasteCrop(self, image, crop):
-        image.paste(crop, mask=crop)
-        return image
+    def pasteCrop(self, image, box, crop):
+        imageCopy = image.copy()
+        imageCopy.paste(crop, box=box, mask=crop)
+        return imageCopy
 
 #################################
 # GENERATION OF COSINE FUNCTIONS
