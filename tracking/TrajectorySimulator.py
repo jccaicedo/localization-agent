@@ -28,20 +28,25 @@ class AffineSampler(object):
 
     def transform(self):
         #The order is scale, rotate and translate
-        return numpy.dot(AffineSampler.translate(self.translation), numpy.dot(AffineSampler.rotate(self.angle), AffineSampler.scale(self.scale)))
+        return numpy.dot(self.applyTranslate(self.translation), numpy.dot(self.applyRotate(self.angle), self.applyScale(self.scale)))
 
-    def scale(scales):
+    def applyScale(self, scales):
         return numpy.array([[scales[0], 0, 0],[0, scales[1], 0],[0, 0, 1]])
 
-    def rotate(angle):
+    def applyRotate(self, angle):
         return numpy.array([[numpy.cos(angle), numpy.sin(angle), 0],[-numpy.sin(angle), numpy.cos(angle), 0],[0, 0, 1]])
 
-    def translate(translation):
+    def applyTranslate(self, translation):
         return numpy.array([[1, 0, translation[0]],[0,1,translation[1]],[0, 0, 1]])
 
-    def applyTransform(aSampler, crop):
-        aSampler.sample()
-        return crop.transform(crop.size, PIL.Image.AFFINE, tuple(numpy.linalg.inv(aSampler.transform()).flatten()[:6]))
+    def applyTransform(self, crop):
+        size = crop.size
+        cropCorners = numpy.array([[0, 0, 1],[size[0], 0, 1],[size[0], size[1], 1],[0, size[1], 1]]).T
+        transformedCorners = numpy.dot(self.transform(), cropCorners)
+        left, upper, right, lower = map(int,(transformedCorners[0,:].min(), transformedCorners[1,:].min(), transformedCorners[0,:].max(), transformedCorners[1,:].max()))
+        newSize = (right-left, lower-upper)
+        correctedTransform = numpy.dot(self.applyTranslate([-left, -upper]), self.transform())
+        return crop.transform(newSize, Image.AFFINE, tuple(numpy.linalg.inv(correctedTransform).flatten()[:6]))
 
 #################################
 # GENERATION OF COSINE FUNCTIONS
