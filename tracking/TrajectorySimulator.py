@@ -3,6 +3,7 @@ import numpy as np
 import random
 from PIL import Image
 from PIL import ImageEnhance
+from PIL import ImageDraw
 import skimage.segmentation
 import numpy.linalg
 
@@ -39,6 +40,15 @@ class AffineSampler(object):
     def applyTranslate(self, translation):
         return numpy.array([[1, 0, translation[0]],[0,1,translation[1]],[0, 0, 1]])
 
+    def segmentCrop(self, crop, polygon=None):
+        if polygon is None:
+            polygon = (0,0)+size
+        cropMask = Image.new('L', crop.size, 0)
+        maskDraw = ImageDraw.Draw(cropMask)
+        maskDraw.polygon(polygon, fill=255)
+        crop.putalpha(cropMask)
+        return crop
+
     def applyTransform(self, crop):
         size = crop.size
         cropCorners = numpy.array([[0, 0, 1],[size[0], 0, 1],[size[0], size[1], 1],[0, size[1], 1]]).T
@@ -47,6 +57,10 @@ class AffineSampler(object):
         newSize = (right-left, lower-upper)
         correctedTransform = numpy.dot(self.applyTranslate([-left, -upper]), self.transform())
         return crop.transform(newSize, Image.AFFINE, tuple(numpy.linalg.inv(correctedTransform).flatten()[:6]))
+
+    def pasteCrop(self, image, crop):
+        image.paste(crop, mask=crop)
+        return image
 
 #################################
 # GENERATION OF COSINE FUNCTIONS
