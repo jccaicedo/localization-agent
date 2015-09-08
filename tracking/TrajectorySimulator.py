@@ -3,7 +3,71 @@ import numpy as np
 import random
 from PIL import Image
 from PIL import ImageEnhance
+from PIL import ImageDraw
 import skimage.segmentation
+import numpy.linalg
+
+def segmentCrop(image, polygon):
+    cropMask = Image.new('L', image.size, 0)
+    maskDraw = ImageDraw.Draw(cropMask)
+    maskDraw.polygon(polygon, fill=255)
+    bounds = polygonBounds(polygon)
+    imageCopy = image.copy()
+    imageCopy.putalpha(cropMask)
+    crop = imageCopy.crop(bounds)
+    return crop
+
+def polygonBounds(polygon):
+    maskCoords = numpy.array(polygon).reshape(len(polygon)/2,2).T
+    bounds = map(int, (maskCoords[0].min(), maskCoords[1].min(), maskCoords[0].max(), maskCoords[1].max()))
+    return bounds
+
+###############################
+#Sampler for affine transformations
+###############################
+
+class AffineSampler(object):
+
+    def __init__(self, scale=[1,1], angle=0, translation=[0,0], *args, **kwargs):
+        self.scale = numpy.array(scale)
+        self.angle = numpy.array(angle)
+        self.translation = numpy.array(translation)
+        super(AffineSampler, self).__init__(*args, **kwargs)
+
+    def sample(self):
+        self.scale = 0.1*numpy.random.standard_normal(self.scale.shape)+self.scale
+        self.angle = numpy.pi/36*numpy.random.standard_normal(self.angle.shape)+self.angle
+        self.translation = numpy.random.standard_normal(self.translation.shape)+self.translation
+
+    def __repr__(self):
+        return 'Scale: {}\tAngle: {}\tTranslation: {}'.format(self.scale, self.angle, self.translation)
+
+    def transform(self):
+        #The order is scale, rotate and translate
+        return numpy.dot(self.applyTranslate(self.translation), numpy.dot(self.applyRotate(self.angle), self.applyScale(self.scale)))
+
+    def applyScale(self, scales):
+        return numpy.array([[scales[0], 0, 0],[0, scales[1], 0],[0, 0, 1]])
+
+    def applyRotate(self, angle):
+        return numpy.array([[numpy.cos(angle), numpy.sin(angle), 0],[-numpy.sin(angle), numpy.cos(angle), 0],[0, 0, 1]])
+
+    def applyTranslate(self, translation):
+        return numpy.array([[1, 0, translation[0]],[0,1,translation[1]],[0, 0, 1]])
+
+    def applyTransform(self, crop):
+        size = crop.size
+        cropCorners = numpy.array([[0, 0, 1],[size[0], 0, 1],[size[0], size[1], 1],[0, size[1], 1]]).T
+        transformedCorners = numpy.dot(self.transform(), cropCorners)
+        left, upper, right, lower = map(int,(transformedCorners[0,:].min(), transformedCorners[1,:].min(), transformedCorners[0,:].max(), transformedCorners[1,:].max()))
+        newSize = (right-left, lower-upper)
+        correctedTransform = numpy.dot(self.applyTranslate([-left, -upper]), self.transform())
+        return crop.transform(newSize, Image.AFFINE, tuple(numpy.linalg.inv(correctedTransform).flatten()[:6]))
+
+    def pasteCrop(self, image, box, crop):
+        imageCopy = image.copy()
+        imageCopy.paste(crop, box=box, mask=crop)
+        return imageCopy
 
 #################################
 # GENERATION OF COSINE FUNCTIONS
@@ -165,22 +229,13 @@ class OcclussionGenerator():
 
 class TrajectorySimulator():
 
-  def __init__(self, sceneFile, objectFile, box, maxSegments=9):
+  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9):
     # Load images
     self.scene = Image.open(sceneFile)
     self.obj = Image.open(objectFile)
-    self.obj = self.obj.crop(box)
-    objectArray = np.asarray(self.obj)
-    nSegments = np.random.randint(2,maxSegments)
-    segments = skimage.segmentation.slic(objectArray, n_segments=nSegments)
-    #use one segment as mask
-    selectedSegment = np.random.randint(nSegments)
-    segments[segments != selectedSegment] = 0
-    segments[segments == selectedSegment] = 255
-    mask = np.uint8(segments)
-    #add alpha channel using selected segment mask
-    alphaObject = np.dstack((objectArray, mask))
-    self.obj = Image.fromarray(alphaObject)
+    if polygon is None:
+        polygon = tuple(box)
+    self.obj = segmentCrop(self.obj, polygon)
     self.objSize = self.obj.size
     self.box = [0,0,0,0]
     self.step = 0
@@ -234,7 +289,7 @@ class TrajectorySimulator():
     x = self.trajectory.X[self.step] - 0.5*self.objSize[0]
     y = self.trajectory.Y[self.step] - 0.5*self.objSize[1]
     #paste using alpha channel as mask
-    self.sceneView.paste(self.objView, (int(x),int(y)), self.objView.split()[-1])
+    self.sceneView.paste(self.objView, (int(x),int(y)), self.objView)
     self.sceneView = self.occluder.occlude(self.sceneView, self.scene)
     self.box = [max(x,0), max(y,0), min(x+self.objSize[0], self.scene.size[0]), min(y+self.objSize[1],self.scene.size[1])]
     
@@ -248,12 +303,13 @@ class TrajectorySimulator():
       return False
 
   def saveFrame(self, outDir):
-    fname = outDir + '/img/' + str(self.step).zfill(4) + '.jpg'
+    fname = os.path.join(outDir, str(self.step).zfill(4) + '.jpg')
     self.sceneView.save(fname)
+    gtPath = os.path.join(outDir, 'groundtruth_rect.txt')
     if self.step <= 1:
-      out = open(outDir + '/groundtruth_rect.txt', 'w')
+      out = open(gtPath, 'w')
     else:
-      out = open(outDir + '/groundtruth_rect.txt', 'a')
+      out = open(gtPath, 'a')
     box = map(int,[self.box[0], self.box[1], self.box[2]-self.box[0], self.box[3]-self.box[1]])
     out.write( ' '.join(map(str,box)) + '\n' )
     out.close()
