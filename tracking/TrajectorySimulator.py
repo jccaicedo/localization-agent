@@ -235,7 +235,7 @@ class TrajectorySimulator():
     self.scene = Image.open(sceneFile)
     self.obj = Image.open(objectFile)
     if polygon is None:
-        polygon = tuple(box)
+        polygon = (box[0], box[1], box[2], box[1], box[2], box[3], box[0], box[3])
     self.obj = segmentCrop(self.obj, polygon)
     self.objSize = self.obj.size
     self.box = [0,0,0,0]
@@ -260,7 +260,7 @@ class TrajectorySimulator():
     self.occluder = OcclussionGenerator(self.scene.size[0], self.scene.size[1], min(self.objSize)*0.5)
     self.trajectory = Trajectory(self.scene.size[0], self.scene.size[1])
     self.render()
-    print '@TrajectorySimulator: New simulation with scene {} and object {}:{}'.format(sceneFile, objectFile, box)
+    print '@TrajectorySimulator: New simulation with scene {} and object {}:{}'.format(sceneFile, objectFile, polygon)
 
   def scaleObject(self):
     # Initial scale of the object is 
