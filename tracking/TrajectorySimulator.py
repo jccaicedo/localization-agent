@@ -160,7 +160,7 @@ def identityContent(img, param):
 
 def rotation(img, angle):
   rot = img.resize( (img.size[0]+10,img.size[1]+10), Image.ANTIALIAS)
-  rot.rotate(angle, resample=Image.BICUBIC)
+  rot = rot.rotate(angle, resample=Image.BICUBIC)
   return rot.resize(img.size, Image.ANTIALIAS)
 
 def color(img, value):
@@ -241,17 +241,29 @@ class TrajectorySimulator():
     self.box = [0,0,0,0]
     self.step = 0
     # Initialize transformations
+    #TODO: select adequate values for transforms and maybe sample them from a given distribution
     self.shapeTransforms = [
       Transformation(identityShape, 1, 1),
       Transformation(scale, -0.02, 0.02),
       Transformation(aspectRatio, 0.98, 1.02) ]
     self.contentTransforms = [
       Transformation(identityContent, 1, 1),
-      Transformation(rotation, -3, 3),
-      Transformation(color, 0.60, 1.0),
-      Transformation(contrast, 0.60, 1.0),
-      Transformation(brightness, 0.60, 1.0),
-      Transformation(sharpness, 0.80, 1.2) ]
+      Transformation(rotation, -30, 30),
+      #TODO: reenable but check if they are the culprit for transparency cases
+      #Transformation(color, 0.60, 1.0),
+      #Transformation(contrast, 0.60, 1.0),
+      #Transformation(brightness, 0.60, 1.0),
+      #Transformation(sharpness, 0.80, 1.2)
+    ]
+    #TODO: include cropping
+    self.cameraContentTransforms = [
+      Transformation(rotation, -10, 10),
+      Transformation(identityContent, 1, 1),
+    ]
+    self.cameraShapeTransforms = [
+      Transformation(identityShape, 1, 1),
+      Transformation(scale, -0.1, 0.1),
+    ]
     self.transform( len(self.contentTransforms) )
     random.shuffle( self.shapeTransforms )
     random.shuffle( self.contentTransforms )
@@ -260,7 +272,7 @@ class TrajectorySimulator():
     self.occluder = OcclussionGenerator(self.scene.size[0], self.scene.size[1], min(self.objSize)*0.5)
     self.trajectory = Trajectory(self.scene.size[0], self.scene.size[1])
     self.render()
-    print '@TrajectorySimulator: New simulation with scene {} and object {}:{}'.format(sceneFile, objectFile, polygon)
+    print '@TrajectorySimulator: New simulation with scene {} and object {}'.format(sceneFile, objectFile)
 
   def scaleObject(self):
     # Initial scale of the object is 
@@ -292,6 +304,13 @@ class TrajectorySimulator():
     #paste using alpha channel as mask
     self.sceneView.paste(self.objView, (int(x),int(y)), self.objView)
     self.sceneView = self.occluder.occlude(self.sceneView, self.scene)
+    for i in range(len(self.cameraShapeTransforms)):
+      self.sceneSize = self.cameraShapeTransforms[i].transformShape(self.scene.size[0], self.scene.size[1], self.step)
+      self.sceneView = self.sceneView.resize(self.sceneSize, Image.ANTIALIAS).crop((0,0) + self.scene.size)
+    for i in range(len(self.cameraContentTransforms)):
+      newScene = self.cameraContentTransforms[i].transformContent(self.sceneView, self.step)
+      self.sceneView = newScene
+    #TODO: adjust box coordinates according to camera transforms
     self.box = [max(x,0), max(y,0), min(x+self.objSize[0], self.scene.size[0]), min(y+self.objSize[1],self.scene.size[1])]
     
   def nextStep(self):
