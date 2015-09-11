@@ -230,10 +230,13 @@ class OcclussionGenerator():
 
 class TrajectorySimulator():
 
-  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9):
+  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9, camSize=None):
     # Load images
     self.scene = Image.open(sceneFile)
     self.obj = Image.open(objectFile)
+    if camSize is None:
+        camSize = self.scene.size
+    self.camSize = camSize
     if polygon is None:
         polygon = (box[0], box[1], box[2], box[1], box[2], box[3], box[0], box[3])
     self.obj = segmentCrop(self.obj, polygon)
@@ -311,6 +314,8 @@ class TrajectorySimulator():
       newScene = self.cameraContentTransforms[i].transformContent(self.sceneView, self.step)
       self.sceneView = newScene
     #TODO: adjust box coordinates according to camera transforms
+    cameraCorners = map(int, (self.trajectory.X[self.step]-0.5*self.camSize[0],self.trajectory.Y[self.step]-0.5*self.camSize[1],self.trajectory.X[self.step]+0.5*self.camSize[0],self.trajectory.Y[self.step]+0.5*self.camSize[1]))
+    self.camView = self.sceneView.crop(cameraCorners)
     self.box = [max(x,0), max(y,0), min(x+self.objSize[0], self.scene.size[0]), min(y+self.objSize[1],self.scene.size[1])]
     
   def nextStep(self):
@@ -337,6 +342,15 @@ class TrajectorySimulator():
   def convertToGif(self, sequenceDir):
     os.system('convert -delay 1x30 ' + sequenceDir + '/*jpg ' + sequenceDir + '/animation.gif')
     os.system('rm ' + sequenceDir + '*jpg')
+
+  def __iter__(self):
+    return self
+
+  def next(self):
+    if self.nextStep():
+      return self.camView
+    else:
+      raise StopIteration()
 
 ## Recommended Usage:
 # o = TrajectorySimulator('bogota.jpg','crop_vp.jpg',[0,0,168,210])
@@ -381,6 +395,14 @@ class COCOSimulatorFactory():
         print 'Segmenting object from category {}'.format(self.coco.loadCats(objectAnnotations['category_id'])[0]['name'])
         polygon = objectAnnotations['segmentation'][np.random.randint(0, len(objectAnnotations['segmentation']))]
 
-        simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon)
+        scene = Image.open(scenePath)
+        camSize = map(int, (scene.size[0]*0.5, scene.size[1]*0.5)) 
+        scene.close()
+        #Does not work as expected due to object scaling on range 0.2-0.5 of smallest scene side
+        #objBounds = polygonBounds(polygon)
+        #camFactor = 2+2*np.random.rand()
+        #camSize = map(int, ((objBounds[2]-objBounds[0])*camFactor, (objBounds[3]-objBounds[1])*camFactor))
+        #print 'Object bounds are {} and camera factor is {}, resulting camera size is {}'.format(objBounds, camFactor, camSize)
+        simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, camSize=camSize)
         
         return simulator
