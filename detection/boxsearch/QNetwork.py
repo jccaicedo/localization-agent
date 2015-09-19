@@ -32,6 +32,7 @@ class QNetwork(ActionValueInterface):
 
   def loadNetwork(self, definition='deploy.prototxt'):
     if os.path.isfile(self.networkFile):
+      self.contextPad = config.geti('contextPad')
       modelFile = config.get('networkDir') + definition
       self.net = caffe.Net(modelFile, self.networkFile)
       self.net.set_phase_test()
@@ -52,7 +53,18 @@ class QNetwork(ActionValueInterface):
       return self.getActivations(state)
 
   def getActivations(self, state):
-    out = self.net.forward_all( **{self.net.inputs[0]: state.reshape( (state.shape[0], state.shape[1], 1, 1) )} )
+    """ Obtains the action values for the QNetwork by forwarding the regions
+    which are here represented by a given array of boxes with integer coordinates.
+    """
+    
+    """
+    out = self.net.forward_all( **{self.net.inputs[0]: boxes.reshape( (boxes.shape[0], boxes.shape[1], 1, 1) )} )
+    """
+    
+    boxes = [map(int, self.state.box)]
+    self.net.caffenet.ForwardRegions(boxes, self.contextPad)
+    out = self.net.caffenet.blobs
+    
     return out['qvalues'].squeeze(axis=(2,3))
 
   def setEpsilonGreedy(self, epsilon, sampler=None):

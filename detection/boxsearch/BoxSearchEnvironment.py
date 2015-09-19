@@ -6,7 +6,6 @@ from pybrain.utilities import Named
 import random
 
 import BoxSearchState as bs
-import ConvNet as cn
 import learn.rl.RLConfig as config
 import numpy as np
 import utils.libDetection as det
@@ -21,12 +20,13 @@ def tanh(x, a=5, b=0.5, c=2.0):
 
 TEST_TIME_OUT = config.geti('testTimeOut')
 ACTION_HISTORY_SIZE = bs.NUM_ACTIONS*config.geti('actionHistoryLength')
+MARK_WIDTH = config.getf('markWidth')
 
 class BoxSearchEnvironment(Environment, Named):
 
-  def __init__(self, imageList, mode, groundTruthFile=None):
+  def __init__(self, imageList, mode, net, groundTruthFile=None):
     self.mode = mode
-    self.cnn = cn.ConvNet()
+    self.cnn = net
     self.testRecord = None
     self.idx = -1
     self.imageList = [x.strip() for x in open(imageList)]
@@ -87,7 +87,9 @@ class BoxSearchEnvironment(Environment, Named):
       self.testRecord['actions'].append( self.state.actionChosen )
       self.testRecord['values'].append( self.state.actionValue )
       self.testRecord['rewards'].append( reward )
+      """
       self.testRecord['scores'].append( self.scores[:] )
+      """
       if self.state.actionChosen == bs.PLACE_LANDMARK:
         self.cnn.coverRegion(self.state.box)
         self.state.reset()
@@ -105,6 +107,7 @@ class BoxSearchEnvironment(Environment, Named):
           self.episodeDone = True
 
   def getSensors(self):
+    """
     # Compute features of visible region (4096)
     activations = self.cnn.getActivations(self.state.box)
     # Action history (90)
@@ -113,11 +116,12 @@ class BoxSearchEnvironment(Environment, Named):
     # Concatenate all info in the state representation vector
     state = np.hstack( (activations[config.get('convnetLayer')], actions) )
     self.scores = activations['prob'][0:21].tolist()
-    return {'image':self.imageList[self.idx], 'state':state, 'negEpisode':self.negativeEpisode}
+    """
+    return {'image':self.imageList[self.idx], 'state':self.state.box, 'negEpisode':self.negativeEpisode}
 
   def sampleAction(self):
     return self.state.sampleNextAction()
-     
+
   def rankImages(self):
     keys = self.groundTruth.keys()
     keys.sort()
@@ -195,4 +199,27 @@ class BoxSearchEnvironment(Environment, Named):
     complexityRank = np.argsort(values)
     print 'More complex images:',[keys[i] for i in complexityRank[0:10]]
     return [keys[i] for i in occlusionRank]
-    
+
+  def prepareImage(self, image):
+    """ Copy an image to the GPU. Releases any previously loaded image. """
+    if self.image != '':
+      self.net.caffenet.ReleaseImageData()
+    self.image = config.get('imageDir') + image + '.jpg'
+    self.net.caffenet.InitializeImage(self.image, self.imgDim, self.imageMean, self.cropSize)
+
+  def coverRegion(self, box, otherImg=None):
+    """ Cover regions in an image copied to the GPU. The image to be covered is expected
+    to be previously loaded. The given regions are defined by an array of boxes. """
+    if otherImg is not None:
+      boxes = [map(int,box)]
+      self.net.caffenet.CoverRegions(boxes, config.get('imageDir') + otherImg + '.jpg', self.id)
+    else:
+      # Create two perpendicular boxes
+      w = box[2]-box[0]
+      h = box[3]-box[1]
+      b1 = map(int, [box[0] + w*0.5 - w*MARK_WIDTH, box[1], box[0] + w*0.5 + w*MARK_WIDTH, box[3]])
+      b2 = map(int, [box[0], box[1] + h*0.5 - h*MARK_WIDTH, box[2], box[1] + h*0.5 + h*MARK_WIDTH])
+      boxes = [b1, b2]
+      self.net.caffenet.CoverRegions(boxes, '', self.id)
+    self.id += 1
+    return True
