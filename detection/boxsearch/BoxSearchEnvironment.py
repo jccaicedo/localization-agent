@@ -24,9 +24,9 @@ MARK_WIDTH = config.getf('markWidth')
 
 class BoxSearchEnvironment(Environment, Named):
 
-  def __init__(self, imageList, mode, net, groundTruthFile=None):
+  def __init__(self, imageList, mode, controller, groundTruthFile=None):
     self.mode = mode
-    self.cnn = net
+    self.controller = controller
     self.testRecord = None
     self.idx = -1
     self.imageList = [x.strip() for x in open(imageList)]
@@ -39,7 +39,7 @@ class BoxSearchEnvironment(Environment, Named):
     if self.mode == 'train':
       self.negativeProbability = config.getf('negativeEpisodeProb')
       random.shuffle(self.imageList)
-      #self.priorMemory = PriorMemory(config.get('allObjectsBoxes'), self.groundTruth, self.cnn)
+      #self.priorMemory = PriorMemory(config.get('allObjectsBoxes'), self.groundTruth, self.controller)
     self.loadNextEpisode()
 
   def performAction(self, action):
@@ -58,7 +58,8 @@ class BoxSearchEnvironment(Environment, Named):
     self.idx += 1
     if self.idx < len(self.imageList):
       # Initialize state
-      self.cnn.prepareImage(self.imageList[self.idx])
+      if self.controller.net is not None:
+        self.controller.net.prepareImage(self.imageList[self.idx])
       restartMode = {'train':'Random','test':'Full'}
       self.state = bs.BoxSearchState(self.imageList[self.idx], groundTruth=self.groundTruth, boxReset=restartMode[self.mode])
       print 'Environment::LoadNextEpisode => Image',self.idx,self.imageList[self.idx],'('+str(self.state.visibleImage.size[0])+','+str(self.state.visibleImage.size[1])+')'
@@ -76,7 +77,8 @@ class BoxSearchEnvironment(Environment, Named):
   def selectNegativeSample(self):
     if self.mode == 'train' and random.random() < self.negativeProbability:
       idx = random.randint(0,len(self.negativeSamples)-1)
-      self.cnn.prepareImage(self.negativeSamples[idx])
+      if self.controller.net is not None:
+        self.controller.net.prepareImage(self.negativeSamples[idx])
       self.state = bs.BoxSearchState(self.negativeSamples[idx], groundTruth=self.groundTruth, boxReset='Random')
       print 'Environment::LoadNextEpisode => Random Negative:',self.negativeSamples[idx]
       self.negativeEpisode = True
@@ -91,7 +93,8 @@ class BoxSearchEnvironment(Environment, Named):
       self.testRecord['scores'].append( self.scores[:] )
       """
       if self.state.actionChosen == bs.PLACE_LANDMARK:
-        self.cnn.coverRegion(self.state.box)
+        if self.controller.net is not None:
+          self.controller.net.coverRegion(self.state.box)
         self.state.reset()
       if self.state.stepsWithoutLandmark > TEST_TIME_OUT:
         self.state.reset('Quadrants')
@@ -99,7 +102,8 @@ class BoxSearchEnvironment(Environment, Named):
       # We do not cover false landmarks during training
       if self.state.actionChosen == bs.PLACE_LANDMARK and len(cover) > 0:
         # During training we only cover a carefully selected part of the ground truth box to avoid conflicts with other boxes.
-        self.cnn.coverRegion(cover)
+        if self.controller.net is not None:
+          self.controller.net.coverRegion(cover)
         self.state.reset('Random')
       if allDone:
         self.extraSteps -= 1
@@ -109,7 +113,7 @@ class BoxSearchEnvironment(Environment, Named):
   def getSensors(self):
     """
     # Compute features of visible region (4096)
-    activations = self.cnn.getActivations(self.state.box)
+    activations = self.controller.getActivations(self.state.box)
     # Action history (90)
     actions = np.ones((ACTION_HISTORY_SIZE))*self.state.actionHistory
 
