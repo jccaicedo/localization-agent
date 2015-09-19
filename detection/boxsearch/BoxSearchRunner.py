@@ -26,7 +26,7 @@ class BoxSearchRunner():
       k = 0
       """ Gather experiences """
       while not self.environment.episodeDone and k < interactions:
-        self.experiment._oneInteraction()
+        self.experiment.doInteractions(1)
         k += 1
       """ Learn from them """
       self.agent.learn()
