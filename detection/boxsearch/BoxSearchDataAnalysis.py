@@ -1,9 +1,9 @@
-import os,sys
-
-import json
 from PIL import Image
+import json
+import os
 
 import utils.utils as cu
+
 
 def processEpisode(filename):
   data = json.load(open(filename))

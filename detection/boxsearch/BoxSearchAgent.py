@@ -1,14 +1,11 @@
 __author__ = "Juan C. Caicedo, caicedo@illinois.edu"
 
-import learn.rl.RLConfig as config
-
-import numpy as np
-import scipy.io
-import utils.MemoryUsage
+import random
 
 import BoxSearchState as bss
-import PriorMemory as prm
-import random
+import learn.rl.RLConfig as config
+import numpy as np
+
 
 STATE_FEATURES = config.geti('stateFeatures')/config.geti('temporalWindow')
 NUM_ACTIONS = config.geti('outputActions')

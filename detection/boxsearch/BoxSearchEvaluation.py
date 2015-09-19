@@ -1,11 +1,9 @@
-import os,sys
-import utils.utils as cu
-import utils.libDetection as det
-import detection.evaluation as eval
-
 import json
-import scipy.io
-import numpy as np
+import os
+
+import utils.libDetection as det
+import utils.utils as cu
+
 
 def categoryIndex(type):
   categories, catIndex = [],[]

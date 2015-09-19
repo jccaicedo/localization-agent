@@ -1,12 +1,10 @@
-import os, sys
+from pybrain.rl.experiments import Experiment
+import shutil
+import sys
+
 import learn.rl.RLConfig as config
 import utils.utils as cu
 
-from pybrain.rl.agents import LearningAgent
-from pybrain.rl.learners import Q, SARSA
-from pybrain.rl.experiments import Experiment
-
-import shutil
 
 class BoxSearchRunner():
 
@@ -26,10 +24,13 @@ class BoxSearchRunner():
     s = cu.tic()
     while img < maxImgs:
       k = 0
+      """ Gather experiences """
       while not self.environment.episodeDone and k < interactions:
         self.experiment._oneInteraction()
         k += 1
+      """ Learn from them """
       self.agent.learn()
+      """ Reset attributes of the agent """
       self.agent.reset()
       self.environment.loadNextEpisode()
       img += 1

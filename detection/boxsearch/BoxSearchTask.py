@@ -1,13 +1,13 @@
 __author__ = "Juan C. Caicedo, caicedo@illinois.edu"
 
 from pybrain.rl.environments import Task
+
 import BoxSearchState as bss
-
-import utils.utils as cu
-import utils.libDetection as det
-import numpy as np
-
 import learn.rl.RLConfig as config
+import numpy as np
+import utils.libDetection as det
+import utils.utils as cu
+
 
 MIN_ACCEPTABLE_IOU = config.getf('minAcceptableIoU')
 DETECTION_REWARD = config.getf('detectionReward')

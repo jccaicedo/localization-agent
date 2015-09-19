@@ -1,14 +1,13 @@
 __author__ = "Juan C. Caicedo, caicedo@illinois.edu"
 
-import os
-import random
-import numpy as np
-import scipy.io
-import caffe
-
-import learn.rl.RLConfig as config
-import BoxSearchState as bs
 from pybrain.rl.learners.valuebased.valuebased import ValueBasedLearner
+import random
+
+import BoxSearchState as bs
+import caffe
+import learn.rl.RLConfig as config
+import numpy as np
+
 
 DETECTION_REWARD = config.getf('detectionReward')
 ACTION_HISTORY_SIZE = bs.NUM_ACTIONS*config.geti('actionHistoryLength')

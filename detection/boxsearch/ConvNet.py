@@ -1,13 +1,10 @@
 __author__ = "Juan C. Caicedo, caicedo@illinois.edu"
 
-import os
-import utils.utils as cu
-import numpy as np
 
-import caffe
 from caffe import wrapperv0
-
+import caffe
 import learn.rl.RLConfig as config
+
 
 LAYER = config.get('convnetLayer')
 MARK_WIDTH = config.getf('markWidth')

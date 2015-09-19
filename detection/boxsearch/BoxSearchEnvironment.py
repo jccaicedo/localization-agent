@@ -1,19 +1,17 @@
 __author__ = "Juan C. Caicedo, caicedo@illinois.edu"
 
-from pybrain.utilities import Named
+import json
 from pybrain.rl.environments.environment import Environment
-from PriorMemory import PriorMemory
+from pybrain.utilities import Named
+import random
 
 import BoxSearchState as bs
 import ConvNet as cn
-
-import random
-import numpy as np
-import json
-
-import utils.utils as cu
-import utils.libDetection as det
 import learn.rl.RLConfig as config
+import numpy as np
+import utils.libDetection as det
+import utils.utils as cu
+
 
 def sigmoid(x, a=1.0, b=0.0):
   return 1.0/(1.0 + np.exp(-a*x + b))
