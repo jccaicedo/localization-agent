@@ -4,7 +4,7 @@ import random
 from PIL import Image
 from PIL import ImageEnhance
 from PIL import ImageDraw
-import skimage.segmentation
+#import skimage.segmentation
 import numpy.linalg
 
 def segmentCrop(image, polygon):
@@ -237,6 +237,7 @@ class TrajectorySimulator():
         polygon = tuple(box)
     self.obj = segmentCrop(self.obj, polygon)
     self.objSize = self.obj.size
+    self.prevBox = [0,0,0,0]
     self.box = [0,0,0,0]
     self.step = 0
     # Initialize transformations
@@ -291,6 +292,7 @@ class TrajectorySimulator():
     #paste using alpha channel as mask
     self.sceneView.paste(self.objView, (int(x),int(y)), self.objView)
     self.sceneView = self.occluder.occlude(self.sceneView, self.scene)
+    self.prevBox = map(lambda x:x, self.box)
     self.box = [max(x,0), max(y,0), min(x+self.objSize[0], self.scene.size[0]), min(y+self.objSize[1],self.scene.size[1])]
     
   def nextStep(self):
@@ -313,6 +315,22 @@ class TrajectorySimulator():
     box = map(int,[self.box[0], self.box[1], self.box[2]-self.box[0], self.box[3]-self.box[1]])
     out.write( ' '.join(map(str,box)) + '\n' )
     out.close()
+
+  def getMaskedFrame(self, box=None):
+    frame = np.asarray(self.sceneView)
+    maskedF = np.zeros(frame.shape[0],frame.shape[1],frame.shape[2]+1)
+    maskedF[:,:,0:frame.shape[2]] = (frame - 128.0)/128.0
+    if box is None:
+      b = map(int, self.box)
+    else:
+      b = map(int, box)
+    #maskedF[:,:,-1] = -1
+    maskedF[b[0]:b[2],b[1]:b[3],-1] = 1
+    return maskedF
+
+  def getMove(self):
+    delta = [int(self.box[i]-self.prevBox[i]) for i in range(len(self.box))]
+    
 
   def convertToGif(self, sequenceDir):
     os.system('convert -delay 1x30 ' + sequenceDir + '/*jpg ' + sequenceDir + '/animation.gif')
