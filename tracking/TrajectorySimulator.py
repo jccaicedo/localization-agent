@@ -234,15 +234,15 @@ class TrajectorySimulator():
     # Load images
     self.scene = Image.open(sceneFile)
     self.obj = Image.open(objectFile)
-    if axes:
-      self.scene = self.draw_axes(self.scene)
-      self.obj = self.draw_axes(self.obj)
     if camSize is None:
         camSize = self.scene.size
     self.camSize = camSize
     if polygon is None:
         polygon = (box[0], box[1], box[2], box[1], box[2], box[3], box[0], box[3])
     self.obj = segmentCrop(self.obj, polygon)
+    if axes:
+      self.scene = self.draw_axes(self.scene)
+      self.obj = self.draw_axes(self.obj)
     self.objSize = self.obj.size
     self.box = [0,0,0,0]
     self.step = 0
@@ -423,7 +423,7 @@ class COCOSimulatorFactory():
         
         return simulator
 
-    def create(self, sceneFullPath, objectFullPath):
+    def create(self, sceneFullPath, objectFullPath, axes=False):
         #TODO: make really definite
         sceneDict = [data for data in self.coco.loadImgs(self.fullImgIds) if str(data['file_name']) == os.path.basename(sceneFullPath)][0]
         objectDict = [data for data in self.coco.loadImgs(self.imgIds) if str(data['file_name']) == os.path.basename(objectFullPath)][0]
@@ -438,6 +438,6 @@ class COCOSimulatorFactory():
         camSize = map(int, (scene.size[0]*0.5, scene.size[1]*0.5))
         scene.close()
 
-        simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, camSize=camSize)
+        simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, camSize=camSize, axes=axes)
 
         return simulator
