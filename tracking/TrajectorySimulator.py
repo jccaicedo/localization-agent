@@ -230,10 +230,13 @@ class OcclussionGenerator():
 
 class TrajectorySimulator():
 
-  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9, camSize=None):
+  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9, camSize=None, axes=False):
     # Load images
     self.scene = Image.open(sceneFile)
     self.obj = Image.open(objectFile)
+    if axes:
+      self.scene = self.draw_axes(self.scene)
+      self.obj = self.draw_axes(self.obj)
     if camSize is None:
         camSize = self.scene.size
     self.camSize = camSize
@@ -352,6 +355,19 @@ class TrajectorySimulator():
     else:
       raise StopIteration()
 
+  def draw_axes(self, image):
+    size = image.size
+    imageCopy = image.copy()
+    draw = ImageDraw.Draw(imageCopy)
+    minSize = min(size[1], size[0])
+    width = int(minSize*0.1)
+    length = int(minSize*0.3)
+    draw.line(map(int, (width/2, width/2, width/2, length)), fill=(255, 0, 0), width=width)
+    draw.line(map(int, (width/2, width/2, length, width/2)), fill=(0, 255, 0), width=width)
+    
+    del draw
+    return imageCopy
+
 ## Recommended Usage:
 # o = TrajectorySimulator('bogota.jpg','crop_vp.jpg',[0,0,168,210])
 # while o.nextStep(): o.saveFrame(dir)
@@ -405,4 +421,23 @@ class COCOSimulatorFactory():
         #print 'Object bounds are {} and camera factor is {}, resulting camera size is {}'.format(objBounds, camFactor, camSize)
         simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, camSize=camSize)
         
+        return simulator
+
+    def create(self, sceneFullPath, objectFullPath):
+        #TODO: make really definite
+        sceneDict = [data for data in self.coco.loadImgs(self.fullImgIds) if str(data['file_name']) == os.path.basename(sceneFullPath)][0]
+        objectDict = [data for data in self.coco.loadImgs(self.imgIds) if str(data['file_name']) == os.path.basename(objectFullPath)][0]
+        scenePath = self.imagePathTemplate%(self.dataDir, self.dataType, sceneDict['file_name'])
+        objPath = self.imagePathTemplate%(self.dataDir, self.dataType, objectDict['file_name'])
+        objAnnIds = self.coco.getAnnIds(imgIds=objectDict['id'], catIds=self.catIds, iscrowd=None)
+        objAnns = self.coco.loadAnns(objAnnIds)
+        objectAnnotations = objAnns[np.random.randint(0, len(objAnns))]
+        print 'Segmenting object from category {}'.format(self.coco.loadCats(objectAnnotations['category_id'])[0]['name'])
+        polygon = objectAnnotations['segmentation'][np.random.randint(0, len(objectAnnotations['segmentation']))]
+        scene = Image.open(scenePath)
+        camSize = map(int, (scene.size[0]*0.5, scene.size[1]*0.5))
+        scene.close()
+
+        simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, camSize=camSize)
+
         return simulator
