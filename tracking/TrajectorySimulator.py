@@ -6,7 +6,7 @@ from PIL import ImageEnhance
 from PIL import ImageDraw
 import skimage.segmentation
 import numpy.linalg
-import pycocotools.coco
+
 
 def segmentCrop(image, polygon):
     cropMask = Image.new('L', image.size, 0)
@@ -373,71 +373,76 @@ class TrajectorySimulator():
 # while o.nextStep(): o.saveFrame(dir)
 # o.sceneView
 
-class COCOSimulatorFactory():
+try:
+    import pycocotools.coco
 
-    #Assumes standard data layout as specified in https://github.com/pdollar/coco/blob/master/README.txt
-    def __init__(self, dataDir, dataType):
-        self.dataDir = dataDir
-        self.dataType = dataType
-        self.annFile = '%s/annotations/instances_%s.json'%(dataDir,dataType)
-        self.imagePathTemplate = '%s/images/%s/%s'
-        #COCO dataset handler object
-        print '!!!!!!!!!!!!! WARNING: Loading the COCO annotations can take up to 3 GB RAM !!!!!!!!!!!!!'
-        self.coco = pycocotools.coco.COCO(self.annFile)
-        #TODO: Filter the categories to use in sequence generation
-        self.catIds = self.coco.getCatIds()
-        cats = self.coco.loadCats(self.catIds)
-        nms=[cat['name'] for cat in cats]
-        self.imgIds = self.coco.getImgIds(catIds=self.catIds)
-        self.fullImgIds = self.coco.getImgIds()
-        print 'Number of categories {} and corresponding images {}'.format(len(self.catIds), len(self.imgIds))
-        print 'Category names: {}'.format(', '.join(nms))
-        
-    def createInstance(self):
-        #Select a random image for the scene
-        sceneData = self.coco.loadImgs(self.fullImgIds[np.random.randint(0, len(self.fullImgIds))])[0]
-        scenePath = self.imagePathTemplate%(self.dataDir, self.dataType, sceneData['file_name'])
+    class COCOSimulatorFactory():
 
-        #Select a random image for the object, restricted to annotation categories
-        objData = self.coco.loadImgs(self.imgIds[np.random.randint(0, len(self.imgIds))])[0]
-        objPath = self.imagePathTemplate%(self.dataDir, self.dataType, objData['file_name'])
+        #Assumes standard data layout as specified in https://github.com/pdollar/coco/blob/master/README.txt
+        def __init__(self, dataDir, dataType):
+            self.dataDir = dataDir
+            self.dataType = dataType
+            self.annFile = '%s/annotations/instances_%s.json'%(dataDir,dataType)
+            self.imagePathTemplate = '%s/images/%s/%s'
+            #COCO dataset handler object
+            print '!!!!!!!!!!!!! WARNING: Loading the COCO annotations can take up to 3 GB RAM !!!!!!!!!!!!!'
+            self.coco = pycocotools.coco.COCO(self.annFile)
+            #TODO: Filter the categories to use in sequence generation
+            self.catIds = self.coco.getCatIds()
+            cats = self.coco.loadCats(self.catIds)
+            nms=[cat['name'] for cat in cats]
+            self.imgIds = self.coco.getImgIds(catIds=self.catIds)
+            self.fullImgIds = self.coco.getImgIds()
+            print 'Number of categories {} and corresponding images {}'.format(len(self.catIds), len(self.imgIds))
+            print 'Category names: {}'.format(', '.join(nms))
+            
+        def createInstance(self):
+            #Select a random image for the scene
+            sceneData = self.coco.loadImgs(self.fullImgIds[np.random.randint(0, len(self.fullImgIds))])[0]
+            scenePath = self.imagePathTemplate%(self.dataDir, self.dataType, sceneData['file_name'])
 
-        #Get annotations for object scene
-        objAnnIds = self.coco.getAnnIds(imgIds=objData['id'], catIds=self.catIds, iscrowd=None)
-        objAnns = self.coco.loadAnns(objAnnIds)
+            #Select a random image for the object, restricted to annotation categories
+            objData = self.coco.loadImgs(self.imgIds[np.random.randint(0, len(self.imgIds))])[0]
+            objPath = self.imagePathTemplate%(self.dataDir, self.dataType, objData['file_name'])
 
-        #Select a random object in the scene and read the segmentation polygon
-        objectAnnotations = objAnns[np.random.randint(0, len(objAnns))]
-        print 'Segmenting object from category {}'.format(self.coco.loadCats(objectAnnotations['category_id'])[0]['name'])
-        polygon = objectAnnotations['segmentation'][np.random.randint(0, len(objectAnnotations['segmentation']))]
+            #Get annotations for object scene
+            objAnnIds = self.coco.getAnnIds(imgIds=objData['id'], catIds=self.catIds, iscrowd=None)
+            objAnns = self.coco.loadAnns(objAnnIds)
 
-        scene = Image.open(scenePath)
-        camSize = map(int, (scene.size[0]*0.5, scene.size[1]*0.5)) 
-        scene.close()
-        #Does not work as expected due to object scaling on range 0.2-0.5 of smallest scene side
-        #objBounds = polygonBounds(polygon)
-        #camFactor = 2+2*np.random.rand()
-        #camSize = map(int, ((objBounds[2]-objBounds[0])*camFactor, (objBounds[3]-objBounds[1])*camFactor))
-        #print 'Object bounds are {} and camera factor is {}, resulting camera size is {}'.format(objBounds, camFactor, camSize)
-        simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, camSize=camSize)
-        
-        return simulator
+            #Select a random object in the scene and read the segmentation polygon
+            objectAnnotations = objAnns[np.random.randint(0, len(objAnns))]
+            print 'Segmenting object from category {}'.format(self.coco.loadCats(objectAnnotations['category_id'])[0]['name'])
+            polygon = objectAnnotations['segmentation'][np.random.randint(0, len(objectAnnotations['segmentation']))]
 
-    def create(self, sceneFullPath, objectFullPath, axes=False):
-        #TODO: make really definite
-        sceneDict = [data for data in self.coco.loadImgs(self.fullImgIds) if str(data['file_name']) == os.path.basename(sceneFullPath)][0]
-        objectDict = [data for data in self.coco.loadImgs(self.imgIds) if str(data['file_name']) == os.path.basename(objectFullPath)][0]
-        scenePath = self.imagePathTemplate%(self.dataDir, self.dataType, sceneDict['file_name'])
-        objPath = self.imagePathTemplate%(self.dataDir, self.dataType, objectDict['file_name'])
-        objAnnIds = self.coco.getAnnIds(imgIds=objectDict['id'], catIds=self.catIds, iscrowd=None)
-        objAnns = self.coco.loadAnns(objAnnIds)
-        objectAnnotations = objAnns[np.random.randint(0, len(objAnns))]
-        print 'Segmenting object from category {}'.format(self.coco.loadCats(objectAnnotations['category_id'])[0]['name'])
-        polygon = objectAnnotations['segmentation'][np.random.randint(0, len(objectAnnotations['segmentation']))]
-        scene = Image.open(scenePath)
-        camSize = map(int, (scene.size[0]*0.5, scene.size[1]*0.5))
-        scene.close()
+            scene = Image.open(scenePath)
+            camSize = map(int, (scene.size[0]*0.5, scene.size[1]*0.5)) 
+            scene.close()
+            #Does not work as expected due to object scaling on range 0.2-0.5 of smallest scene side
+            #objBounds = polygonBounds(polygon)
+            #camFactor = 2+2*np.random.rand()
+            #camSize = map(int, ((objBounds[2]-objBounds[0])*camFactor, (objBounds[3]-objBounds[1])*camFactor))
+            #print 'Object bounds are {} and camera factor is {}, resulting camera size is {}'.format(objBounds, camFactor, camSize)
+            simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, camSize=camSize)
+            
+            return simulator
 
-        simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, camSize=camSize, axes=axes)
+        def create(self, sceneFullPath, objectFullPath, axes=False):
+            #TODO: make really definite
+            sceneDict = [data for data in self.coco.loadImgs(self.fullImgIds) if str(data['file_name']) == os.path.basename(sceneFullPath)][0]
+            objectDict = [data for data in self.coco.loadImgs(self.imgIds) if str(data['file_name']) == os.path.basename(objectFullPath)][0]
+            scenePath = self.imagePathTemplate%(self.dataDir, self.dataType, sceneDict['file_name'])
+            objPath = self.imagePathTemplate%(self.dataDir, self.dataType, objectDict['file_name'])
+            objAnnIds = self.coco.getAnnIds(imgIds=objectDict['id'], catIds=self.catIds, iscrowd=None)
+            objAnns = self.coco.loadAnns(objAnnIds)
+            objectAnnotations = objAnns[np.random.randint(0, len(objAnns))]
+            print 'Segmenting object from category {}'.format(self.coco.loadCats(objectAnnotations['category_id'])[0]['name'])
+            polygon = objectAnnotations['segmentation'][np.random.randint(0, len(objectAnnotations['segmentation']))]
+            scene = Image.open(scenePath)
+            camSize = map(int, (scene.size[0]*0.5, scene.size[1]*0.5))
+            scene.close()
 
-        return simulator
+            simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, camSize=camSize, axes=axes)
+
+            return simulator
+except Exception as e:
+    print 'No support for pycoco'
