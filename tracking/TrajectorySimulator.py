@@ -159,9 +159,8 @@ def identityContent(img, param):
   return img
 
 def rotation(img, angle):
-  rot = img.resize( (img.size[0]+10,img.size[1]+10), Image.ANTIALIAS)
-  rot = rot.rotate(angle, resample=Image.BICUBIC)
-  return rot.resize(img.size, Image.ANTIALIAS)
+  matrix = applyRotate(angle)
+  return applyTransform(img, matrix)
 
 def color(img, value):
   enhancer = ImageEnhance.Color(img)
@@ -263,7 +262,7 @@ class TrajectorySimulator():
     ]
     #TODO: include cropping
     self.cameraContentTransforms = [
-      Transformation(rotation, -10, 10),
+      #Transformation(rotation, -10, 10),
       Transformation(identityContent, 1, 1),
     ]
     self.cameraShapeTransforms = [
