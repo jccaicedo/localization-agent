@@ -124,12 +124,11 @@ class ReplayMemory():
       self.pointer += 1
     else:
       self.pointer = 0
-
+    
     self.A[self.pointer,0] = action
     self.O[self.pointer,:] = observation
     self.R[self.pointer,0] = reward
     self.I[self.pointer] = img
-
+    
     if self.usableRecords < self.O.shape[0]:
       self.usableRecords += 1
-
