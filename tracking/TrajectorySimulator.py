@@ -318,6 +318,11 @@ class TrajectorySimulator():
     #TODO: adjust box coordinates according to camera transforms
     cameraCorners = map(int, (self.trajectory.X[self.step]-0.5*self.camSize[0],self.trajectory.Y[self.step]-0.5*self.camSize[1],self.trajectory.X[self.step]+0.5*self.camSize[0],self.trajectory.Y[self.step]+0.5*self.camSize[1]))
     self.camView = self.sceneView.crop(cameraCorners)
+    evenCamSize = list(self.camView.size)
+    for index in range(len(evenCamSize)):
+        if evenCamSize[index] % 2 ==1:
+            evenCamSize[index] += 1
+    self.camView = self.camView.resize(tuple(evenCamSize), Image.ANTIALIAS)
     self.box = [max(x,0), max(y,0), min(x+self.objSize[0], self.scene.size[0]), min(y+self.objSize[1],self.scene.size[1])]
     
   def nextStep(self):
