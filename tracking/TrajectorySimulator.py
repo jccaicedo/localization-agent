@@ -346,7 +346,7 @@ class TrajectorySimulator():
 
   def getMaskedFrame(self, box=None):
     frame = np.asarray(self.sceneView)
-    maskedF = np.zeros(frame.shape[0],frame.shape[1],frame.shape[2]+1)
+    maskedF = np.zeros( (frame.shape[0],frame.shape[1],frame.shape[2]+1) )
     maskedF[:,:,0:frame.shape[2]] = (frame - 128.0)/128.0
     if box is None:
       b = map(int, self.box)
