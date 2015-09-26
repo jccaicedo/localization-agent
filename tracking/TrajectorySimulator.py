@@ -6,6 +6,7 @@ from PIL import ImageEnhance
 from PIL import ImageDraw
 #import skimage.segmentation
 import numpy.linalg
+import pycocotools.coco
 
 def segmentCrop(image, polygon):
     cropMask = Image.new('L', image.size, 0)
@@ -159,7 +160,7 @@ def identityContent(img, param):
 
 def rotation(img, angle):
   rot = img.resize( (img.size[0]+10,img.size[1]+10), Image.ANTIALIAS)
-  rot.rotate(angle, resample=Image.BICUBIC)
+  rot = rot.rotate(angle, resample=Image.BICUBIC)
   return rot.resize(img.size, Image.ANTIALIAS)
 
 def color(img, value):
@@ -229,29 +230,47 @@ class OcclussionGenerator():
 
 class TrajectorySimulator():
 
-  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9):
+  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9, camSize=None, axes=False):
     # Load images
     self.scene = Image.open(sceneFile)
     self.obj = Image.open(objectFile)
+    if camSize is None:
+        camSize = self.scene.size
+    self.camSize = camSize
     if polygon is None:
-        polygon = tuple(box)
+        polygon = (box[0], box[1], box[2], box[1], box[2], box[3], box[0], box[3])
     self.obj = segmentCrop(self.obj, polygon)
+    if axes:
+      self.scene = self.draw_axes(self.scene)
+      self.obj = self.draw_axes(self.obj)
     self.objSize = self.obj.size
     self.prevBox = [0,0,0,0]
     self.box = [0,0,0,0]
     self.step = 0
     # Initialize transformations
+    #TODO: select adequate values for transforms and maybe sample them from a given distribution
     self.shapeTransforms = [
       Transformation(identityShape, 1, 1),
       Transformation(scale, -0.02, 0.02),
       Transformation(aspectRatio, 0.98, 1.02) ]
     self.contentTransforms = [
       Transformation(identityContent, 1, 1),
-      Transformation(rotation, -3, 3),
-      Transformation(color, 0.60, 1.0),
-      Transformation(contrast, 0.60, 1.0),
-      Transformation(brightness, 0.60, 1.0),
-      Transformation(sharpness, 0.80, 1.2) ]
+      Transformation(rotation, -30, 30),
+      #TODO: reenable but check if they are the culprit for transparency cases
+      #Transformation(color, 0.60, 1.0),
+      #Transformation(contrast, 0.60, 1.0),
+      #Transformation(brightness, 0.60, 1.0),
+      #Transformation(sharpness, 0.80, 1.2)
+    ]
+    #TODO: include cropping
+    self.cameraContentTransforms = [
+      Transformation(rotation, -10, 10),
+      Transformation(identityContent, 1, 1),
+    ]
+    self.cameraShapeTransforms = [
+      Transformation(identityShape, 1, 1),
+      Transformation(scale, -0.1, 0.1),
+    ]
     self.transform( len(self.contentTransforms) )
     random.shuffle( self.shapeTransforms )
     random.shuffle( self.contentTransforms )
@@ -260,7 +279,7 @@ class TrajectorySimulator():
     self.occluder = OcclussionGenerator(self.scene.size[0], self.scene.size[1], min(self.objSize)*0.5)
     self.trajectory = Trajectory(self.scene.size[0], self.scene.size[1])
     self.render()
-    print '@TrajectorySimulator: New simulation with scene {} and object {}:{}'.format(sceneFile, objectFile, box)
+    print '@TrajectorySimulator: New simulation with scene {} and object {}'.format(sceneFile, objectFile)
 
   def scaleObject(self):
     # Initial scale of the object is 
@@ -293,6 +312,15 @@ class TrajectorySimulator():
     self.sceneView.paste(self.objView, (int(x),int(y)), self.objView)
     self.sceneView = self.occluder.occlude(self.sceneView, self.scene)
     self.prevBox = map(lambda x:x, self.box)
+    for i in range(len(self.cameraShapeTransforms)):
+      self.sceneSize = self.cameraShapeTransforms[i].transformShape(self.scene.size[0], self.scene.size[1], self.step)
+      self.sceneView = self.sceneView.resize(self.sceneSize, Image.ANTIALIAS).crop((0,0) + self.scene.size)
+    for i in range(len(self.cameraContentTransforms)):
+      newScene = self.cameraContentTransforms[i].transformContent(self.sceneView, self.step)
+      self.sceneView = newScene
+    #TODO: adjust box coordinates according to camera transforms
+    cameraCorners = map(int, (self.trajectory.X[self.step]-0.5*self.camSize[0],self.trajectory.Y[self.step]-0.5*self.camSize[1],self.trajectory.X[self.step]+0.5*self.camSize[0],self.trajectory.Y[self.step]+0.5*self.camSize[1]))
+    self.camView = self.sceneView.crop(cameraCorners)
     self.box = [max(x,0), max(y,0), min(x+self.objSize[0], self.scene.size[0]), min(y+self.objSize[1],self.scene.size[1])]
     
   def nextStep(self):
@@ -336,7 +364,98 @@ class TrajectorySimulator():
     os.system('convert -delay 1x30 ' + sequenceDir + '/*jpg ' + sequenceDir + '/animation.gif')
     os.system('rm ' + sequenceDir + '*jpg')
 
+  def __iter__(self):
+    return self
+
+  def next(self):
+    if self.nextStep():
+      return self.camView
+    else:
+      raise StopIteration()
+
+  def draw_axes(self, image):
+    size = image.size
+    imageCopy = image.copy()
+    draw = ImageDraw.Draw(imageCopy)
+    minSize = min(size[1], size[0])
+    width = int(minSize*0.1)
+    length = int(minSize*0.3)
+    draw.line(map(int, (width/2, width/2, width/2, length)), fill=(255, 0, 0), width=width)
+    draw.line(map(int, (width/2, width/2, length, width/2)), fill=(0, 255, 0), width=width)
+    
+    del draw
+    return imageCopy
+
 ## Recommended Usage:
 # o = TrajectorySimulator('bogota.jpg','crop_vp.jpg',[0,0,168,210])
 # while o.nextStep(): o.saveFrame(dir)
 # o.sceneView
+
+class COCOSimulatorFactory():
+
+    #Assumes standard data layout as specified in https://github.com/pdollar/coco/blob/master/README.txt
+    def __init__(self, dataDir, dataType):
+        self.dataDir = dataDir
+        self.dataType = dataType
+        self.annFile = '%s/annotations/instances_%s.json'%(dataDir,dataType)
+        self.imagePathTemplate = '%s/images/%s/%s'
+        #COCO dataset handler object
+        print '!!!!!!!!!!!!! WARNING: Loading the COCO annotations can take up to 3 GB RAM !!!!!!!!!!!!!'
+        self.coco = pycocotools.coco.COCO(self.annFile)
+        #TODO: Filter the categories to use in sequence generation
+        self.catIds = self.coco.getCatIds()
+        cats = self.coco.loadCats(self.catIds)
+        nms=[cat['name'] for cat in cats]
+        self.imgIds = self.coco.getImgIds(catIds=self.catIds)
+        self.fullImgIds = self.coco.getImgIds()
+        print 'Number of categories {} and corresponding images {}'.format(len(self.catIds), len(self.imgIds))
+        print 'Category names: {}'.format(', '.join(nms))
+        
+    def createInstance(self):
+        #Select a random image for the scene
+        sceneData = self.coco.loadImgs(self.fullImgIds[np.random.randint(0, len(self.fullImgIds))])[0]
+        scenePath = self.imagePathTemplate%(self.dataDir, self.dataType, sceneData['file_name'])
+
+        #Select a random image for the object, restricted to annotation categories
+        objData = self.coco.loadImgs(self.imgIds[np.random.randint(0, len(self.imgIds))])[0]
+        objPath = self.imagePathTemplate%(self.dataDir, self.dataType, objData['file_name'])
+
+        #Get annotations for object scene
+        objAnnIds = self.coco.getAnnIds(imgIds=objData['id'], catIds=self.catIds, iscrowd=None)
+        objAnns = self.coco.loadAnns(objAnnIds)
+
+        #Select a random object in the scene and read the segmentation polygon
+        objectAnnotations = objAnns[np.random.randint(0, len(objAnns))]
+        print 'Segmenting object from category {}'.format(self.coco.loadCats(objectAnnotations['category_id'])[0]['name'])
+        polygon = objectAnnotations['segmentation'][np.random.randint(0, len(objectAnnotations['segmentation']))]
+
+        scene = Image.open(scenePath)
+        camSize = map(int, (scene.size[0]*0.5, scene.size[1]*0.5)) 
+        scene.close()
+        #Does not work as expected due to object scaling on range 0.2-0.5 of smallest scene side
+        #objBounds = polygonBounds(polygon)
+        #camFactor = 2+2*np.random.rand()
+        #camSize = map(int, ((objBounds[2]-objBounds[0])*camFactor, (objBounds[3]-objBounds[1])*camFactor))
+        #print 'Object bounds are {} and camera factor is {}, resulting camera size is {}'.format(objBounds, camFactor, camSize)
+        simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, camSize=camSize)
+        
+        return simulator
+
+    def create(self, sceneFullPath, objectFullPath, axes=False):
+        #TODO: make really definite
+        sceneDict = [data for data in self.coco.loadImgs(self.fullImgIds) if str(data['file_name']) == os.path.basename(sceneFullPath)][0]
+        objectDict = [data for data in self.coco.loadImgs(self.imgIds) if str(data['file_name']) == os.path.basename(objectFullPath)][0]
+        scenePath = self.imagePathTemplate%(self.dataDir, self.dataType, sceneDict['file_name'])
+        objPath = self.imagePathTemplate%(self.dataDir, self.dataType, objectDict['file_name'])
+        objAnnIds = self.coco.getAnnIds(imgIds=objectDict['id'], catIds=self.catIds, iscrowd=None)
+        objAnns = self.coco.loadAnns(objAnnIds)
+        objectAnnotations = objAnns[np.random.randint(0, len(objAnns))]
+        print 'Segmenting object from category {}'.format(self.coco.loadCats(objectAnnotations['category_id'])[0]['name'])
+        polygon = objectAnnotations['segmentation'][np.random.randint(0, len(objectAnnotations['segmentation']))]
+        scene = Image.open(scenePath)
+        camSize = map(int, (scene.size[0]*0.5, scene.size[1]*0.5))
+        scene.close()
+
+        simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, camSize=camSize, axes=axes)
+
+        return simulator
