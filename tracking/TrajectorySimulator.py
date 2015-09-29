@@ -4,7 +4,6 @@ import random
 from PIL import Image
 from PIL import ImageEnhance
 from PIL import ImageDraw
-#import skimage.segmentation
 import numpy.linalg
 
 def segmentCrop(image, polygon):
@@ -215,7 +214,7 @@ class OcclussionGenerator():
 
 class TrajectorySimulator():
 
-  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9, camSize=None, axes=False, maxSteps=None, contentTransforms=None, shapeTransforms=None, cameraContentTransforms=None, cameraShapeTransforms=None, drawBox=False):
+  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9, camSize=None, axes=False, maxSteps=None, contentTransforms=None, shapeTransforms=None, cameraContentTransforms=None, cameraShapeTransforms=None, drawBox=False, camera=True):
     if maxSteps is None:
         maxSteps = len(RANGE)
     self.maxSteps = maxSteps
@@ -226,11 +225,18 @@ class TrajectorySimulator():
     if camSize is None:
         camSize = self.scene.size
     self.camSize = camSize
+    # Correct camera size to be even as needed by video encoding software
+    evenCamSize = list(self.camSize)
+    for index in range(len(evenCamSize)):
+        if evenCamSize[index] % 2 ==1:
+            evenCamSize[index] += 1
+    self.camSize = tuple(evenCamSize) 
     # Use box as polygon
     if polygon is None:
         polygon = (box[0], box[1], box[2], box[1], box[2], box[3], box[0], box[3])
     self.polygon = polygon
     self.drawBox = drawBox
+    self.camera = camera
     #Segment the object using the polygon and crop to the resulting axes-aligned bounding box
     self.obj = segmentCrop(self.obj, polygon)
     # Draw coordinate axes for each source
@@ -251,8 +257,11 @@ class TrajectorySimulator():
         self.shapeTransforms = shapeTransforms
     if contentTransforms is None:
         self.contentTransforms = [
-            Transformation(translateX, 40, 300),
-            Transformation(translateY, 40, 300),
+            Transformation(scaleX, 0.5, 2),
+            Transformation(scaleY, 0.5, 2),
+            Transformation(rotation, -np.pi, np.pi),
+            Transformation(translateX, 0, self.scene.size[0]),
+            Transformation(translateY, 0, self.scene.size[1]),
             #TODO: reenable but check if they are the culprit for transparency cases
             #Transformation(color, 0.60, 1.0),
             #Transformation(contrast, 0.60, 1.0),
@@ -319,21 +328,20 @@ class TrajectorySimulator():
       self.sceneSize = self.cameraShapeTransforms[i].transformShape(self.scene.size[0], self.scene.size[1], self.step)
       self.sceneView = self.sceneView.resize(self.sceneSize, Image.ANTIALIAS).crop((0,0) + self.scene.size)
     # Concatenate camera transforms
-    newMatrix = numpy.eye(3,3)
-    for i in range(len(self.cameraContentTransforms)):
-      newMatrix = numpy.dot(self.cameraContentTransforms[i].transformContent(self.sceneView, self.step), newMatrix)
-    self.cameraTransform = newMatrix
-    # Obtain definite camera transform by appending object transform
-    self.camView = applyTransform(self.sceneView, numpy.dot(self.cameraTransform, numpy.linalg.inv(self.currentTransform)), self.camSize)
-    # Correct camera size to be even as needed by video encoding software
-    evenCamSize = list(self.camView.size)
-    for index in range(len(evenCamSize)):
-        if evenCamSize[index] % 2 ==1:
-            evenCamSize[index] += 1
-    self.camView = self.camView.resize(tuple(evenCamSize), Image.ANTIALIAS)
+    if self.camera:
+        newMatrix = numpy.eye(3,3)
+        for i in range(len(self.cameraContentTransforms)):
+            newMatrix = numpy.dot(self.cameraContentTransforms[i].transformContent(self.sceneView, self.step), newMatrix)
+        self.cameraTransform = newMatrix
+        # Obtain definite camera transform by appending object transform
+        self.camView = applyTransform(self.sceneView, numpy.dot(self.cameraTransform, numpy.linalg.inv(self.currentTransform)), self.camSize)
+        referenceTransform = self.cameraTransform
+    else:
+        self.camView = self.sceneView
+        referenceTransform = self.currentTransform
     # Obtain bounding box points on camera coordinate system
-    boxPoints = transform_points(self.cameraTransform, self.bounds)
-    self.box = [max(min(boxPoints[0,:]),0), max(min(boxPoints[1,:]),0), min(max(boxPoints[0,:]), evenCamSize[0]-1), min(max(boxPoints[1,:]),evenCamSize[1]-1)]
+    boxPoints = transform_points(referenceTransform, self.bounds)
+    self.box = [max(min(boxPoints[0,:]),0), max(min(boxPoints[1,:]),0), min(max(boxPoints[0,:]), self.camSize[0]-1), min(max(boxPoints[1,:]),self.camSize[1]-1)]
     if self.drawBox:
         self.camDraw = ImageDraw.ImageDraw(self.camView)
         self.camDraw.rectangle(self.box)
@@ -429,7 +437,7 @@ try:
             print 'Number of categories {} and corresponding images {}'.format(len(self.catIds), len(self.imgIds))
             print 'Category names: {}'.format(', '.join(nms))
             
-        def createInstance(self):
+        def createInstance(self, *args, **kwargs):
             #Select a random image for the scene
             sceneData = self.coco.loadImgs(self.fullImgIds[np.random.randint(0, len(self.fullImgIds))])[0]
             scenePath = self.imagePathTemplate%(self.dataDir, self.dataType, sceneData['file_name'])
@@ -450,7 +458,7 @@ try:
             scene = Image.open(scenePath)
             camSize = map(int, (scene.size[0]*0.5, scene.size[1]*0.5)) 
             scene.close()
-            simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, camSize=camSize)
+            simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, camSize=camSize, *args, **kwargs)
             
             return simulator
 
