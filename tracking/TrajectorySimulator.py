@@ -4,72 +4,41 @@ import random
 from PIL import Image
 from PIL import ImageEnhance
 from PIL import ImageDraw
-#import skimage.segmentation
 import numpy.linalg
-#import pycocotools.coco
 
 def segmentCrop(image, polygon):
     cropMask = Image.new('L', image.size, 0)
     maskDraw = ImageDraw.Draw(cropMask)
     maskDraw.polygon(polygon, fill=255)
-    bounds = polygonBounds(polygon)
+    bounds = polygon_bounds(polygon)
     imageCopy = image.copy()
     imageCopy.putalpha(cropMask)
     crop = imageCopy.crop(bounds)
     return crop
 
-def polygonBounds(polygon):
+def polygon_bounds(polygon):
     maskCoords = numpy.array(polygon).reshape(len(polygon)/2,2).T
     bounds = map(int, (maskCoords[0].min(), maskCoords[1].min(), maskCoords[0].max(), maskCoords[1].max()))
     return bounds
 
-###############################
-#Sampler for affine transformations
-###############################
+def applyScale(scales):
+    return numpy.array([[scales[0], 0, 0],[0, scales[1], 0],[0, 0, 1]])
 
-class AffineSampler(object):
+def applyRotate(angle):
+    return numpy.array([[numpy.cos(angle), numpy.sin(angle), 0],[-numpy.sin(angle), numpy.cos(angle), 0],[0, 0, 1]])
 
-    def __init__(self, scale=[1,1], angle=0, translation=[0,0], *args, **kwargs):
-        self.scale = numpy.array(scale)
-        self.angle = numpy.array(angle)
-        self.translation = numpy.array(translation)
-        super(AffineSampler, self).__init__(*args, **kwargs)
+def applyTranslate(translation):
+    return numpy.array([[1, 0, translation[0]],[0,1,translation[1]],[0, 0, 1]])
 
-    def sample(self):
-        self.scale = 0.1*numpy.random.standard_normal(self.scale.shape)+self.scale
-        self.angle = numpy.pi/36*numpy.random.standard_normal(self.angle.shape)+self.angle
-        self.translation = numpy.random.standard_normal(self.translation.shape)+self.translation
+def applyTransform(crop, transform, camSize):
+    # Requires inverse as the parameters transform from object to camera 
+    return crop.transform(camSize, Image.AFFINE, tuple(numpy.linalg.inv(transform).flatten()[:7]))
 
-    def __repr__(self):
-        return 'Scale: {}\tAngle: {}\tTranslation: {}'.format(self.scale, self.angle, self.translation)
-
-    def transform(self):
-        #The order is scale, rotate and translate
-        return numpy.dot(self.applyTranslate(self.translation), numpy.dot(self.applyRotate(self.angle), self.applyScale(self.scale)))
-
-    def applyScale(self, scales):
-        return numpy.array([[scales[0], 0, 0],[0, scales[1], 0],[0, 0, 1]])
-
-    def applyRotate(self, angle):
-        return numpy.array([[numpy.cos(angle), numpy.sin(angle), 0],[-numpy.sin(angle), numpy.cos(angle), 0],[0, 0, 1]])
-
-    def applyTranslate(self, translation):
-        return numpy.array([[1, 0, translation[0]],[0,1,translation[1]],[0, 0, 1]])
-
-    def applyTransform(self, crop):
-        size = crop.size
-        cropCorners = numpy.array([[0, 0, 1],[size[0], 0, 1],[size[0], size[1], 1],[0, size[1], 1]]).T
-        transformedCorners = numpy.dot(self.transform(), cropCorners)
-        left, upper, right, lower = map(int,(transformedCorners[0,:].min(), transformedCorners[1,:].min(), transformedCorners[0,:].max(), transformedCorners[1,:].max()))
-        newSize = (right-left, lower-upper)
-        correctedTransform = numpy.dot(self.applyTranslate([-left, -upper]), self.transform())
-        return crop.transform(newSize, Image.AFFINE, tuple(numpy.linalg.inv(correctedTransform).flatten()[:6]))
-
-    def pasteCrop(self, image, box, crop):
-        imageCopy = image.copy()
-        imageCopy.paste(crop, box=box, mask=crop)
-        return imageCopy
-
+# Points must be in homogeneous coordinates
+def transform_points(transform, points):
+    transformedCorners = numpy.dot(transform, points)
+    return transformedCorners
+    
 #################################
 # GENERATION OF COSINE FUNCTIONS
 #################################
@@ -133,17 +102,20 @@ class Trajectory():
 
 class Transformation():
 
-  def __init__(self, f, a, b):
-    # Initialize range of transformation
-    alpha = (b - a)*np.random.rand() + a
-    beta = (b - a)*np.random.rand() + a
-    if alpha > beta:
-      c = alpha
-      alpha = beta
-      beta = c
+  def __init__(self, f, a, b, pathFunction=None, steps=64):
     self.func = f
-    # Generate a transformation "path"
-    self.X = cosine(alpha, beta)
+    if pathFunction is None:
+        # Initialize range of transformation
+        alpha = (b - a)*np.random.rand() + a
+        beta = (b - a)*np.random.rand() + a
+        if alpha > beta:
+          c = alpha
+          alpha = beta
+          beta = c
+        # Generate a transformation "path"
+        self.X = cosine(alpha, beta)
+    else:
+        self.X = pathFunction(a, b, steps)
 
   def transformContent(self, img, j):
     return self.func(img, self.X[j])
@@ -155,13 +127,25 @@ class Transformation():
 # CONTENT TRANSFORMATIONS
 #################################
 
-def identityContent(img, param):
-  return img
-
 def rotation(img, angle):
-  rot = img.resize( (img.size[0]+10,img.size[1]+10), Image.ANTIALIAS)
-  rot = rot.rotate(angle, resample=Image.BICUBIC)
-  return rot.resize(img.size, Image.ANTIALIAS)
+  matrix = applyRotate(angle)
+  return matrix
+
+def translateX(img, value):
+  matrix = applyTranslate([value, 0])
+  return matrix
+
+def translateY(img, value):
+  matrix = applyTranslate([0, value])
+  return matrix
+
+def scaleX(img, value):
+  matrix = applyScale([value, 1])
+  return matrix
+
+def scaleY(img, value):
+  matrix = applyScale([1, value])
+  return matrix
 
 def color(img, value):
   enhancer = ImageEnhance.Color(img)
@@ -230,54 +214,81 @@ class OcclussionGenerator():
 
 class TrajectorySimulator():
 
-  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9, camSize=None, axes=False):
+  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9, camSize=None, axes=False, maxSteps=None, contentTransforms=None, shapeTransforms=None, cameraContentTransforms=None, cameraShapeTransforms=None, drawBox=False, camera=True):
+    if maxSteps is None:
+        maxSteps = len(RANGE)
+    self.maxSteps = maxSteps
     # Load images
     self.scene = Image.open(sceneFile)
     self.obj = Image.open(objectFile)
+    # Use scene as camera
     if camSize is None:
         camSize = self.scene.size
     self.camSize = camSize
+    # Correct camera size to be even as needed by video encoding software
+    evenCamSize = list(self.camSize)
+    for index in range(len(evenCamSize)):
+        if evenCamSize[index] % 2 ==1:
+            evenCamSize[index] += 1
+    self.camSize = tuple(evenCamSize) 
+    # Use box as polygon
     if polygon is None:
         polygon = (box[0], box[1], box[2], box[1], box[2], box[3], box[0], box[3])
+    self.polygon = polygon
+    self.drawBox = drawBox
+    self.camera = camera
+    #Segment the object using the polygon and crop to the resulting axes-aligned bounding box
     self.obj = segmentCrop(self.obj, polygon)
+    # Draw coordinate axes for each source
     if axes:
       self.scene = self.draw_axes(self.scene)
       self.obj = self.draw_axes(self.obj)
     self.objSize = self.obj.size
-    self.prevBox = [0,0,0,0]
     self.box = [0,0,0,0]
     self.step = 0
+    self.validStep = 0
     # Initialize transformations
     #TODO: select adequate values for transforms and maybe sample them from a given distribution
-    self.shapeTransforms = [
-      Transformation(identityShape, 1, 1),
-      Transformation(scale, -0.02, 0.02),
-      Transformation(aspectRatio, 0.98, 1.02) ]
-    self.contentTransforms = [
-      Transformation(identityContent, 1, 1),
-      Transformation(rotation, -30, 30),
-      #TODO: reenable but check if they are the culprit for transparency cases
-      #Transformation(color, 0.60, 1.0),
-      #Transformation(contrast, 0.60, 1.0),
-      #Transformation(brightness, 0.60, 1.0),
-      #Transformation(sharpness, 0.80, 1.2)
-    ]
-    #TODO: include cropping
-    self.cameraContentTransforms = [
-      Transformation(rotation, -10, 10),
-      Transformation(identityContent, 1, 1),
-    ]
-    self.cameraShapeTransforms = [
-      Transformation(identityShape, 1, 1),
-      Transformation(scale, -0.1, 0.1),
-    ]
-    self.transform( len(self.contentTransforms) )
-    random.shuffle( self.shapeTransforms )
-    random.shuffle( self.contentTransforms )
+    if shapeTransforms is None:
+        self.shapeTransforms = [
+            Transformation(identityShape, 1, 1),
+        ]
+    else:
+        self.shapeTransforms = shapeTransforms
+    if contentTransforms is None:
+        self.contentTransforms = [
+            Transformation(scaleX, 0.5, 2),
+            Transformation(scaleY, 0.5, 2),
+            Transformation(rotation, -np.pi, np.pi),
+            Transformation(translateX, 0, self.scene.size[0]),
+            Transformation(translateY, 0, self.scene.size[1]),
+            #TODO: reenable but check if they are the culprit for transparency cases
+            #Transformation(color, 0.60, 1.0),
+            #Transformation(contrast, 0.60, 1.0),
+            #Transformation(brightness, 0.60, 1.0),
+            #Transformation(sharpness, 0.80, 1.2)
+        ]
+    else:
+        self.contentTransforms = contentTransforms
+    if cameraContentTransforms is None:   
+        self.cameraContentTransforms = [
+        ]
+    else:
+        self.cameraContentTransforms = cameraContentTransforms
+    if cameraShapeTransforms is None:
+        self.cameraShapeTransforms = [
+            Transformation(identityShape, 1, 1),
+        ]
+    else:
+        self.cameraShapeTransforms = cameraShapeTransforms
     # Start trajectory
     self.scaleObject()
+    # Calculate bounds after scaling
+    self.bounds = numpy.array([[0,self.objSize[0],self.objSize[0],0],[0,0,self.objSize[1],self.objSize[1]]])
+    self.bounds = numpy.vstack([self.bounds, numpy.ones((1,self.bounds.shape[1]))])
     self.occluder = OcclussionGenerator(self.scene.size[0], self.scene.size[1], min(self.objSize)*0.5)
-    self.trajectory = Trajectory(self.scene.size[0], self.scene.size[1])
+    self.currentTransform = numpy.eye(3,3)
+    self.transform( len(self.contentTransforms) )
     self.render()
     print '@TrajectorySimulator: New simulation with scene {} and object {}'.format(sceneFile, objectFile)
 
@@ -297,35 +308,53 @@ class TrajectorySimulator():
     self.objView = self.obj.resize((int(w),int(h)), Image.ANTIALIAS)
     self.objSize = self.objView.size
 
+  def validate_bounds(self, transform, points, size):
+    transformedPoints = transform_points(transform, points)
+    return numpy.all(numpy.logical_and(numpy.greater(transformedPoints[:2,:], [[0], [0]]), numpy.less(transformedPoints[:2,:], [[size[0]],[size[1]]])))
+
   def transform(self, top=2):
     self.objSize = self.shapeTransforms[0].transformShape(self.objSize[0], self.objSize[1], self.step)
     self.objView = self.obj.resize(self.objSize, Image.ANTIALIAS)
+    # Concatenate transforms and apply them to obtain transformed object
+    newMatrix = numpy.eye(3,3)
     for i in range(top):
-      newObj = self.contentTransforms[i].transformContent(self.objView, self.step)
-      self.objView = newObj
+      newMatrix = numpy.dot(self.contentTransforms[i].transformContent(self.objView, self.step), newMatrix)
+    # Only update if valid
+    if self.validate_bounds(newMatrix, self.bounds, self.scene.size):
+        self.currentTransform = newMatrix
+        self.validStep = self.step
+    self.objView = applyTransform(self.objView, self.currentTransform, self.scene.size)
 
   def render(self):
     self.sceneView = self.scene.copy()
-    x = self.trajectory.X[self.step] - 0.5*self.objSize[0]
-    y = self.trajectory.Y[self.step] - 0.5*self.objSize[1]
-    #paste using alpha channel as mask
-    self.sceneView.paste(self.objView, (int(x),int(y)), self.objView)
+    # Paste the transformed object, at origin as scene is absolute reference system
+    self.sceneView.paste(self.objView, (int(0),int(0)), self.objView)
     self.sceneView = self.occluder.occlude(self.sceneView, self.scene)
-    self.prevBox = map(lambda x:x, self.box)
     for i in range(len(self.cameraShapeTransforms)):
       self.sceneSize = self.cameraShapeTransforms[i].transformShape(self.scene.size[0], self.scene.size[1], self.step)
       self.sceneView = self.sceneView.resize(self.sceneSize, Image.ANTIALIAS).crop((0,0) + self.scene.size)
-    for i in range(len(self.cameraContentTransforms)):
-      newScene = self.cameraContentTransforms[i].transformContent(self.sceneView, self.step)
-      self.sceneView = newScene
-    #TODO: adjust box coordinates according to camera transforms
-    cameraCorners = map(int, (self.trajectory.X[self.step]-0.5*self.camSize[0],self.trajectory.Y[self.step]-0.5*self.camSize[1],self.trajectory.X[self.step]+0.5*self.camSize[0],self.trajectory.Y[self.step]+0.5*self.camSize[1]))
-    self.camView = self.sceneView.crop(cameraCorners)
-    self.box = [max(x,0), max(y,0), min(x+self.objSize[0], self.scene.size[0]), min(y+self.objSize[1],self.scene.size[1])]
+    # Concatenate camera transforms
+    if self.camera:
+        newMatrix = numpy.eye(3,3)
+        for i in range(len(self.cameraContentTransforms)):
+            newMatrix = numpy.dot(self.cameraContentTransforms[i].transformContent(self.sceneView, self.step), newMatrix)
+        self.cameraTransform = newMatrix
+        # Obtain definite camera transform by appending object transform
+        self.camView = applyTransform(self.sceneView, numpy.dot(self.cameraTransform, numpy.linalg.inv(self.currentTransform)), self.camSize)
+        referenceTransform = self.cameraTransform
+    else:
+        self.camView = self.sceneView
+        referenceTransform = self.currentTransform
+    # Obtain bounding box points on camera coordinate system
+    boxPoints = transform_points(referenceTransform, self.bounds)
+    self.box = [max(min(boxPoints[0,:]),0), max(min(boxPoints[1,:]),0), min(max(boxPoints[0,:]), self.camSize[0]-1), min(max(boxPoints[1,:]),self.camSize[1]-1)]
+    if self.drawBox:
+        self.camDraw = ImageDraw.ImageDraw(self.camView)
+        self.camDraw.rectangle(self.box)
     
   def nextStep(self):
-    if self.step < self.trajectory.X.shape[0]:
-      self.transform()
+    if self.step < self.maxSteps:
+      self.transform( len(self.contentTransforms) )
       self.render()
       self.step += 1
       return True
@@ -344,21 +373,11 @@ class TrajectorySimulator():
     out.write( ' '.join(map(str,box)) + '\n' )
     out.close()
 
-  def getMaskedFrame(self, box=None):
-    frame = np.asarray(self.sceneView)
-    maskedF = np.zeros( (frame.shape[0],frame.shape[1],frame.shape[2]+1) )
-    maskedF[:,:,0:frame.shape[2]] = (frame - 128.0)/128.0
-    if box is None:
-      b = map(int, self.box)
-    else:
-      b = map(int, box)
-    #maskedF[:,:,-1] = -1
-    maskedF[b[0]:b[2],b[1]:b[3],-1] = 1
-    return maskedF
+  def getFrame(self):
+    return self.sceneView
 
-  def getMove(self):
-    delta = [int(self.box[i]-self.prevBox[i]) for i in range(len(self.box))]
-    
+  def getBox(self):
+    return self.box
 
   def convertToGif(self, sequenceDir):
     os.system('convert -delay 1x30 ' + sequenceDir + '/*jpg ' + sequenceDir + '/animation.gif')
@@ -391,71 +410,71 @@ class TrajectorySimulator():
 # while o.nextStep(): o.saveFrame(dir)
 # o.sceneView
 
-class COCOSimulatorFactory():
+try:
+    import pycocotools.coco
 
-    #Assumes standard data layout as specified in https://github.com/pdollar/coco/blob/master/README.txt
-    def __init__(self, dataDir, dataType):
-        self.dataDir = dataDir
-        self.dataType = dataType
-        self.annFile = '%s/annotations/instances_%s.json'%(dataDir,dataType)
-        self.imagePathTemplate = '%s/images/%s/%s'
-        #COCO dataset handler object
-        print '!!!!!!!!!!!!! WARNING: Loading the COCO annotations can take up to 3 GB RAM !!!!!!!!!!!!!'
-        self.coco = pycocotools.coco.COCO(self.annFile)
-        #TODO: Filter the categories to use in sequence generation
-        self.catIds = self.coco.getCatIds()
-        cats = self.coco.loadCats(self.catIds)
-        nms=[cat['name'] for cat in cats]
-        self.imgIds = self.coco.getImgIds(catIds=self.catIds)
-        self.fullImgIds = self.coco.getImgIds()
-        print 'Number of categories {} and corresponding images {}'.format(len(self.catIds), len(self.imgIds))
-        print 'Category names: {}'.format(', '.join(nms))
-        
-    def createInstance(self):
-        #Select a random image for the scene
-        sceneData = self.coco.loadImgs(self.fullImgIds[np.random.randint(0, len(self.fullImgIds))])[0]
-        scenePath = self.imagePathTemplate%(self.dataDir, self.dataType, sceneData['file_name'])
+    class COCOSimulatorFactory():
 
-        #Select a random image for the object, restricted to annotation categories
-        objData = self.coco.loadImgs(self.imgIds[np.random.randint(0, len(self.imgIds))])[0]
-        objPath = self.imagePathTemplate%(self.dataDir, self.dataType, objData['file_name'])
+        #Assumes standard data layout as specified in https://github.com/pdollar/coco/blob/master/README.txt
+        def __init__(self, dataDir, dataType):
+            self.dataDir = dataDir
+            self.dataType = dataType
+            self.annFile = '%s/annotations/instances_%s.json'%(dataDir,dataType)
+            self.imagePathTemplate = '%s/images/%s/%s'
+            #COCO dataset handler object
+            print '!!!!!!!!!!!!! WARNING: Loading the COCO annotations can take up to 3 GB RAM !!!!!!!!!!!!!'
+            self.coco = pycocotools.coco.COCO(self.annFile)
+            #TODO: Filter the categories to use in sequence generation
+            self.catIds = self.coco.getCatIds()
+            cats = self.coco.loadCats(self.catIds)
+            nms=[cat['name'] for cat in cats]
+            self.imgIds = self.coco.getImgIds(catIds=self.catIds)
+            self.fullImgIds = self.coco.getImgIds()
+            print 'Number of categories {} and corresponding images {}'.format(len(self.catIds), len(self.imgIds))
+            print 'Category names: {}'.format(', '.join(nms))
+            
+        def createInstance(self, *args, **kwargs):
+            #Select a random image for the scene
+            sceneData = self.coco.loadImgs(self.fullImgIds[np.random.randint(0, len(self.fullImgIds))])[0]
+            scenePath = self.imagePathTemplate%(self.dataDir, self.dataType, sceneData['file_name'])
 
-        #Get annotations for object scene
-        objAnnIds = self.coco.getAnnIds(imgIds=objData['id'], catIds=self.catIds, iscrowd=None)
-        objAnns = self.coco.loadAnns(objAnnIds)
+            #Select a random image for the object, restricted to annotation categories
+            objData = self.coco.loadImgs(self.imgIds[np.random.randint(0, len(self.imgIds))])[0]
+            objPath = self.imagePathTemplate%(self.dataDir, self.dataType, objData['file_name'])
 
-        #Select a random object in the scene and read the segmentation polygon
-        objectAnnotations = objAnns[np.random.randint(0, len(objAnns))]
-        print 'Segmenting object from category {}'.format(self.coco.loadCats(objectAnnotations['category_id'])[0]['name'])
-        polygon = objectAnnotations['segmentation'][np.random.randint(0, len(objectAnnotations['segmentation']))]
+            #Get annotations for object scene
+            objAnnIds = self.coco.getAnnIds(imgIds=objData['id'], catIds=self.catIds, iscrowd=None)
+            objAnns = self.coco.loadAnns(objAnnIds)
 
-        scene = Image.open(scenePath)
-        camSize = map(int, (scene.size[0]*0.5, scene.size[1]*0.5)) 
-        scene.close()
-        #Does not work as expected due to object scaling on range 0.2-0.5 of smallest scene side
-        #objBounds = polygonBounds(polygon)
-        #camFactor = 2+2*np.random.rand()
-        #camSize = map(int, ((objBounds[2]-objBounds[0])*camFactor, (objBounds[3]-objBounds[1])*camFactor))
-        #print 'Object bounds are {} and camera factor is {}, resulting camera size is {}'.format(objBounds, camFactor, camSize)
-        simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, camSize=camSize)
-        
-        return simulator
+            #Select a random object in the scene and read the segmentation polygon
+            objectAnnotations = objAnns[np.random.randint(0, len(objAnns))]
+            print 'Segmenting object from category {}'.format(self.coco.loadCats(objectAnnotations['category_id'])[0]['name'])
+            polygon = objectAnnotations['segmentation'][np.random.randint(0, len(objectAnnotations['segmentation']))]
 
-    def create(self, sceneFullPath, objectFullPath, axes=False):
-        #TODO: make really definite
-        sceneDict = [data for data in self.coco.loadImgs(self.fullImgIds) if str(data['file_name']) == os.path.basename(sceneFullPath)][0]
-        objectDict = [data for data in self.coco.loadImgs(self.imgIds) if str(data['file_name']) == os.path.basename(objectFullPath)][0]
-        scenePath = self.imagePathTemplate%(self.dataDir, self.dataType, sceneDict['file_name'])
-        objPath = self.imagePathTemplate%(self.dataDir, self.dataType, objectDict['file_name'])
-        objAnnIds = self.coco.getAnnIds(imgIds=objectDict['id'], catIds=self.catIds, iscrowd=None)
-        objAnns = self.coco.loadAnns(objAnnIds)
-        objectAnnotations = objAnns[np.random.randint(0, len(objAnns))]
-        print 'Segmenting object from category {}'.format(self.coco.loadCats(objectAnnotations['category_id'])[0]['name'])
-        polygon = objectAnnotations['segmentation'][np.random.randint(0, len(objectAnnotations['segmentation']))]
-        scene = Image.open(scenePath)
-        camSize = map(int, (scene.size[0]*0.5, scene.size[1]*0.5))
-        scene.close()
+            scene = Image.open(scenePath)
+            camSize = map(int, (scene.size[0]*0.5, scene.size[1]*0.5)) 
+            scene.close()
+            simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, camSize=camSize, *args, **kwargs)
+            
+            return simulator
 
-        simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, camSize=camSize, axes=axes)
+        def create(self, sceneFullPath, objectFullPath, axes=False):
+            #TODO: make really definite
+            sceneDict = [data for data in self.coco.loadImgs(self.fullImgIds) if str(data['file_name']) == os.path.basename(sceneFullPath)][0]
+            objectDict = [data for data in self.coco.loadImgs(self.imgIds) if str(data['file_name']) == os.path.basename(objectFullPath)][0]
+            scenePath = self.imagePathTemplate%(self.dataDir, self.dataType, sceneDict['file_name'])
+            objPath = self.imagePathTemplate%(self.dataDir, self.dataType, objectDict['file_name'])
+            objAnnIds = self.coco.getAnnIds(imgIds=objectDict['id'], catIds=self.catIds, iscrowd=None)
+            objAnns = self.coco.loadAnns(objAnnIds)
+            objectAnnotations = objAnns[np.random.randint(0, len(objAnns))]
+            print 'Segmenting object from category {}'.format(self.coco.loadCats(objectAnnotations['category_id'])[0]['name'])
+            polygon = objectAnnotations['segmentation'][np.random.randint(0, len(objectAnnotations['segmentation']))]
+            scene = Image.open(scenePath)
+            camSize = map(int, (scene.size[0]*0.5, scene.size[1]*0.5))
+            scene.close()
 
-        return simulator
+            simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, camSize=camSize, axes=axes)
+
+            return simulator
+except Exception as e:
+    print 'No support for pycoco'

@@ -6,27 +6,56 @@ require 'cutorch'
 require 'cunnx'
 -- Add the directory to the PYTHONPATH env variable:
 -- export PYTHONPATH=$PYTHONPATH:/home/juan/workspace/localization-agent/tracking
-py.exec([=[import TrajectorySimulator]=])
-ts = py.reval('TrajectorySimulator')
+py.exec([=[import VideoSequenceData as vs]=])
+vs = py.reval('vs.VideoSequenceData()')
 
 gpu = true
 
 -- ConvNet
-net = nn.Sequential()
-net:add( nn.Sequencer( nn.SpatialConvolution(2,16,5,5,1,1) ) )
-net:add( nn.Sequencer( nn.ReLU() ) )
-net:add( nn.Sequencer( nn.SpatialMaxPooling(2,2,2,2) ) )
-net:add( nn.Sequencer( nn.SpatialConvolution(16,6,3,3,1,1) ) )
-net:add( nn.Sequencer( nn.ReLU() ) )
-net:add( nn.Sequencer( nn.SpatialMaxPooling(2,2,2,2) ) )
-net:add( nn.Sequencer( nn.View(6*6*6) ) )
-net:add( nn.Sequencer( nn.Linear(6*6*6,100) ) )
+--net = nn.Sequential()
+--net:add( nn.Sequencer( nn.SpatialConvolution(2,16,5,5,1,1) ) )
+--net:add( nn.Sequencer( nn.ReLU() ) )
+--net:add( nn.Sequencer( nn.SpatialMaxPooling(2,2,2,2) ) )
+--net:add( nn.Sequencer( nn.SpatialConvolution(16,6,3,3,1,1) ) )
+--net:add( nn.Sequencer( nn.ReLU() ) )
+--net:add( nn.Sequencer( nn.SpatialMaxPooling(2,2,2,2) ) )
+--net:add( nn.Sequencer( nn.View(6*6*6) ) )
+--net:add( nn.Sequencer( nn.Linear(6*6*6,100) ) )
 -- net:add( nn.Sequencer( nn.Dropout(0.5) ) )
 
+net = nn.Sequential()
+net:add( nn.Sequencer( nn.SpatialConvolution(2,64,11,11,4,4,2,2) ) )       -- 224 -> 55
+net:add( nn.Sequencer( nn.SpatialMaxPooling(3,3,2,2) ) )                   -- 55 ->  27
+net:add( nn.Sequencer( nn.ReLU(true) ) )
+--net:add( nn.Sequencer( nn.SpatialBatchNormalization(64,nil,nil,false) ) )
+net:add( nn.Sequencer( nn.SpatialConvolution(64,192,5,5,1,1,2,2) ) )       --  27 -> 27
+net:add( nn.Sequencer( nn.SpatialMaxPooling(3,3,2,2) ) )                   --  27 ->  13
+net:add( nn.Sequencer( nn.ReLU(true) ) )
+--net:add( nn.Sequencer( nn.SpatialBatchNormalization(192,nil,nil,false) ) )
+net:add( nn.Sequencer( nn.SpatialConvolution(192,384,3,3,1,1,1,1) ) )      --  13 ->  13
+net:add( nn.Sequencer( nn.ReLU(true) ) )
+--net:add( nn.Sequencer( nn.SpatialBatchNormalization(384,nil,nil,false) ) )
+net:add( nn.Sequencer( nn.SpatialConvolution(384,256,3,3,1,1,1,1) ) )      --  13 ->  13
+net:add( nn.Sequencer( nn.ReLU(true) ) )
+--net:add( nn.Sequencer( nn.SpatialBatchNormalization(256,nil,nil,false) ) )
+net:add( nn.Sequencer( nn.SpatialConvolution(256,256,3,3,1,1,1,1) ) )      --  13 ->  13
+net:add( nn.Sequencer( nn.SpatialMaxPooling(3,3,2,2) ) )                   -- 13 -> 6
+net:add( nn.Sequencer( nn.ReLU(true) ) )
+--net:add( nn.Sequencer( nn.SpatialBatchNormalization(256,nil,nil,false) ) )
+
+net:add( nn.Sequencer( nn.View(256*6*6) ) )
+--net:add( nn.Sequencer( nn.Dropout(0.5) ) )
+net:add( nn.Sequencer( nn.Linear(256*6*6, 4096) ) )
+--net:add( nn.Sequencer( nn.Threshold(0, 1e-6) ) )
+--net:add( nn.Sequencer( nn.Dropout(0.5) ) )
+--net:add( nn.Sequencer( nn.Linear(4096, 4096) ) )
+--net:add( nn.Sequencer( nn.Threshold(0, 1e-6) ) )
+--net:add( nn.Sequencer( nn.Linear(4096, 1000) ) )
+
 -- RNN
-inputSize = 100
-hiddenSize = 50
-nIndex = 5
+inputSize = 4096
+hiddenSize = 1024
+nIndex = 4
 
 -- LSTM
 lstm = nn.Sequencer(nn.FastLSTM(inputSize, hiddenSize))
@@ -34,8 +63,8 @@ lstm = nn.Sequencer(nn.FastLSTM(inputSize, hiddenSize))
 -- Prediction Layers
 net:add( lstm )
 net:add( nn.Sequencer( nn.Linear(hiddenSize,nIndex) ) )
-net:add( nn.Sequencer( nn.LogSoftMax() ) )
-criterion = nn.SequencerCriterion(nn.ClassNLLCriterion())
+--net:add( nn.Sequencer( nn.LogSoftMax() ) )
+criterion = nn.SequencerCriterion(nn.MSECriterion())
 
 -- GPU based
 if gpu then
@@ -44,32 +73,30 @@ if gpu then
 end
 
 -- Training
-lr = 0.01
-updateInterval = 100
+lr = 0.001
+updateInterval = 10
 iterations = 5000
 i = 1
 avgErr = 0
 maxLength = 10
-scene = '/home/jccaicedoru/Pictures/test/bogota.jpg'
-object = '/home/jccaicedoru/Pictures/test/photo.jpg'
-box = {0, 100, 0, 100}
-polygon = {50, 0, 100, 50, 50, 100, 0, 50}
 
 while i < iterations do
    -- a batch of inputs
-   S = ts.TrajectorySimulator(scene, object, box, polygon) 
+   vs.prepareSequence()
    local inputs = {}
    local targets = {}
-   while py.eval(S.nextStep()) do
-     I = py.eval(S.getMaskedFrame())
-     O = py.eval(S.getMove())
+   local j = 1
+   while py.eval(vs.nextStep()) do
+     I = py.eval(vs.getFrame())
+     O = py.eval(vs.getMove())
      if gpu then
        inputs[j] = I:cuda()
-       targets[j] = O:cuda()
+       targets[j] = torch.Tensor(O):cuda()
      else
        inputs[j] = I
-       targets[j] = O
+       targets[j] = torch.Tensor(O)
      end
+     j = j + 1
    end
    local output = net:forward(inputs)
    local err = criterion:forward(output, targets)
