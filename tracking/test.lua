@@ -2,10 +2,14 @@
 py = require('fb.python')
 require 'nn'
 require 'rnn'
+require 'cutorch'
+require 'cunnx'
 -- Add the directory to the PYTHONPATH env variable:
 -- export PYTHONPATH=$PYTHONPATH:/home/juan/workspace/localization-agent/tracking
 py.exec([=[import TrajectorySimulator]=])
 ts = py.reval('TrajectorySimulator')
+
+gpu = true
 
 -- ConvNet
 net = nn.Sequential()
@@ -33,6 +37,12 @@ net:add( nn.Sequencer( nn.Linear(hiddenSize,nIndex) ) )
 net:add( nn.Sequencer( nn.LogSoftMax() ) )
 criterion = nn.SequencerCriterion(nn.ClassNLLCriterion())
 
+-- GPU based
+if gpu then
+  net = net:cuda()
+  criterion = criterion:cuda()
+end
+
 -- Training
 lr = 0.01
 updateInterval = 100
@@ -40,18 +50,26 @@ iterations = 5000
 i = 1
 avgErr = 0
 maxLength = 10
-scene = '/home/juan/Pictures/test/bogota.jpg'
-object = '/home/juan/Pictures/test/photo.jpg'
+scene = '/home/jccaicedoru/Pictures/test/bogota.jpg'
+object = '/home/jccaicedoru/Pictures/test/photo.jpg'
+box = {0, 100, 0, 100}
 polygon = {50, 0, 100, 50, 50, 100, 0, 50}
 
 while i < iterations do
    -- a batch of inputs
-   S = ts.TrajectorySimulator(scene, object, polygon) 
+   S = ts.TrajectorySimulator(scene, object, box, polygon) 
    local inputs = {}
    local targets = {}
    while py.eval(S.nextStep()) do
-     inputs[j] = py.eval(S.getMaskedFrame())
-     targets[j] = py.eval(S.getMove())
+     I = py.eval(S.getMaskedFrame())
+     O = py.eval(S.getMove())
+     if gpu then
+       inputs[j] = I:cuda()
+       targets[j] = O:cuda()
+     else
+       inputs[j] = I
+       targets[j] = O
+     end
    end
    local output = net:forward(inputs)
    local err = criterion:forward(output, targets)

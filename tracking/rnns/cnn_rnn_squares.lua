@@ -2,10 +2,14 @@
 py = require('fb.python')
 require 'nn'
 require 'rnn'
+require 'cutorch'
+require 'cunnx'
 -- Add the directory to the PYTHONPATH env variable:
 -- export PYTHONPATH=$PYTHONPATH:/home/juan/workspace/localization-agent/tracking
 py.exec([=[import SyntheticTinyPaths]=])
 stp = py.reval('SyntheticTinyPaths')
+
+gpu = true
 
 -- ConvNet
 net = nn.Sequential()
@@ -33,6 +37,12 @@ net:add( nn.Sequencer( nn.Linear(hiddenSize,nIndex) ) )
 net:add( nn.Sequencer( nn.LogSoftMax() ) )
 criterion = nn.SequencerCriterion(nn.ClassNLLCriterion())
 
+-- GPU based
+if gpu then
+  net = net:cuda()
+  criterion = criterion:cuda()
+end
+
 -- Training
 lr = 0.01
 updateInterval = 100
@@ -50,7 +60,11 @@ while i < iterations do
    local inputs = {}
    local targets = {}
    for j=1,length do
-     inputs[j] = I[{{j},{},{},{}}]
+     if gpu then
+       inputs[j] = I[{{j},{},{},{}}]:cuda()
+     else
+       inputs[j] = I[{{j},{},{},{}}]
+     end
      targets[j] = T[j]
    end
    local output = net:forward(inputs)
@@ -73,13 +87,17 @@ end
 -- Do a test prediction
 length = math.ceil(math.random()*maxLength)
 S = stp.generateMaskedSeq(py.int(length),py.int(32),py.int(32),py.int(6))
-stp.showSequence(S[0],S[1],2)
+--stp.showSequence(S[0],S[1],2)
 local I = py.eval(S[0])
 local T = py.eval(S[1])
 local inputs = {}
 local targets = {}
 for j=1,length do
-  inputs[j] = I[{{j},{},{},{}}]
+  if gpu then
+    inputs[j] = I[{{j},{},{},{}}]:cuda()
+  else
+    inputs[j] = I[{{j},{},{},{}}]:cuda()
+  end
   targets[j] = T[j]
 end
 local output = net:forward(inputs)

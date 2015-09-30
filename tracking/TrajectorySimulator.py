@@ -6,7 +6,7 @@ from PIL import ImageEnhance
 from PIL import ImageDraw
 #import skimage.segmentation
 import numpy.linalg
-import pycocotools.coco
+#import pycocotools.coco
 
 def segmentCrop(image, polygon):
     cropMask = Image.new('L', image.size, 0)
