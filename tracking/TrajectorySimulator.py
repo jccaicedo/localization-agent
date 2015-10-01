@@ -338,17 +338,13 @@ class TrajectorySimulator():
       self.sceneSize = self.cameraShapeTransforms[i].transformShape(self.scene.size[0], self.scene.size[1], self.step)
       self.sceneView = self.sceneView.resize(self.sceneSize, Image.ANTIALIAS).crop((0,0) + self.scene.size)
     # Concatenate camera transforms
-    if self.camera:
-        newMatrix = np.eye(3,3)
-        for i in range(len(self.cameraContentTransforms)):
-            newMatrix = np.dot(self.cameraContentTransforms[i].transformContent(self.sceneView, self.step), newMatrix)
-        self.cameraTransform = newMatrix
-        # Obtain definite camera transform by appending object transform
-        self.camView = applyTransform(self.sceneView, np.dot(self.cameraTransform, np.linalg.inv(self.currentTransform)), self.camSize)
-        referenceTransform = self.cameraTransform
-    else:
-        self.camView = self.sceneView
-        referenceTransform = self.currentTransform
+    newMatrix = np.eye(3,3)
+    for i in range(len(self.cameraContentTransforms)):
+        newMatrix = np.dot(self.cameraContentTransforms[i].transformContent(self.sceneView, self.step), newMatrix)
+    self.cameraTransform = newMatrix
+    # Obtain definite camera transform by appending object transform
+    self.camView = applyTransform(self.sceneView, np.dot(self.cameraTransform, np.linalg.inv(self.currentTransform)), self.camSize)
+    referenceTransform = self.cameraTransform
     # Obtain bounding box points on camera coordinate system
     boxPoints = transform_points(referenceTransform, self.bounds)
     self.box = [max(min(boxPoints[0,:]),0), max(min(boxPoints[1,:]),0), min(max(boxPoints[0,:]), self.camSize[0]-1), min(max(boxPoints[1,:]),self.camSize[1]-1)]
@@ -357,9 +353,10 @@ class TrajectorySimulator():
         self.camDraw.rectangle(self.box)
     if self.drawCam:
         camPoints = transform_points(np.dot(self.currentTransform, self.cameraTransform), self.cameraBounds)
-        cameraBox = [max(min(camPoints[0,:]),0), max(min(camPoints[1,:]),0), min(max(camPoints[0,:]), self.scene.size[0]-1), min(max(camPoints[1,:]),self.scene.size[1]-1)]
+        cameraBox = map(int, camPoints[:2, :].T.ravel())
+        print 'Camera polygon: {}'.format(cameraBox)
         self.sceneDraw = ImageDraw.ImageDraw(self.sceneView)
-        self.sceneDraw.rectangle(cameraBox)
+        self.sceneDraw.polygon(cameraBox, outline=(0,255,0))
     
   def nextStep(self):
     if self.step < self.maxSteps:
@@ -397,7 +394,10 @@ class TrajectorySimulator():
 
   def next(self):
     if self.nextStep():
-      return self.camView
+      if self.camera:
+        return self.camView
+      else:
+        return self.sceneView
     else:
       raise StopIteration()
 
