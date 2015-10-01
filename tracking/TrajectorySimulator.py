@@ -12,45 +12,16 @@ def segmentCrop(image, polygon):
     cropMask = Image.new('L', image.size, 0)
     maskDraw = ImageDraw.Draw(cropMask)
     maskDraw.polygon(polygon, fill=255)
-    bounds = polygonBounds(polygon)
+    bounds = polygon_bounds(polygon)
     imageCopy = image.copy()
     imageCopy.putalpha(cropMask)
     crop = imageCopy.crop(bounds)
     return crop
 
-def polygonBounds(polygon):
+def polygon_bounds(polygon):
     maskCoords = numpy.array(polygon).reshape(len(polygon)/2,2).T
     bounds = map(int, (maskCoords[0].min(), maskCoords[1].min(), maskCoords[0].max(), maskCoords[1].max()))
     return bounds
-
-###############################
-#Sampler for affine transformations
-###############################
-
-class AffineTransform(object):
-
-    def __init__(self, scale=[1,1], angle=0, translation=[0,0], *args, **kwargs):
-        self.scale = numpy.array(scale)
-        self.angle = numpy.array(angle)
-        self.translation = numpy.array(translation)
-        super(AffineSampler, self).__init__(*args, **kwargs)
-
-    def sample(self):
-        self.scale = 0.1*numpy.random.standard_normal(self.scale.shape)+self.scale
-        self.angle = numpy.pi/36*numpy.random.standard_normal(self.angle.shape)+self.angle
-        self.translation = numpy.random.standard_normal(self.translation.shape)+self.translation
-
-    def __repr__(self):
-        return 'Scale: {}\tAngle: {}\tTranslation: {}'.format(self.scale, self.angle, self.translation)
-
-    def transform(self):
-        #The order is scale, rotate and translate
-        return numpy.dot(self.applyTranslate(self.translation), numpy.dot(self.applyRotate(self.angle), self.applyScale(self.scale)))
-
-    def pasteCrop(self, image, box, crop):
-        imageCopy = image.copy()
-        imageCopy.paste(crop, box=box, mask=crop)
-        return imageCopy
 
 def applyScale(scales):
     return numpy.array([[scales[0], 0, 0],[0, scales[1], 0],[0, 0, 1]])
@@ -61,15 +32,15 @@ def applyRotate(angle):
 def applyTranslate(translation):
     return numpy.array([[1, 0, translation[0]],[0,1,translation[1]],[0, 0, 1]])
 
-def applyTransform(crop, transform):
-    size = crop.size
-    cropCorners = numpy.array([[0, 0, 1],[size[0], 0, 1],[size[0], size[1], 1],[0, size[1], 1]]).T
-    transformedCorners = numpy.dot(transform, cropCorners)
-    left, upper, right, lower = map(int,(transformedCorners[0,:].min(), transformedCorners[1,:].min(), transformedCorners[0,:].max(), transformedCorners[1,:].max()))
-    newSize = (right-left, lower-upper)
-    correctedTransform = numpy.dot(applyTranslate([-left, -upper]), transform)
-    return crop.transform(newSize, Image.AFFINE, tuple(numpy.linalg.inv(correctedTransform).flatten()[:6]))
+def applyTransform(crop, transform, camSize):
+    # Requires inverse as the parameters transform from object to camera 
+    return crop.transform(camSize, Image.AFFINE, tuple(numpy.linalg.inv(transform).flatten()[:7]))
 
+# Points must be in homogeneous coordinates
+def transform_points(transform, points):
+    transformedCorners = numpy.dot(transform, points)
+    return transformedCorners
+    
 #################################
 # GENERATION OF COSINE FUNCTIONS
 #################################
