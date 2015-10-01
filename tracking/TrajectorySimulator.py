@@ -343,20 +343,30 @@ class TrajectorySimulator():
         newMatrix = np.dot(self.cameraContentTransforms[i].transformContent(self.sceneView, self.step), newMatrix)
     self.cameraTransform = newMatrix
     # Obtain definite camera transform by appending object transform
-    self.camView = applyTransform(self.sceneView, np.dot(self.cameraTransform, np.linalg.inv(self.currentTransform)), self.camSize)
+    self.camView = applyTransform(self.sceneView, np.linalg.inv(np.dot(self.currentTransform, self.cameraTransform)), self.camSize)
     referenceTransform = self.cameraTransform
     # Obtain bounding box points on camera coordinate system
-    boxPoints = transform_points(referenceTransform, self.bounds)
-    self.box = [max(min(boxPoints[0,:]),0), max(min(boxPoints[1,:]),0), min(max(boxPoints[0,:]), self.camSize[0]-1), min(max(boxPoints[1,:]),self.camSize[1]-1)]
+    if self.camera:
+        boxPoints = transform_points(np.linalg.inv(referenceTransform), self.bounds)
+        clipSize = self.camSize
+    else:
+        boxPoints = transform_points(self.currentTransform, self.bounds)
+        clipSize = self.sceneView.size
+    self.box = [max(min(boxPoints[0,:]),0), max(min(boxPoints[1,:]),0), min(max(boxPoints[0,:]), clipSize[0]-1), min(max(boxPoints[1,:]),clipSize[1]-1)]
+    self.camDraw = ImageDraw.ImageDraw(self.camView)
+    self.sceneDraw = ImageDraw.ImageDraw(self.sceneView)
     if self.drawBox:
-        self.camDraw = ImageDraw.ImageDraw(self.camView)
-        self.camDraw.rectangle(self.box)
+        if self.camera:
+            self.camDraw.rectangle(self.box)
+        else:
+            self.sceneDraw.rectangle(self.box)
     if self.drawCam:
         camPoints = transform_points(np.dot(self.currentTransform, self.cameraTransform), self.cameraBounds)
         cameraBox = map(int, camPoints[:2, :].T.ravel())
-        print 'Camera polygon: {}'.format(cameraBox)
-        self.sceneDraw = ImageDraw.ImageDraw(self.sceneView)
         self.sceneDraw.polygon(cameraBox, outline=(0,255,0))
+        sceneBoxPoints = transform_points(self.currentTransform, self.bounds)
+        objectBox = map(int, sceneBoxPoints[:2, :].T.ravel())
+        self.sceneDraw.polygon(objectBox, outline=(0,0,255))
     
   def nextStep(self):
     if self.step < self.maxSteps:
