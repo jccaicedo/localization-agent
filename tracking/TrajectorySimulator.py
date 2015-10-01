@@ -17,26 +17,26 @@ def segmentCrop(image, polygon):
     return crop
 
 def polygon_bounds(polygon):
-    maskCoords = numpy.array(polygon).reshape(len(polygon)/2,2).T
+    maskCoords = np.array(polygon).reshape(len(polygon)/2,2).T
     bounds = map(int, (maskCoords[0].min(), maskCoords[1].min(), maskCoords[0].max(), maskCoords[1].max()))
     return bounds
 
 def applyScale(scales):
-    return numpy.array([[scales[0], 0, 0],[0, scales[1], 0],[0, 0, 1]])
+    return np.array([[scales[0], 0, 0],[0, scales[1], 0],[0, 0, 1]])
 
 def applyRotate(angle):
-    return numpy.array([[numpy.cos(angle), numpy.sin(angle), 0],[-numpy.sin(angle), numpy.cos(angle), 0],[0, 0, 1]])
+    return np.array([[np.cos(angle), np.sin(angle), 0],[-np.sin(angle), np.cos(angle), 0],[0, 0, 1]])
 
 def applyTranslate(translation):
-    return numpy.array([[1, 0, translation[0]],[0,1,translation[1]],[0, 0, 1]])
+    return np.array([[1, 0, translation[0]],[0,1,translation[1]],[0, 0, 1]])
 
 def applyTransform(crop, transform, camSize):
     # Requires inverse as the parameters transform from object to camera 
-    return crop.transform(camSize, Image.AFFINE, tuple(numpy.linalg.inv(transform).flatten()[:7]))
+    return crop.transform(camSize, Image.AFFINE, np.linalg.inv(transform).flatten()[:7])
 
 # Points must be in homogeneous coordinates
 def transform_points(transform, points):
-    transformedCorners = numpy.dot(transform, points)
+    transformedCorners = np.dot(transform, points)
     return transformedCorners
     
 #################################
@@ -214,7 +214,7 @@ class OcclussionGenerator():
 
 class TrajectorySimulator():
 
-  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9, camSize=None, axes=False, maxSteps=None, contentTransforms=None, shapeTransforms=None, cameraContentTransforms=None, cameraShapeTransforms=None, drawBox=False, camera=True):
+  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9, camSize=None, axes=False, maxSteps=None, contentTransforms=None, shapeTransforms=None, cameraContentTransforms=None, cameraShapeTransforms=None, drawBox=False, camera=True, drawCam=False):
     if maxSteps is None:
         maxSteps = len(RANGE)
     self.maxSteps = maxSteps
@@ -236,6 +236,7 @@ class TrajectorySimulator():
         polygon = (box[0], box[1], box[2], box[1], box[2], box[3], box[0], box[3])
     self.polygon = polygon
     self.drawBox = drawBox
+    self.drawCam = drawCam
     self.camera = camera
     #Segment the object using the polygon and crop to the resulting axes-aligned bounding box
     self.obj = segmentCrop(self.obj, polygon)
@@ -285,10 +286,13 @@ class TrajectorySimulator():
     # Start trajectory
     self.scaleObject()
     # Calculate bounds after scaling
-    self.bounds = numpy.array([[0,self.objSize[0],self.objSize[0],0],[0,0,self.objSize[1],self.objSize[1]]])
-    self.bounds = numpy.vstack([self.bounds, numpy.ones((1,self.bounds.shape[1]))])
+    self.bounds = np.array([[0,self.objSize[0],self.objSize[0],0],[0,0,self.objSize[1],self.objSize[1]]])
+    self.bounds = np.vstack([self.bounds, np.ones((1,self.bounds.shape[1]))])
+    self.cameraBounds = np.array([[0,self.camSize[0],self.camSize[0],0],[0,0,self.camSize[1],self.camSize[1]]])
+    self.cameraBounds = np.vstack([self.cameraBounds, np.ones((1,self.cameraBounds.shape[1]))])
     self.occluder = OcclussionGenerator(self.scene.size[0], self.scene.size[1], min(self.objSize)*0.5)
-    self.currentTransform = numpy.eye(3,3)
+    self.currentTransform = np.eye(3,3)
+    self.cameraTransform = np.eye(3,3)
     self.transform( len(self.contentTransforms) )
     self.render()
     print '@TrajectorySimulator: New simulation with scene {} and object {}'.format(sceneFile, objectFile)
@@ -311,15 +315,15 @@ class TrajectorySimulator():
 
   def validate_bounds(self, transform, points, size):
     transformedPoints = transform_points(transform, points)
-    return numpy.all(numpy.logical_and(numpy.greater(transformedPoints[:2,:], [[0], [0]]), numpy.less(transformedPoints[:2,:], [[size[0]],[size[1]]])))
+    return np.all(np.logical_and(np.greater(transformedPoints[:2,:], [[0], [0]]), np.less(transformedPoints[:2,:], [[size[0]],[size[1]]])))
 
   def transform(self, top=2):
     self.objSize = self.shapeTransforms[0].transformShape(self.objSize[0], self.objSize[1], self.step)
     self.objView = self.obj.resize(self.objSize, Image.ANTIALIAS)
     # Concatenate transforms and apply them to obtain transformed object
-    newMatrix = numpy.eye(3,3)
+    newMatrix = np.eye(3,3)
     for i in range(top):
-      newMatrix = numpy.dot(self.contentTransforms[i].transformContent(self.objView, self.step), newMatrix)
+      newMatrix = np.dot(self.contentTransforms[i].transformContent(self.objView, self.step), newMatrix)
     # Only update if valid
     if self.validate_bounds(newMatrix, self.bounds, self.scene.size):
         self.currentTransform = newMatrix
@@ -337,12 +341,12 @@ class TrajectorySimulator():
       self.sceneView = self.sceneView.resize(self.sceneSize, Image.ANTIALIAS).crop((0,0) + self.scene.size)
     # Concatenate camera transforms
     if self.camera:
-        newMatrix = numpy.eye(3,3)
+        newMatrix = np.eye(3,3)
         for i in range(len(self.cameraContentTransforms)):
-            newMatrix = numpy.dot(self.cameraContentTransforms[i].transformContent(self.sceneView, self.step), newMatrix)
+            newMatrix = np.dot(self.cameraContentTransforms[i].transformContent(self.sceneView, self.step), newMatrix)
         self.cameraTransform = newMatrix
         # Obtain definite camera transform by appending object transform
-        self.camView = applyTransform(self.sceneView, numpy.dot(self.cameraTransform, numpy.linalg.inv(self.currentTransform)), self.camSize)
+        self.camView = applyTransform(self.sceneView, np.dot(self.cameraTransform, np.linalg.inv(self.currentTransform)), self.camSize)
         referenceTransform = self.cameraTransform
     else:
         self.camView = self.sceneView
@@ -353,6 +357,11 @@ class TrajectorySimulator():
     if self.drawBox:
         self.camDraw = ImageDraw.ImageDraw(self.camView)
         self.camDraw.rectangle(self.box)
+    if self.drawCam:
+        camPoints = transform_points(np.dot(self.currentTransform, self.cameraTransform), self.cameraBounds)
+        cameraBox = [max(min(camPoints[0,:]),0), max(min(camPoints[1,:]),0), min(max(camPoints[0,:]), self.scene.size[0]-1), min(max(camPoints[1,:]),self.scene.size[1]-1)]
+        self.sceneDraw = ImageDraw.ImageDraw(self.sceneView)
+        self.sceneDraw.rectangle(cameraBox)
     
   def nextStep(self):
     if self.step < self.maxSteps:
