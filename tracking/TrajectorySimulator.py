@@ -245,7 +245,6 @@ class TrajectorySimulator():
       self.scene = self.draw_axes(self.scene)
       self.obj = self.draw_axes(self.obj)
     self.objSize = self.obj.size
-    self.prevBox = [0,0,0,0]
     self.box = [0,0,0,0]
     self.step = 0
     self.validStep = 0
@@ -335,7 +334,6 @@ class TrajectorySimulator():
     # Paste the transformed object, at origin as scene is absolute reference system
     self.sceneView.paste(self.objView, (int(0),int(0)), self.objView)
     self.sceneView = self.occluder.occlude(self.sceneView, self.scene)
-    self.prevBox = map(lambda x:x, self.box)
     for i in range(len(self.cameraShapeTransforms)):
       self.sceneSize = self.cameraShapeTransforms[i].transformShape(self.scene.size[0], self.scene.size[1], self.step)
       self.sceneView = self.sceneView.resize(self.sceneSize, Image.ANTIALIAS).crop((0,0) + self.scene.size)
@@ -384,21 +382,11 @@ class TrajectorySimulator():
     out.write( ' '.join(map(str,box)) + '\n' )
     out.close()
 
-  def getMaskedFrame(self, box=None):
-    frame = np.asarray(self.sceneView)
-    maskedF = np.zeros( (frame.shape[0],frame.shape[1],frame.shape[2]+1) )
-    maskedF[:,:,0:frame.shape[2]] = (frame - 128.0)/128.0
-    if box is None:
-      b = map(int, self.box)
-    else:
-      b = map(int, box)
-    #maskedF[:,:,-1] = -1
-    maskedF[b[0]:b[2],b[1]:b[3],-1] = 1
-    return maskedF
+  def getFrame(self):
+    return self.sceneView
 
-  def getMove(self):
-    delta = [int(self.box[i]-self.prevBox[i]) for i in range(len(self.box))]
-    
+  def getBox(self):
+    return self.box
 
   def convertToGif(self, sequenceDir):
     os.system('convert -delay 1x30 ' + sequenceDir + '/*jpg ' + sequenceDir + '/animation.gif')
