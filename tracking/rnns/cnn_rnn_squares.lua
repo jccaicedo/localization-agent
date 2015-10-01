@@ -4,8 +4,8 @@ require 'nn'
 require 'rnn'
 -- Add the directory to the PYTHONPATH env variable:
 -- export PYTHONPATH=$PYTHONPATH:/home/juan/workspace/localization-agent/tracking
-py.exec([=[import TrajectorySimulator]=])
-ts = py.reval('TrajectorySimulator')
+py.exec([=[import SyntheticTinyPaths]=])
+stp = py.reval('SyntheticTinyPaths')
 
 -- ConvNet
 net = nn.Sequential()
@@ -40,18 +40,18 @@ iterations = 5000
 i = 1
 avgErr = 0
 maxLength = 10
-scene = '/home/juan/Pictures/test/bogota.jpg'
-object = '/home/juan/Pictures/test/photo.jpg'
-polygon = {50, 0, 100, 50, 50, 100, 0, 50}
 
 while i < iterations do
    -- a batch of inputs
-   S = ts.TrajectorySimulator(scene, object, polygon) 
+   length = math.ceil(math.random()*maxLength)
+   S = stp.generateMaskedSeq(py.int(length),py.int(32),py.int(32),py.int(6))
+   local I = py.eval(S[0])
+   local T = py.eval(S[1])
    local inputs = {}
    local targets = {}
-   while py.eval(S.nextStep()) do
-     inputs[j] = py.eval(S.getMaskedFrame())
-     targets[j] = py.eval(S.getMove())
+   for j=1,length do
+     inputs[j] = I[{{j},{},{},{}}]
+     targets[j] = T[j]
    end
    local output = net:forward(inputs)
    local err = criterion:forward(output, targets)
