@@ -104,17 +104,20 @@ class Trajectory():
 
 class Transformation():
 
-  def __init__(self, f, a, b):
-    # Initialize range of transformation
-    alpha = (b - a)*np.random.rand() + a
-    beta = (b - a)*np.random.rand() + a
-    if alpha > beta:
-      c = alpha
-      alpha = beta
-      beta = c
+  def __init__(self, f, a, b, pathFunction=None, steps=64):
     self.func = f
-    # Generate a transformation "path"
-    self.X = cosine(alpha, beta)
+    if pathFunction is None:
+        # Initialize range of transformation
+        alpha = (b - a)*np.random.rand() + a
+        beta = (b - a)*np.random.rand() + a
+        if alpha > beta:
+          c = alpha
+          alpha = beta
+          beta = c
+        # Generate a transformation "path"
+        self.X = cosine(alpha, beta)
+    else:
+        self.X = pathFunction(a, b, steps)
 
   def transformContent(self, img, j):
     return self.func(img, self.X[j])
@@ -126,12 +129,25 @@ class Transformation():
 # CONTENT TRANSFORMATIONS
 #################################
 
-def identityContent(img, param):
-  return img
-
 def rotation(img, angle):
   matrix = applyRotate(angle)
-  return applyTransform(img, matrix)
+  return matrix
+
+def translateX(img, value):
+  matrix = applyTranslate([value, 0])
+  return matrix
+
+def translateY(img, value):
+  matrix = applyTranslate([0, value])
+  return matrix
+
+def scaleX(img, value):
+  matrix = applyScale([value, 1])
+  return matrix
+
+def scaleY(img, value):
+  matrix = applyScale([1, value])
+  return matrix
 
 def color(img, value):
   enhancer = ImageEnhance.Color(img)
