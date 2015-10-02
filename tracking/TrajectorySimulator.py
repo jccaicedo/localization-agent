@@ -247,6 +247,7 @@ class TrajectorySimulator():
     self.prevBox = [0,0,0,0]
     self.box = [0,0,0,0]
     self.step = 0
+    self.validStep = 0
     # Initialize transformations
     #TODO: select adequate values for transforms and maybe sample them from a given distribution
     if shapeTransforms is None:
@@ -281,14 +282,14 @@ class TrajectorySimulator():
         ]
     else:
         self.cameraShapeTransforms = cameraShapeTransforms
-    self.transform( len(self.contentTransforms) )
-    random.shuffle( self.shapeTransforms )
     # Start trajectory
     self.scaleObject()
     # Calculate bounds after scaling
     self.bounds = numpy.array([[0,self.objSize[0],self.objSize[0],0],[0,0,self.objSize[1],self.objSize[1]]])
     self.bounds = numpy.vstack([self.bounds, numpy.ones((1,self.bounds.shape[1]))])
     self.occluder = OcclussionGenerator(self.scene.size[0], self.scene.size[1], min(self.objSize)*0.5)
+    self.currentTransform = numpy.eye(3,3)
+    self.transform( len(self.contentTransforms) )
     self.render()
     print '@TrajectorySimulator: New simulation with scene {} and object {}'.format(sceneFile, objectFile)
 
@@ -308,6 +309,10 @@ class TrajectorySimulator():
     self.objView = self.obj.resize((int(w),int(h)), Image.ANTIALIAS)
     self.objSize = self.objView.size
 
+  def validate_bounds(self, transform, points, size):
+    transformedPoints = transform_points(transform, points)
+    return numpy.all(numpy.logical_and(numpy.greater(transformedPoints[:2,:], [[0], [0]]), numpy.less(transformedPoints[:2,:], [[size[0]],[size[1]]])))
+
   def transform(self, top=2):
     self.objSize = self.shapeTransforms[0].transformShape(self.objSize[0], self.objSize[1], self.step)
     self.objView = self.obj.resize(self.objSize, Image.ANTIALIAS)
@@ -315,7 +320,10 @@ class TrajectorySimulator():
     newMatrix = numpy.eye(3,3)
     for i in range(top):
       newMatrix = numpy.dot(self.contentTransforms[i].transformContent(self.objView, self.step), newMatrix)
-    self.currentTransform = newMatrix
+    # Only update if valid
+    if self.validate_bounds(newMatrix, self.bounds, self.scene.size):
+        self.currentTransform = newMatrix
+        self.validStep = self.step
     self.objView = applyTransform(self.objView, self.currentTransform, self.scene.size)
 
   def render(self):
