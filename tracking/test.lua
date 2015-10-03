@@ -12,17 +12,6 @@ vs = py.reval('vs.VideoSequenceData()')
 gpu = true
 
 -- ConvNet
---net = nn.Sequential()
---net:add( nn.Sequencer( nn.SpatialConvolution(2,16,5,5,1,1) ) )
---net:add( nn.Sequencer( nn.ReLU() ) )
---net:add( nn.Sequencer( nn.SpatialMaxPooling(2,2,2,2) ) )
---net:add( nn.Sequencer( nn.SpatialConvolution(16,6,3,3,1,1) ) )
---net:add( nn.Sequencer( nn.ReLU() ) )
---net:add( nn.Sequencer( nn.SpatialMaxPooling(2,2,2,2) ) )
---net:add( nn.Sequencer( nn.View(6*6*6) ) )
---net:add( nn.Sequencer( nn.Linear(6*6*6,100) ) )
--- net:add( nn.Sequencer( nn.Dropout(0.5) ) )
-
 net = nn.Sequential()
 net:add( nn.Sequencer( nn.SpatialConvolution(2,64,11,11,4,4,2,2) ) )       -- 224 -> 55
 net:add( nn.Sequencer( nn.SpatialMaxPooling(3,3,2,2) ) )                   -- 55 ->  27
