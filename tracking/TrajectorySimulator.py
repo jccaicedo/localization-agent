@@ -34,6 +34,13 @@ def applyTransform(crop, transform, camSize):
     # Requires inverse as the parameters transform from object to camera 
     return crop.transform(camSize, Image.AFFINE, np.linalg.inv(transform).flatten()[:7])
 
+def concatenateTransforms(transforms):
+    # TODO: remove hard coded dimension
+    result = np.eye(3)
+    for aTransform in transforms:
+        result = np.dot(aTransform, result)
+    return result
+
 # Points must be in homogeneous coordinates
 def transform_points(transform, points):
     transformedCorners = np.dot(transform, points)
@@ -71,7 +78,31 @@ def cosine(y1, y2):
 # TRAJECTORY CLASS
 #################################
 
-class Trajectory():
+class OffsetTrajectory():
+
+    def __init__(self, w, h, offset):
+        self.thetaMin = -np.pi/12
+        self.thetaMax = np.pi/12
+        self.xMin = np.max(np.abs(offset*np.sin([self.thetaMin, self.thetaMax])))
+        self.yMin = np.max(np.abs(offset*np.sin([self.thetaMin, self.thetaMax])))
+        self.xMax = w-offset
+        self.yMax = h-offset
+        self.scaleMax = 1.0
+        self.scaleMin = 0.8
+        print 'Translation bounds: {} to {}'.format([self.xMin, self.yMin], [self.xMax, self.yMax])
+        print 'Rotation bounds: {} to {}'.format(self.thetaMin, self.thetaMax)
+        print 'Scale bounds: {} to {}'.format(self.scaleMin, self.scaleMax)
+        self.transforms = [
+            #Transformation(translateX, -offset, -offset),
+            #Transformation(translateY, -offset, -offset),
+            Transformation(rotate, self.thetaMin, self.thetaMax),
+            Transformation(scaleX, self.scaleMin, self.scaleMax),
+            Transformation(scaleY, self.scaleMin, self.scaleMax),
+            Transformation(translateX, self.xMin, self.xMax),
+            Transformation(translateY, self.yMin, self.yMax),
+        ]
+
+class BoundedTrajectory():
 
   def __init__(self, w, h):
     # Do sampling of starting and ending points (fixed number of steps).
@@ -117,8 +148,8 @@ class Transformation():
     else:
         self.X = pathFunction(a, b, steps)
 
-  def transformContent(self, img, j):
-    return self.func(img, self.X[j])
+  def transformContent(self, j):
+    return self.func(self.X[j])
 
   def transformShape(self, w, h, j):
     return self.func(w, h, self.X[j])
@@ -127,23 +158,23 @@ class Transformation():
 # CONTENT TRANSFORMATIONS
 #################################
 
-def rotation(img, angle):
+def rotate(angle):
   matrix = applyRotate(angle)
   return matrix
 
-def translateX(img, value):
+def translateX(value):
   matrix = applyTranslate([value, 0])
   return matrix
 
-def translateY(img, value):
+def translateY(value):
   matrix = applyTranslate([0, value])
   return matrix
 
-def scaleX(img, value):
+def scaleX(value):
   matrix = applyScale([value, 1])
   return matrix
 
-def scaleY(img, value):
+def scaleY(value):
   matrix = applyScale([1, value])
   return matrix
 
@@ -171,19 +202,6 @@ MIN_BOX_SIDE = 20
 
 def identityShape(w, h, factor):
   return (w, h)
-
-def scale(w0, h0, factor):
-  w = w0 + np.sign(factor)*w0*abs(factor)
-  h = h0 + np.sign(factor)*h0*abs(factor)
-  return (int(max(w,MIN_BOX_SIDE)),int(max(h,MIN_BOX_SIDE)))
-
-def aspectRatio(w0, h0, factor):
-  w,h = w0, h0
-  if factor > 1:
-    h = h0 + h0*(factor-1)
-  else:
-    w = w0 + w0*(1-factor)
-  return (int(max(w,MIN_BOX_SIDE)),int(max(h,MIN_BOX_SIDE)))
 
 #################################
 # OCCLUSSIONS
@@ -214,7 +232,7 @@ class OcclussionGenerator():
 
 class TrajectorySimulator():
 
-  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9, camSize=None, axes=False, maxSteps=None, contentTransforms=None, shapeTransforms=None, cameraContentTransforms=None, cameraShapeTransforms=None, drawBox=False, camera=True, drawCam=False):
+  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9, camSize=(224,224), axes=False, maxSteps=None, contentTransforms=None, shapeTransforms=None, cameraContentTransforms=None, cameraShapeTransforms=None, drawBox=False, camera=True, drawCam=False):
     if maxSteps is None:
         maxSteps = len(RANGE)
     self.maxSteps = maxSteps
@@ -248,40 +266,6 @@ class TrajectorySimulator():
     self.box = [0,0,0,0]
     self.step = 0
     self.validStep = 0
-    # Initialize transformations
-    #TODO: select adequate values for transforms and maybe sample them from a given distribution
-    if shapeTransforms is None:
-        self.shapeTransforms = [
-            Transformation(identityShape, 1, 1),
-        ]
-    else:
-        self.shapeTransforms = shapeTransforms
-    if contentTransforms is None:
-        self.contentTransforms = [
-            Transformation(scaleX, 0.5, 2),
-            Transformation(scaleY, 0.5, 2),
-            Transformation(rotation, -np.pi, np.pi),
-            Transformation(translateX, 0, self.scene.size[0]),
-            Transformation(translateY, 0, self.scene.size[1]),
-            #TODO: reenable but check if they are the culprit for transparency cases
-            #Transformation(color, 0.60, 1.0),
-            #Transformation(contrast, 0.60, 1.0),
-            #Transformation(brightness, 0.60, 1.0),
-            #Transformation(sharpness, 0.80, 1.2)
-        ]
-    else:
-        self.contentTransforms = contentTransforms
-    if cameraContentTransforms is None:   
-        self.cameraContentTransforms = [
-        ]
-    else:
-        self.cameraContentTransforms = cameraContentTransforms
-    if cameraShapeTransforms is None:
-        self.cameraShapeTransforms = [
-            Transformation(identityShape, 1, 1),
-        ]
-    else:
-        self.cameraShapeTransforms = cameraShapeTransforms
     # Start trajectory
     self.scaleObject()
     # Calculate bounds after scaling
@@ -292,15 +276,45 @@ class TrajectorySimulator():
     self.occluder = OcclussionGenerator(self.scene.size[0], self.scene.size[1], min(self.objSize)*0.5)
     self.currentTransform = np.eye(3,3)
     self.cameraTransform = np.eye(3,3)
-    self.transform( len(self.contentTransforms) )
+    #TODO: reactivate shape transforms
+    # Initialize transformations
+    #TODO: select adequate values for transforms and maybe sample them from a given distribution
+    if shapeTransforms is None:
+        self.shapeTransforms = [
+            Transformation(identityShape, 1, 1),
+        ]
+    else:
+        self.shapeTransforms = shapeTransforms
+    if contentTransforms is None:
+        self.contentTransforms = [
+            Transformation(scaleX, 0.3, 1.5),
+            Transformation(scaleY, 0.3, 1.5),
+            Transformation(rotate, -np.pi, np.pi),
+            Transformation(translateX, max(self.objSize), self.camSize[0]-max(self.objSize)),
+            Transformation(translateY, max(self.objSize), self.camSize[1]-max(self.objSize)),
+        ]
+    else:
+        self.contentTransforms = contentTransforms
+    if cameraContentTransforms is None:
+        cameraDiagonal = np.sqrt(self.camSize[0]**2+self.camSize[1]**2)
+        self.cameraContentTransforms = OffsetTrajectory(self.scene.size[0], self.scene.size[1], cameraDiagonal).transforms
+    else:
+        self.cameraContentTransforms = cameraContentTransforms
+    if cameraShapeTransforms is None:
+        self.cameraShapeTransforms = [
+            Transformation(identityShape, 1, 1),
+        ]
+    else:
+        self.cameraShapeTransforms = cameraShapeTransforms
+    self.transform()
     self.render()
     print '@TrajectorySimulator: New simulation with scene {} and object {}'.format(sceneFile, objectFile)
 
   def scaleObject(self):
     # Initial scale of the object is 
     # a fraction of the smallest side of the scene
-    smallestSide = min(self.scene.size)
-    side = (0.5*smallestSide-0.2*smallestSide)*np.random.rand() + 0.2*smallestSide
+    smallestSide = min(self.camSize)
+    side = smallestSide*0.6
     # Preserve object's aspect ratio with the largest side being "side"
     ar = float(self.obj.size[1])/float(self.obj.size[0])
     if self.obj.size[1] > self.obj.size[0]:
@@ -316,18 +330,13 @@ class TrajectorySimulator():
     transformedPoints = transform_points(transform, points)
     return np.all(np.logical_and(np.greater(transformedPoints[:2,:], [[0], [0]]), np.less(transformedPoints[:2,:], [[size[0]],[size[1]]])))
 
-  def transform(self, top=2):
+  def transform(self):
     self.objSize = self.shapeTransforms[0].transformShape(self.objSize[0], self.objSize[1], self.step)
     self.objView = self.obj.resize(self.objSize, Image.ANTIALIAS)
     # Concatenate transforms and apply them to obtain transformed object
-    newMatrix = np.eye(3,3)
-    for i in range(top):
-      newMatrix = np.dot(self.contentTransforms[i].transformContent(self.objView, self.step), newMatrix)
-    # Only update if valid
-    if self.validate_bounds(newMatrix, self.bounds, self.scene.size):
-        self.currentTransform = newMatrix
-        self.validStep = self.step
-    self.objView = applyTransform(self.objView, self.currentTransform, self.scene.size)
+    self.cameraTransform = concatenateTransforms((self.cameraContentTransforms[i].transformContent(self.step) for i in xrange(len(self.cameraContentTransforms))))
+    self.currentTransform = concatenateTransforms((self.contentTransforms[i].transformContent(self.step) for i in xrange(len(self.contentTransforms))))
+    self.objView = applyTransform(self.objView, np.dot(self.cameraTransform, self.currentTransform), self.scene.size)
 
   def render(self):
     self.sceneView = self.scene.copy()
@@ -337,20 +346,15 @@ class TrajectorySimulator():
     for i in range(len(self.cameraShapeTransforms)):
       self.sceneSize = self.cameraShapeTransforms[i].transformShape(self.scene.size[0], self.scene.size[1], self.step)
       self.sceneView = self.sceneView.resize(self.sceneSize, Image.ANTIALIAS).crop((0,0) + self.scene.size)
-    # Concatenate camera transforms
-    newMatrix = np.eye(3,3)
-    for i in range(len(self.cameraContentTransforms)):
-        newMatrix = np.dot(self.cameraContentTransforms[i].transformContent(self.sceneView, self.step), newMatrix)
-    self.cameraTransform = newMatrix
     # Obtain definite camera transform by appending object transform
-    self.camView = applyTransform(self.sceneView, np.linalg.inv(np.dot(self.currentTransform, self.cameraTransform)), self.camSize)
+    self.camView = applyTransform(self.sceneView, np.linalg.inv(self.cameraTransform), self.camSize)
     referenceTransform = self.cameraTransform
     # Obtain bounding box points on camera coordinate system
     if self.camera:
-        boxPoints = transform_points(np.linalg.inv(referenceTransform), self.bounds)
+        boxPoints = transform_points(self.currentTransform, self.bounds)
         clipSize = self.camSize
     else:
-        boxPoints = transform_points(self.currentTransform, self.bounds)
+        boxPoints = transform_points(np.dot(self.cameraTransform, self.currentTransform), self.bounds)
         clipSize = self.sceneView.size
     self.box = [max(min(boxPoints[0,:]),0), max(min(boxPoints[1,:]),0), min(max(boxPoints[0,:]), clipSize[0]-1), min(max(boxPoints[1,:]),clipSize[1]-1)]
     self.camDraw = ImageDraw.ImageDraw(self.camView)
@@ -361,16 +365,16 @@ class TrajectorySimulator():
         else:
             self.sceneDraw.rectangle(self.box)
     if self.drawCam:
-        camPoints = transform_points(np.dot(self.currentTransform, self.cameraTransform), self.cameraBounds)
+        camPoints = transform_points(self.cameraTransform, self.cameraBounds)
         cameraBox = map(int, camPoints[:2, :].T.ravel())
         self.sceneDraw.polygon(cameraBox, outline=(0,255,0))
-        sceneBoxPoints = transform_points(self.currentTransform, self.bounds)
+        sceneBoxPoints = transform_points(np.dot(self.cameraTransform, self.currentTransform), self.bounds)
         objectBox = map(int, sceneBoxPoints[:2, :].T.ravel())
         self.sceneDraw.polygon(objectBox, outline=(0,0,255))
     
   def nextStep(self):
     if self.step < self.maxSteps:
-      self.transform( len(self.contentTransforms) )
+      self.transform()
       self.render()
       self.step += 1
       return True
