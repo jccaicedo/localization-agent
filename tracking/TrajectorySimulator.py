@@ -475,9 +475,8 @@ try:
             polygon = objectAnnotations['segmentation'][np.random.randint(0, len(objectAnnotations['segmentation']))]
 
             scene = Image.open(scenePath)
-            camSize = map(int, (scene.size[0]*0.5, scene.size[1]*0.5)) 
             scene.close()
-            simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, camSize=camSize, *args, **kwargs)
+            simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, *args, **kwargs)
             
             return simulator
 
