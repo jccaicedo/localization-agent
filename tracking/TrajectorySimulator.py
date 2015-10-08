@@ -383,18 +383,21 @@ class TrajectorySimulator():
 
   def saveFrame(self, outDir):
     fname = os.path.join(outDir, str(self.step).zfill(4) + '.jpg')
-    self.sceneView.save(fname)
+    self.getFrame().save(fname)
     gtPath = os.path.join(outDir, 'groundtruth_rect.txt')
     if self.step <= 1:
       out = open(gtPath, 'w')
     else:
       out = open(gtPath, 'a')
-    box = map(int,[self.box[0], self.box[1], self.box[2]-self.box[0], self.box[3]-self.box[1]])
-    out.write( ' '.join(map(str,box)) + '\n' )
+    box = map(int,[self.box[0], self.box[1], self.box[2], self.box[3]])
+    out.write(','.join(map(str,box)) + '\n' )
     out.close()
 
   def getFrame(self):
-    return self.sceneView
+    if self.camera:
+      return self.camView
+    else:
+      return self.sceneView
 
   def getBox(self):
     return self.box
@@ -408,10 +411,7 @@ class TrajectorySimulator():
 
   def next(self):
     if self.nextStep():
-      if self.camera:
-        return self.camView
-      else:
-        return self.sceneView
+      return self.getFrame()
     else:
       raise StopIteration()
 
