@@ -5,11 +5,14 @@ import PIL.ImageDraw as ImageDraw
 import TrajectorySimulator as ts
 
 #TODO: Put this configuration in an external file or rely entirely on Coco's data
-scene = '/home/juan/Pictures/test/bogota.jpg'
-obj = '/home/juan/Pictures/test/photo.jpg'
+dataDir = '/home/jccaicedo/data/tracking/simulations/'
+scene = dataDir + 'bogota.jpg'
+obj = dataDir + 'photo.jpg'
 box = [0, 100, 0, 100]
 polygon = [50, 0, 100, 50, 50, 100, 0, 50]
 imgSize = 64
+channels = 2
+totalFrames = 60
 cam = False
 
 def transformFrame(source, save=None, box=None):
@@ -20,8 +23,8 @@ def transformFrame(source, save=None, box=None):
     draw = ImageDraw.Draw(frame)
     draw.rectangle(box,outline=255)
     draw.rectangle(fraction(box,0.50),outline=255)
-    draw.rectangle(fraction(box,0.75),outline=255)
-  if save is not None:'''
+    draw.rectangle(fraction(box,0.75),outline=255)'''
+  if save is not None:
     frame.save(save)
   return np.array(frame)
 
