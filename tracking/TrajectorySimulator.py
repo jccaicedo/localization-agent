@@ -388,8 +388,8 @@ class TrajectorySimulator():
       out = open(gtPath, 'w')
     else:
       out = open(gtPath, 'a')
-    box = map(int,[self.box[0], self.box[1], self.box[2]-self.box[0], self.box[3]-self.box[1]])
-    out.write( ' '.join(map(str,box)) + '\n' )
+    box = map(int,[self.box[0], self.box[1], self.box[2], self.box[3]])
+    out.write(','.join(map(str,box)) + '\n' )
     out.close()
 
   def getFrame(self):
@@ -410,7 +410,7 @@ class TrajectorySimulator():
 
   def next(self):
     if self.nextStep():
-      self.getFrame()
+      return self.getFrame()
     else:
       raise StopIteration()
 
