@@ -50,9 +50,9 @@ def transform_points(transform, points):
 # GENERATION OF COSINE FUNCTIONS
 #################################
 MIN_AMPLITUDE = 0.2
-MAX_AMPLITUDE = 1.5
+MAX_AMPLITUDE = 1.2
 MIN_PERIOD = 0.25
-MAX_PERIOD = 2.0
+MAX_PERIOD = 1.0
 MIN_PHASE = 0.0
 MAX_PHASE = 1.0
 MIN_VSHIFT = -0.5
@@ -63,7 +63,6 @@ def stretch(values, z1, z2):
   mi = min(values)
   ma = max(values)
   return (z2 - z1)*( (values-mi)/(ma-mi) ) + z1
-
 
 def cosine(y1, y2):
     a = (MAX_AMPLITUDE - MIN_AMPLITUDE)*np.random.rand() + MIN_AMPLITUDE
@@ -287,11 +286,11 @@ class TrajectorySimulator():
         self.shapeTransforms = shapeTransforms
     if contentTransforms is None:
         self.contentTransforms = [
-            Transformation(scaleX, 0.3, 1.5),
-            Transformation(scaleY, 0.3, 1.5),
-            Transformation(rotate, -np.pi, np.pi),
-            Transformation(translateX, max(self.objSize), self.camSize[0]-max(self.objSize)),
-            Transformation(translateY, max(self.objSize), self.camSize[1]-max(self.objSize)),
+            Transformation(scaleX, 0.7, 1.3),
+            Transformation(scaleY, 0.7, 1.3),
+            Transformation(rotate, -np.pi/50, np.pi/50),
+            Transformation(translateX, 0, self.camSize[0]-max(self.objSize)),
+            Transformation(translateY, 0, self.camSize[1]-max(self.objSize)),
         ]
     else:
         self.contentTransforms = contentTransforms
@@ -314,7 +313,7 @@ class TrajectorySimulator():
     # Initial scale of the object is 
     # a fraction of the smallest side of the scene
     smallestSide = min(self.camSize)
-    side = smallestSide*0.6
+    side = smallestSide*( 0.4*np.random.rand() + 0.4 )
     # Preserve object's aspect ratio with the largest side being "side"
     ar = float(self.obj.size[1])/float(self.obj.size[0])
     if self.obj.size[1] > self.obj.size[0]:
@@ -383,7 +382,7 @@ class TrajectorySimulator():
 
   def saveFrame(self, outDir):
     fname = os.path.join(outDir, str(self.step).zfill(4) + '.jpg')
-    self.sceneView.save(fname)
+    self.getFrame().save(fname)
     gtPath = os.path.join(outDir, 'groundtruth_rect.txt')
     if self.step <= 1:
       out = open(gtPath, 'w')
@@ -394,7 +393,10 @@ class TrajectorySimulator():
     out.close()
 
   def getFrame(self):
-    return self.sceneView
+    if self.camera:
+      return self.camView
+    else:
+      return self.sceneView
 
   def getBox(self):
     return self.box
@@ -408,10 +410,7 @@ class TrajectorySimulator():
 
   def next(self):
     if self.nextStep():
-      if self.camera:
-        return self.camView
-      else:
-        return self.sceneView
+      self.getFrame()
     else:
       raise StopIteration()
 
