@@ -3,7 +3,7 @@ import sys
 import learn.rl.RLConfig
 
 def listRunners():
-  options = ['BoxSearch','Tracker','SetupTracker','TrackerParameterSearch']
+  options = ['BoxSearch','Tracker','SetupTracker','TrackerParameterSearch','EvalDetectors']
   print 'Available options are:'
   for o in options:
     print '\t',o
@@ -18,6 +18,8 @@ if len(sys.argv) > 1:
     runpy.run_module('tracking.setupTrackingExperiment', run_name='__main__', alter_sys=True)
   elif module == 'TrackerParameterSearch':
     runpy.run_module('tracking.parameterSearch', run_name='__main__', alter_sys=True)
+  elif module == 'EvalDetectors':
+    runpy.run_module('detection.evaluation', run_name='__main__', alter_sys=True)
   else:
     print 'Unknown module'
     listRunners()

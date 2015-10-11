@@ -101,6 +101,7 @@ def evaluateNumberOfDetections():
   dist = {}
   all = {}
   logPath = '/home/jccaicedo/data/evalPascal07/exp01/XXX/YYY/results/YYY.out.scores.detections.log'
+  logPath = '/home/jccaicedo/data/experiments/rcnnEval/YYY.log'
   gtPath = '/home/jccaicedo/data/lists/2007/test/YYY_test_bboxes.txt'
 
   for i in range(len(subdirs)):
