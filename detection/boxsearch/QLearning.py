@@ -2,22 +2,24 @@ __author__ = "Juan C. Caicedo, caicedo@illinois.edu"
 
 from pybrain.rl.learners.valuebased.valuebased import ValueBasedLearner
 import random
+import sys
+
+import caffe
 
 import BoxSearchState as bs
-import caffe
 import learn.rl.RLConfig as config
 import numpy as np
 
 
 DETECTION_REWARD = config.getf('detectionReward')
-ACTION_HISTORY_SIZE = bs.NUM_ACTIONS*config.geti('actionHistoryLength')
+ACTION_HISTORY_SIZE = bs.NUM_ACTIONS * config.geti('actionHistoryLength')
 ACTION_HISTORY_LENTH = config.geti('actionHistoryLength')
-NETWORK_INPUTS = config.geti('stateFeatures')/config.geti('temporalWindow')
-REPLAY_MEMORY_SIZE = config.geti('trainingIterationsPerBatch')*config.geti('trainingBatchSize')
+NETWORK_INPUTS = config.geti('stateFeatures') / config.geti('temporalWindow')
+REPLAY_MEMORY_SIZE = config.geti('trainingIterationsPerBatch') * config.geti('trainingBatchSize')
 
 def generateRandomActionHistory():
   actions = np.zeros((ACTION_HISTORY_SIZE))
-  history = [i*bs.NUM_ACTIONS + np.random.randint(0,bs.PLACE_LANDMARK) for i in range(ACTION_HISTORY_LENTH)]
+  history = [i * bs.NUM_ACTIONS + np.random.randint(0, bs.PLACE_LANDMARK) for i in range(ACTION_HISTORY_LENTH)]
   actions[history] = 1
   return actions
 
@@ -36,32 +38,31 @@ class QLearning(ValueBasedLearner):
     self.netManager = CaffeMultiLayerPerceptronManagement(config.get('networkDir'))
 
   def learn(self, memory, controller):
-    print '# Identify memory records stored by the agent',memory.O.shape, memory.A.shape,memory.R.shape
+    print '# Identify memory records stored by the agent', memory.O.shape, memory.A.shape, memory.R.shape
     totalMemorySize = memory.usableRecords
-
+    
     print '# Select a random sample of records'
-    recordsToPull = [random.randint(0,totalMemorySize-2) for i in range(REPLAY_MEMORY_SIZE)]
-    samples = np.zeros( (REPLAY_MEMORY_SIZE, memory.O.shape[1], 1, 1), np.float32 )
-    targets = np.zeros( (REPLAY_MEMORY_SIZE, 3, 1, 1), np.float32 )
-    nextStates = np.zeros( (REPLAY_MEMORY_SIZE, memory.O.shape[1], 1, 1), np.float32 )
-    trainingSet = []
+    recordsToPull = [random.randint(0, totalMemorySize - 2) for i in range(REPLAY_MEMORY_SIZE)]
+    samples = np.zeros((REPLAY_MEMORY_SIZE, memory.O.shape[1], 1, 1), np.float32)
+    targets = np.zeros((REPLAY_MEMORY_SIZE, 3, 1, 1), np.float32)
+    nextStates = np.zeros((REPLAY_MEMORY_SIZE, memory.O.shape[1], 1, 1), np.float32)
     terminalStates = []
     for i in range(len(recordsToPull)):
       r = recordsToPull[i]
       # Make sure that next state belongs to the same image
-      if memory.I[r] != memory.I[r+1]:
+      if memory.I[r] != memory.I[r + 1]:
         terminalStates.append(i) 
-      samples[i,:,0,0] = memory.O[r,:]
-      nextStates[i,:,0,0] = memory.O[r+1,:]
-      action = memory.A[r,0]
-      reward = memory.R[r,0]
-      targets[i,:,0,0] = np.array([action, reward, 0.0], np.float32)
+      samples[i, :, 0, 0] = self.processImage(memory.I[r], memory.O[r, :])
+      nextStates[i, :, 0, 0] = self.processImage(memory.I[r + 1], memory.O[r + 1, :])
+      action = memory.A[r, 0]
+      reward = memory.R[r, 0]
+      targets[i, :, 0, 0] = np.array([action, reward, 0.0], np.float32)
     if controller.net != None:
       controller.loadNetwork(definition='deploy.maxq.prototxt')
-      discountedMaxNextQ = self.gamma*np.max( controller.getActivations(nextStates), axis=1 )
+      discountedMaxNextQ = self.gamma * np.max(controller.getActivations(nextStates), axis=1)
       discountedMaxNextQ[terminalStates] = 0.0
-      targets[:,2,0,0] = discountedMaxNextQ
-
+      targets[:, 2, 0, 0] = discountedMaxNextQ
+    
     print '# Update network'
     self.netManager.doNetworkTraining(samples, targets)
 
@@ -71,24 +72,39 @@ class QLearning(ValueBasedLearner):
     maxNegAllowed = REPLAY_MEMORY_SIZE - priors.P.shape[0]
 
     print '# Select a random sample of records'
-    recordsToPull = [random.randint(0,negativeRecords-1) for i in range(maxNegAllowed)]
-    samples = np.zeros( (REPLAY_MEMORY_SIZE, NETWORK_INPUTS, 1, 1), np.float32 )
-    targets = np.zeros( (REPLAY_MEMORY_SIZE, 3, 1, 1), np.float32 )
-    trainingSet = []
+    recordsToPull = [random.randint(0, negativeRecords - 1) for i in range(maxNegAllowed)]
+    samples = np.zeros((REPLAY_MEMORY_SIZE, NETWORK_INPUTS, 1, 1), np.float32)
+    targets = np.zeros((REPLAY_MEMORY_SIZE, 3, 1, 1), np.float32)
     for i in range(len(recordsToPull)):
       r = recordsToPull[i]
-      samples[i,:,0,0] = np.hstack( (priors.N[r,:], generateRandomActionHistory()) )
-      targets[i,:,0,0] = np.array([bs.PLACE_LANDMARK, -DETECTION_REWARD, 0.0], np.float32)
+      samples[i, :, 0, 0] = np.hstack((priors.N[r, :], generateRandomActionHistory()))
+      targets[i, :, 0, 0] = np.array([bs.PLACE_LANDMARK, -DETECTION_REWARD, 0.0], np.float32)
     j = 0
     for i in range(len(recordsToPull), REPLAY_MEMORY_SIZE):
-      samples[i,:,0,0] = np.hstack( (priors.P[j,:], generateRandomActionHistory()) )
-      targets[i,:,0,0] = np.array([bs.PLACE_LANDMARK, DETECTION_REWARD, 0.0], np.float32)
+      samples[i, :, 0, 0] = np.hstack((priors.P[j, :], generateRandomActionHistory()))
+      targets[i, :, 0, 0] = np.array([bs.PLACE_LANDMARK, DETECTION_REWARD, 0.0], np.float32)
       j += 1
 
     print '# Update network'
     np.random.shuffle(samples)
     self.netManager.doNetworkTraining(samples, targets)
 
+  def processImage(self, filename, box):
+    """ Loads an image from the given filename and crops with according to the given box.
+    
+    Parameters
+    ----------
+    filename : string
+    box : array
+        coordinates in the format [x1, y1, x2, y2] determining the region to crop.
+    
+    Returns
+    -------
+    image: a crop of the loaded image.
+    """
+    image = caffe.io.load_image(filename)
+    image = image[box[1]:box[3], box[0]:box[2]]
+    return image
 
 class CaffeMultiLayerPerceptronManagement():
 
@@ -108,12 +124,12 @@ class CaffeMultiLayerPerceptronManagement():
     self.solver.solve()
     self.iter += config.geti('trainingIterationsPerBatch')
     if self.iter % self.stepSize == 0:
-      newLR = self.lr * ( self.gamma** int(self.iter/self.stepSize) )
-      print 'Changing LR to:',newLR
+      newLR = self.lr * (self.gamma ** int(self.iter / self.stepSize))
+      print 'Changing LR to:', newLR
       self.solver.change_lr(newLR)
 
   def writeSolverFile(self):
-    out = open(self.directory + '/solver.prototxt','w')
+    out = open(self.directory + '/solver.prototxt', 'w')
     out.write('train_net: "' + self.directory + 'train.prototxt"\n')
     out.write('base_lr: ' + config.get('learningRate') + '\n')
     out.write('lr_policy: "step"\n')
