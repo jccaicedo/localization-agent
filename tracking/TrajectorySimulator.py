@@ -272,7 +272,7 @@ class TrajectorySimulator():
     self.bounds = np.vstack([self.bounds, np.ones((1,self.bounds.shape[1]))])
     self.cameraBounds = np.array([[0,self.camSize[0],self.camSize[0],0],[0,0,self.camSize[1],self.camSize[1]]])
     self.cameraBounds = np.vstack([self.cameraBounds, np.ones((1,self.cameraBounds.shape[1]))])
-    self.occluder = OcclussionGenerator(self.scene.size[0], self.scene.size[1], min(self.objSize)*0.5)
+    self.occluder = OcclussionGenerator(self.scene.size[0], self.scene.size[1], min(self.objSize)*0.3)
     self.currentTransform = np.eye(3,3)
     self.cameraTransform = np.eye(3,3)
     #TODO: reactivate shape transforms

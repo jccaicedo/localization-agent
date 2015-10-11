@@ -2,14 +2,14 @@
 py = require('fb.python')
 require 'nn'
 require 'rnn'
-require 'cutorch'
-require 'cunnx'
+--require 'cutorch'
+--require 'cunnx'
 -- Add the directory to the PYTHONPATH env variable:
 -- export PYTHONPATH=$PYTHONPATH:/home/juan/workspace/localization-agent/tracking
 py.exec([=[import VideoSequenceData as vs]=])
 vs = py.reval('vs.VideoSequenceData()')
 
-gpu = true
+gpu = false
 
 -- ConvNet
 --net = nn.Sequential()
@@ -24,28 +24,24 @@ gpu = true
 -- net:add( nn.Sequencer( nn.Dropout(0.5) ) )
 
 net = nn.Sequential()
-net:add( nn.Sequencer( nn.SpatialConvolution(2,64,11,11,4,4,2,2) ) )       -- 224 -> 55
-net:add( nn.Sequencer( nn.SpatialMaxPooling(3,3,2,2) ) )                   -- 55 ->  27
-net:add( nn.Sequencer( nn.ReLU(true) ) )
---net:add( nn.Sequencer( nn.SpatialBatchNormalization(64,nil,nil,false) ) )
-net:add( nn.Sequencer( nn.SpatialConvolution(64,192,5,5,1,1,2,2) ) )       --  27 -> 27
-net:add( nn.Sequencer( nn.SpatialMaxPooling(3,3,2,2) ) )                   --  27 ->  13
+net:add( nn.Sequencer( nn.SpatialConvolution(2,64,5,5,2,2,1,1) ) )       --  64 -> 32
 net:add( nn.Sequencer( nn.ReLU(true) ) )
 --net:add( nn.Sequencer( nn.SpatialBatchNormalization(192,nil,nil,false) ) )
-net:add( nn.Sequencer( nn.SpatialConvolution(192,384,3,3,1,1,1,1) ) )      --  13 ->  13
+net:add( nn.Sequencer( nn.SpatialConvolution(64,128,3,3,1,1,2,2) ) )      --  32 -> 32
+net:add( nn.Sequencer( nn.SpatialMaxPooling(3,3,2,2) ) )                   -- 32 -> 16
 net:add( nn.Sequencer( nn.ReLU(true) ) )
 --net:add( nn.Sequencer( nn.SpatialBatchNormalization(384,nil,nil,false) ) )
-net:add( nn.Sequencer( nn.SpatialConvolution(384,256,3,3,1,1,1,1) ) )      --  13 ->  13
+net:add( nn.Sequencer( nn.SpatialConvolution(128,128,3,3,1,1,1,1) ) )      --  16 ->  15
 net:add( nn.Sequencer( nn.ReLU(true) ) )
 --net:add( nn.Sequencer( nn.SpatialBatchNormalization(256,nil,nil,false) ) )
-net:add( nn.Sequencer( nn.SpatialConvolution(256,256,3,3,1,1,1,1) ) )      --  13 ->  13
-net:add( nn.Sequencer( nn.SpatialMaxPooling(3,3,2,2) ) )                   -- 13 -> 6
+net:add( nn.Sequencer( nn.SpatialConvolution(128,128,3,3,1,1,1,1) ) )      --  15 -> 14
+net:add( nn.Sequencer( nn.SpatialMaxPooling(3,3,2,2) ) )                   -- 14 -> 7
 net:add( nn.Sequencer( nn.ReLU(true) ) )
 --net:add( nn.Sequencer( nn.SpatialBatchNormalization(256,nil,nil,false) ) )
 
-net:add( nn.Sequencer( nn.View(256*6*6) ) )
+net:add( nn.Sequencer( nn.View(128*7*7) ) )
 --net:add( nn.Sequencer( nn.Dropout(0.5) ) )
-net:add( nn.Sequencer( nn.Linear(256*6*6, 4096) ) )
+net:add( nn.Sequencer( nn.Linear(128*7*7, 2048) ) )
 --net:add( nn.Sequencer( nn.Threshold(0, 1e-6) ) )
 --net:add( nn.Sequencer( nn.Dropout(0.5) ) )
 --net:add( nn.Sequencer( nn.Linear(4096, 4096) ) )
@@ -53,8 +49,8 @@ net:add( nn.Sequencer( nn.Linear(256*6*6, 4096) ) )
 --net:add( nn.Sequencer( nn.Linear(4096, 1000) ) )
 
 -- RNN
-inputSize = 4096
-hiddenSize = 1024
+inputSize = 2048
+hiddenSize = 512
 nIndex = 4
 
 -- LSTM
