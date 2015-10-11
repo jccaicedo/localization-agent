@@ -5,12 +5,13 @@ import PIL.ImageDraw as ImageDraw
 import TrajectorySimulator as ts
 
 #TODO: Put this configuration in an external file or rely entirely on Coco's data
-dataDir = '/home/jccaicedo/data/tracking/simulations/'
+#dataDir = '/home/jccaicedo/data/tracking/simulations/'
+dataDir = '/home/juan/Pictures/test/'
 scene = dataDir + 'bogota.jpg'
 obj = dataDir + 'photo.jpg'
 box = [0, 100, 0, 100]
 polygon = [50, 0, 100, 50, 50, 100, 0, 50]
-imgSize = 64
+imgSize = 200
 channels = 2
 totalFrames = 60
 cam = False
@@ -21,9 +22,8 @@ def transformFrame(source, save=None, box=None):
   frame = frame.resize((imgSize,imgSize),Image.ANTIALIAS)
   '''if box is not None:
     draw = ImageDraw.Draw(frame)
-    draw.rectangle(box,outline=255)
-    draw.rectangle(fraction(box,0.50),outline=255)
-    draw.rectangle(fraction(box,0.75),outline=255)'''
+    for f in [1,0.75,0.5,0.25]:
+      draw.rectangle(fraction(box,f),outline=255)'''
   if save is not None:
     frame.save(save)
   return np.array(frame)
@@ -36,9 +36,13 @@ def fraction(b,k):
 def maskFrame(frame, box):
   maskedF = np.zeros( (2, frame.shape[0], frame.shape[1]) )
   maskedF[0,:,:] = (frame - 128.0)/128.0
-  b = map(int, box)
   maskedF[-1,:,:] = 0
-  maskedF[-1,b[0]:b[2],b[1]:b[3]] = 1
+  for factor in [(1.00, 1), (0.75, -1), (0.5, 1), (0.25, -1)]:
+    b = map(int, fraction(box, factor[0]))
+    maskedF[-1, b[0]:b[2], b[1]:b[3]] = factor[1]
+  #import pylab
+  #pylab.imshow(maskedF[-1,:,:])
+  #pylab.show()
   return maskedF
 
 class VideoSequenceData():
