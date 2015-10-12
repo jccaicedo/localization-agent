@@ -18,7 +18,7 @@ gpu = true
 
 -- ConvNet
 net = nn.Sequential()
-net:add( nn.Sequencer( nn.SpatialConvolution(2,64,5,5,2,2,1,1) ) )       --  64 -> 32
+net:add( nn.Sequencer( nn.SpatialConvolution(4,64,5,5,2,2,1,1) ) )       --  64 -> 32
 net:add( nn.Sequencer( nn.ReLU(true) ) )
 --net:add( nn.Sequencer( nn.SpatialBatchNormalization(192,nil,nil,false) ) )
 net:add( nn.Sequencer( nn.SpatialConvolution(64,128,3,3,1,1,2,2) ) )      --  32 -> 32

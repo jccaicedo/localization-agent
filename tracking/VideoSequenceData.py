@@ -5,8 +5,10 @@ import PIL.ImageDraw as ImageDraw
 import TrajectorySimulator as ts
 try:
   import cv2
+  channels = 4
 except:
   cv2 = None
+  channels = 2
 
 #TODO: Put this configuration in an external file or rely entirely on Coco's data
 dataDir = '/home/jccaicedo/data/tracking/simulations/'
@@ -16,10 +18,8 @@ obj = dataDir + 'photo.jpg'
 box = [0, 100, 0, 100]
 polygon = [50, 0, 100, 50, 50, 100, 0, 50]
 imgSize = 64
-channels = 2
 totalFrames = 60
 cam = False
-
 
 def fraction(b,k):
   w = (b[2]-b[0])*(1-k)/2.
