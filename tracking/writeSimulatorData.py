@@ -79,5 +79,5 @@ if __name__ == '__main__':
     outFile.close()
 
     while os.path.exists(filePath):
-      time.sleep(0.1)
+      time.sleep(0.5)
 

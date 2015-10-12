@@ -5,13 +5,13 @@ import PIL.ImageDraw as ImageDraw
 import TrajectorySimulator as ts
 
 #TODO: Put this configuration in an external file or rely entirely on Coco's data
-#dataDir = '/home/jccaicedo/data/tracking/simulations/'
-dataDir = '/home/juan/Pictures/test/'
+dataDir = '/home/jccaicedo/data/tracking/simulations/'
+#dataDir = '/home/juan/Pictures/test/'
 scene = dataDir + 'bogota.jpg'
 obj = dataDir + 'photo.jpg'
 box = [0, 100, 0, 100]
 polygon = [50, 0, 100, 50, 50, 100, 0, 50]
-imgSize = 200
+imgSize = 64
 channels = 2
 totalFrames = 60
 cam = False
