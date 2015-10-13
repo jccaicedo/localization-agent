@@ -272,7 +272,7 @@ class TrajectorySimulator():
     self.bounds = np.vstack([self.bounds, np.ones((1,self.bounds.shape[1]))])
     self.cameraBounds = np.array([[0,self.camSize[0],self.camSize[0],0],[0,0,self.camSize[1],self.camSize[1]]])
     self.cameraBounds = np.vstack([self.cameraBounds, np.ones((1,self.cameraBounds.shape[1]))])
-    self.occluder = OcclussionGenerator(self.scene.size[0], self.scene.size[1], min(self.objSize)*0.5)
+    self.occluder = OcclussionGenerator(self.scene.size[0], self.scene.size[1], min(self.objSize)*0.3)
     self.currentTransform = np.eye(3,3)
     self.cameraTransform = np.eye(3,3)
     #TODO: reactivate shape transforms
@@ -288,9 +288,9 @@ class TrajectorySimulator():
         self.contentTransforms = [
             Transformation(scaleX, 0.7, 1.3),
             Transformation(scaleY, 0.7, 1.3),
-            Transformation(rotate, -np.pi/2, np.pi/2),
-            Transformation(translateX, max(self.objSize), self.camSize[0]-max(self.objSize)),
-            Transformation(translateY, max(self.objSize), self.camSize[1]-max(self.objSize)),
+            Transformation(rotate, -np.pi/50, np.pi/50),
+            Transformation(translateX, 0, self.camSize[0]-max(self.objSize)),
+            Transformation(translateY, 0, self.camSize[1]-max(self.objSize)),
         ]
     else:
         self.contentTransforms = contentTransforms
@@ -382,18 +382,21 @@ class TrajectorySimulator():
 
   def saveFrame(self, outDir):
     fname = os.path.join(outDir, str(self.step).zfill(4) + '.jpg')
-    self.sceneView.save(fname)
+    self.getFrame().save(fname)
     gtPath = os.path.join(outDir, 'groundtruth_rect.txt')
     if self.step <= 1:
       out = open(gtPath, 'w')
     else:
       out = open(gtPath, 'a')
-    box = map(int,[self.box[0], self.box[1], self.box[2]-self.box[0], self.box[3]-self.box[1]])
-    out.write( ' '.join(map(str,box)) + '\n' )
+    box = map(int,[self.box[0], self.box[1], self.box[2], self.box[3]])
+    out.write(','.join(map(str,box)) + '\n' )
     out.close()
 
   def getFrame(self):
-    return self.sceneView
+    if self.camera:
+      return self.camView
+    else:
+      return self.sceneView
 
   def getBox(self):
     return self.box
@@ -407,10 +410,7 @@ class TrajectorySimulator():
 
   def next(self):
     if self.nextStep():
-      if self.camera:
-        return self.camView
-      else:
-        return self.sceneView
+      return self.getFrame()
     else:
       raise StopIteration()
 
