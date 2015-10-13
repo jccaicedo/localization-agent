@@ -65,42 +65,22 @@ end
 -- Training
 lr = 0.0001
 updateInterval = 10
-iterations = 100000
+iterations = 1000
 i = 1
 avgErr = 0
 maxLength = 10
 t = torch.Timer()
-simulationFile = '/home/jccaicedo/data/tracking/simulations/simulation.hdf5'
+--simulationFile = '/home/jccaicedo/data/tracking/simulations/simulation.hdf5'
+simulationFile = '/home/jccaicedoru/Pictures/test/simulation.hdf5'
 
-<<<<<<< HEAD
 timer = torch.Timer()
 t = torch.Timer()
-=======
 print('Training begins')
->>>>>>> 29ab7e55bcab950a9edbe41cd40574f1d1996091
 while i < iterations do
    -- Search simulation data
    while not paths.filep(simulationFile) do
      sys.sleep(0.1)
    end
-<<<<<<< HEAD
-   local output = net:forward(inputs)
-   local err = criterion:forward(output, targets)
-   net:zeroGradParameters()
-   local gradOutput = criterion:backward(output, targets)
-   -- the Recurrent layer is memorizing its gradOutputs (up to memSize)
-   local netGrad = net:backward(inputs, gradOutput)
-   net:updateParameters(lr)
-
-   i = i + 1
-   avgErr = avgErr + err
-   -- note that updateInterval < rho
-   if i % updateInterval == 0 then
-      print('Error at iteration ',i,avgErr/updateInterval)
-      print('Timing ', t:time().real)
-      t = torch.Timer()
-      avgErr = 0
-=======
    -- Read all sequences in the simulation file
    local data = hdf5.open(simulationFile, 'r')
    local frames = {}
@@ -108,7 +88,6 @@ while i < iterations do
    for j=0,99 do
      frames[j] = data:read('frames'..j):all()
      moves[j] = data:read('targets'..j):all()
->>>>>>> 29ab7e55bcab950a9edbe41cd40574f1d1996091
    end
    data:close()
    sys.execute('rm ' .. simulationFile)

@@ -10,7 +10,7 @@ GEN = 10 # Number of generator objects
 SIM = 10 # Simulations per generator
 
 # FUNCTION
-# Distributed work in multiple cores
+# Distribute work in multiple cores
 def worker(inQueue, outQueue, simulations, output):
   for data in iter(inQueue.get,'stop'):
     index,sequenceGenerator = data
