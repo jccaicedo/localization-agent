@@ -10,6 +10,8 @@ box = [0, 100, 0, 100]
 polygon = [50, 0, 100, 50, 50, 100, 0, 50]
 cam = False
 
+MAX_SPEED_PIXELS = 10.0
+
 def transformFrame(source):
   frame = source.getFrame()
   frame = frame.convert('L')
@@ -48,7 +50,7 @@ class VideoSequenceData():
       return maskFrame(frame, self.predictedBox)
 
   def getMove(self):
-    delta = [int(self.box[i]-self.prevBox[i]) for i in range(len(self.box))]
+    delta = [int(self.box[i]-self.prevBox[i])/MAX_SPEED_PIXELS for i in range(len(self.box))]
     return delta
 
   def setPredictedBox(self, delta):

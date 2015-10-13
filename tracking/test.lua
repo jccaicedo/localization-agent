@@ -62,13 +62,15 @@ if gpu then
 end
 
 -- Training
-lr = 0.001
+lr = 0.0001
 updateInterval = 10
-iterations = 5000
+iterations = 100000
 i = 1
 avgErr = 0
 maxLength = 10
 
+timer = torch.Timer()
+t = torch.Timer()
 while i < iterations do
    -- a batch of inputs
    vs.prepareSequence()
@@ -99,10 +101,13 @@ while i < iterations do
    avgErr = avgErr + err
    -- note that updateInterval < rho
    if i % updateInterval == 0 then
-      print(i,avgErr/updateInterval)
+      print('Error at iteration ',i,avgErr/updateInterval)
+      print('Timing ', t:time().real)
+      t = torch.Timer()
       avgErr = 0
    end
 end
+print('Total training time: ' .. timer:time().real)
 
 -- Do a test prediction
 length = math.ceil(math.random()*maxLength)
