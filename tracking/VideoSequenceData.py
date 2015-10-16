@@ -21,6 +21,8 @@ imgSize = 64
 totalFrames = 60
 cam = False
 
+MAX_SPEED_PIXELS = 1.0
+
 def fraction(b,k):
   w = (b[2]-b[0])*(1-k)/2.
   h = (b[3]-b[1])*(1-k)/2.
@@ -33,7 +35,6 @@ def maskFrame(frame, flow, box):
     maskedF[2,:,:] = flow[...,1]/10
   else:
     maskedF = np.zeros( (2, frame.shape[0], frame.shape[1]) )
-
   maskedF[0,:,:] = (frame - 128.0)/128.0
   maskedF[-1,:,:] = 0
   for factor in [(1.00, 1), (0.75, -1), (0.5, 1), (0.25, -1)]:
@@ -89,7 +90,7 @@ class VideoSequenceData():
       return maskFrame(self.now, flow, self.predictedBox)
 
   def getMove(self):
-    delta = [int(self.box[i]-self.prevBox[i]) for i in range(len(self.box))]
+    delta = [int(self.box[i]-self.prevBox[i])/MAX_SPEED_PIXELS for i in range(len(self.box))]
     return delta
 
   def setPredictedBox(self, delta):
