@@ -3,6 +3,7 @@ import numpy as np
 import PIL.Image as Image
 import PIL.ImageDraw as ImageDraw
 import TrajectorySimulator as ts
+import TraxClient as tc
 try:
   import cv2
   channels = 4
@@ -56,6 +57,8 @@ class VideoSequenceData(object):
   def prepareSequence(self, loadSequence=None):
     if loadSequence is None:
       self.dataSource = ts.TrajectorySimulator(scene, obj, box, polygon, camera=cam)
+    elif loadSequence == 'TraxClient':
+      self.dataSource = TraxClientWrapper()
     else:
       self.dataSource = StaticDataSource(loadSequence) 
     self.deltaW = float(imgSize)/self.dataSource.getFrame().size[0]
@@ -99,6 +102,7 @@ class VideoSequenceData(object):
 
   def setMove(self, delta):
     self.predictedBox = [int(self.box[i] + delta[i]*MAX_SPEED_PIXELS) for i in range(len(self.box))]
+    self.dataSource.reportBox(self.predictedBox)
 
   def transformFrame(self, save=None, box=None):
     frame = self.dataSource.getFrame()
@@ -129,6 +133,9 @@ class StaticDataSource(object):
   def getBox(self):
     return self.boxes[self.current]
 
+  def reportBox(self, box):
+    return
+
   def nextStep(self):
     if self.current < len(self.frames):
       self.current += 1
@@ -137,3 +144,23 @@ class StaticDataSource(object):
     else:
       return False
 
+class TraxClientWrapper(object):
+
+  def __init__(self):
+    self.client = tc.TraxClient()
+    self.path = self.client.nextFramePath()
+    self.box = self.client.initialize()
+
+  def getFrame(self):
+    img = Image.open(self.path)
+    return img
+
+  def getBox(self):
+    return self.box
+
+  def reportBox(self, box):
+    self.box = box
+    self.client.reportRegion(box)
+
+  def nextStep(self):
+    return True
