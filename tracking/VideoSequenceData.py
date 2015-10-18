@@ -137,7 +137,7 @@ class StaticDataSource(object):
     return
 
   def nextStep(self):
-    if self.current < len(self.frames):
+    if self.current < len(self.frames)-1:
       self.current += 1
       self.img = Image.open(self.dir + self.frames[self.current])
       return True
@@ -150,6 +150,7 @@ class TraxClientWrapper(object):
     self.client = tc.TraxClient()
     self.path = self.client.nextFramePath()
     self.box = self.client.initialize()
+    # TODO: Transform box from 4 coordinates to 2 coordinates
 
   def getFrame(self):
     img = Image.open(self.path)
@@ -159,8 +160,14 @@ class TraxClientWrapper(object):
     return self.box
 
   def reportBox(self, box):
+    # TODO: Transform from 2 coordinates to 4 coordinates
     self.box = box
     self.client.reportRegion(box)
 
   def nextStep(self):
-    return True
+    self.path = self.client.nextFramePath()
+    if self.path == '':
+      self.client.quit()
+      return False
+    else:
+      return True
