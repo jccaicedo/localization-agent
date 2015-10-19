@@ -21,7 +21,7 @@ imgSize = 64
 totalFrames = 60
 cam = False
 
-MAX_SPEED_PIXELS = 10.0
+MAX_SPEED_PIXELS = 1.0
 
 def fraction(b,k):
   w = (b[2]-b[0])*(1-k)/2.

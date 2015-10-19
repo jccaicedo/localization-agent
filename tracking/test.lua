@@ -34,7 +34,7 @@ net:add( nn.Sequencer( nn.ReLU(true) ) )
 --net:add( nn.Sequencer( nn.SpatialBatchNormalization(256,nil,nil,false) ) )
 
 net:add( nn.Sequencer( nn.View(128*7*7) ) )
---net:add( nn.Sequencer( nn.Dropout(0.5) ) )
+net:add( nn.Sequencer( nn.Dropout(0.5) ) )
 net:add( nn.Sequencer( nn.Linear(128*7*7, 2048) ) )
 --net:add( nn.Sequencer( nn.Threshold(0, 1e-6) ) )
 --net:add( nn.Sequencer( nn.Dropout(0.5) ) )
@@ -63,18 +63,18 @@ if gpu then
 end
 
 -- Training
-lr = 0.0001
+lr = 0.001
 updateInterval = 10
-iterations = 1000
+iterations = 500
 i = 1
 avgErr = 0
-maxLength = 10
 t = torch.Timer()
---simulationFile = '/home/jccaicedo/data/tracking/simulations/simulation.hdf5'
-simulationFile = '/home/jccaicedoru/Pictures/test/simulation.hdf5'
+simulationFile = '/home/jccaicedo/data/tracking/simulations/simulation.hdf5'
+--simulationFile = '/home/jccaicedoru/Pictures/test/simulation.hdf5'
 
 timer = torch.Timer()
 t = torch.Timer()
+net:training()
 print('Training begins')
 while i < iterations do
    -- Search simulation data
@@ -123,23 +123,5 @@ while i < iterations do
   end
 end
 print('Total training time: ' .. timer:time().real)
-
--- Do a test prediction
-length = math.ceil(math.random()*maxLength)
-S = stp.generateMaskedSeq(py.int(length),py.int(32),py.int(32),py.int(6))
-stp.showSequence(S[0],S[1],2)
-local I = py.eval(S[0])
-local T = py.eval(S[1])
-local inputs = {}
-local targets = {}
-for j=1,length do
-  inputs[j] = I[{{j},{},{},{}}]
-  targets[j] = T[j]
-end
-local output = net:forward(inputs)
-for j=1,length do
-  m,i = output[j]:max(1)
-  print(targets[j],i[1])
-end
-
+torch.save('net.snapshot.bin', net)
 
