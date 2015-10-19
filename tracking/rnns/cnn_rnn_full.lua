@@ -65,7 +65,7 @@ end
 -- Training
 lr = 0.001
 updateInterval = 10
-iterations = 500
+iterations = 100000
 i = 1
 avgErr = 0
 t = torch.Timer()
