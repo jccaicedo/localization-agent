@@ -7,18 +7,35 @@ from multiprocessing import Process, JoinableQueue, Queue
 
 inputFile = vsd.dataDir + 'input.hdf5' # Input file for tracker
 responseFile = vsd.dataDir + 'output.hdf5' # Output of the tracker
-evalSeqDir = '/home/jccaicedoru/data/tracking/simulations/test/'
+loadFrom = vsd.dataDir + 'test/'
+#loadFrom = 'TraxClient'
 
 SEQLEN = 60 # Number of input frames that the tracker takes
+
+def writeRequest(packet):
+  output = h5py.File(inputFile,'w')
+  output.create_dataset("sequence",data=packet)
+  output.close()
+  os.system('touch ' + inputFile + '.ready')
+
+def readResponse():
+  response = h5py.File(responseFile)
+  data = np.asarray(response['predictions'][...])
+  response.close()
+  os.remove(responseFile)
+  os.remove(responseFile+'.ready')
+  return data
 
 # Main Procedure
 if __name__ == '__main__':
   
+  torchProcess = False
   seq = vsd.VideoSequenceData()
-  seq.prepareSequence(loadSequence=evalSeqDir)
+  seq.prepareSequence(loadSequence=loadFrom)
   frames = np.zeros((SEQLEN,vsd.channels,vsd.imgSize,vsd.imgSize))
   frames[0,...] = seq.getFrame()
   step = 1
+  os.system('touch ' + inputFile + '.running')
   while seq.nextStep(mode='test'):
     print 'Working at step ',step
 
@@ -33,22 +50,22 @@ if __name__ == '__main__':
     step += 1
 
     # Store the sequence
-    output = h5py.File(inputFile,'w')
-    output.create_dataset("sequence",data=outFrames)
-    output.close()
-    os.system('touch ' + inputFile + '.ready')
+    writeRequest(outFrames)
+
+    # Start the torch process if it is not already running
+    if not torchProcess:
+      os.system('th rnns/test_CNN_RNN.lua &')
+      torchProcess = True
 
     # Wait a bit more while the tracker puts the answer
     while not os.path.exists(responseFile) or not os.path.exists(responseFile + '.ready'):
       time.sleep(0.1)
 
     # Read the response of the tracker
-    response = h5py.File(responseFile)
-    data = np.asarray(response['predictions'][...])
-    response.close()
-    os.remove(responseFile)
-    os.remove(responseFile+'.ready')
+    data = readResponse()
 
     # Update the sequencer
     seq.setMove(data)
 
+os.remove(inputFile + '.running')
+print 'Finished'

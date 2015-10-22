@@ -15,6 +15,7 @@ require 'paths'
 require 'hdf5'
 
 gpu = true
+workingDir = '/home/jccaicedoru/data/tracking/simulations/'
 
 -- ConvNet
 net = nn.Sequential()
@@ -69,8 +70,7 @@ iterations = 500
 i = 1
 avgErr = 0
 t = torch.Timer()
-simulationFile = '/home/jccaicedo/data/tracking/simulations/simulation.hdf5'
---simulationFile = '/home/jccaicedoru/Pictures/test/simulation.hdf5'
+simulationFile = workingDir .. 'simulation.hdf5'
 
 timer = torch.Timer()
 t = torch.Timer()
