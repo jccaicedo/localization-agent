@@ -57,7 +57,7 @@ MIN_PHASE = 0.0
 MAX_PHASE = 1.0
 MIN_VSHIFT = -0.5
 MAX_VSHIFT = 0.5
-RANGE = np.arange(0.0, 6.0, 0.1)
+RANGE = np.arange(0.0, 8.0, 0.1)
 
 def stretch(values, z1, z2):
   mi = min(values)
@@ -88,9 +88,9 @@ class OffsetTrajectory():
         self.yMax = h-offset
         self.scaleMax = 1.0
         self.scaleMin = 0.8
-        print 'Translation bounds: {} to {}'.format([self.xMin, self.yMin], [self.xMax, self.yMax])
-        print 'Rotation bounds: {} to {}'.format(self.thetaMin, self.thetaMax)
-        print 'Scale bounds: {} to {}'.format(self.scaleMin, self.scaleMax)
+        print('Translation bounds: {} to {}'.format([self.xMin, self.yMin], [self.xMax, self.yMax]))
+        print('Rotation bounds: {} to {}'.format(self.thetaMin, self.thetaMax))
+        print('Scale bounds: {} to {}'.format(self.scaleMin, self.scaleMax))
         self.transforms = [
             #Transformation(translateX, -offset, -offset),
             #Transformation(translateY, -offset, -offset),

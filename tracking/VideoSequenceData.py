@@ -3,6 +3,7 @@ import numpy as np
 import PIL.Image as Image
 import PIL.ImageDraw as ImageDraw
 import TrajectorySimulator as ts
+import TraxClient as tc
 try:
   import cv2
   channels = 4
@@ -11,8 +12,7 @@ except:
   channels = 2
 
 #TODO: Put this configuration in an external file or rely entirely on Coco's data
-dataDir = '/home/jccaicedo/data/tracking/simulations/'
-#dataDir = '/home/juan/Pictures/test/'
+dataDir = '/data1/vot-challenge/simulations/'
 scene = dataDir + 'bogota.jpg'
 obj = dataDir + 'photo.jpg'
 box = [0, 100, 0, 100]
@@ -45,7 +45,7 @@ def maskFrame(frame, flow, box):
   #pylab.show()
   return maskedF
 
-class VideoSequenceData():
+class VideoSequenceData(object):
 
   def __init__(self):
     self.predictedBox = [0,0,0,0]
@@ -54,27 +54,41 @@ class VideoSequenceData():
     self.prv = None
     self.now = None
 
-  def prepareSequence(self):
-    self.dataSource = ts.TrajectorySimulator(scene, obj, box, polygon, camera=cam)
+  def prepareSequence(self, loadSequence=None):
+    if loadSequence is None:
+      self.dataSource = ts.TrajectorySimulator(scene, obj, box, polygon, camera=cam)
+    elif loadSequence == 'TraxClient':
+      self.dataSource = TraxClientWrapper()
+    else:
+      self.dataSource = StaticDataSource(loadSequence) 
     self.deltaW = float(imgSize)/self.dataSource.getFrame().size[0]
     self.deltaH = float(imgSize)/self.dataSource.getFrame().size[1]
     b = self.dataSource.getBox()
     self.box = map(int, [b[0]*self.deltaW, b[1]*self.deltaH, b[2]*self.deltaW, b[3]*self.deltaH])
-    self.prevBox = map(int, [b[0]*self.deltaW, b[1]*self.deltaH, b[2]*self.deltaW, b[3]*self.deltaH])
+    self.prevBox = map(lambda x:x, self.box)
+    self.predictedBox = map(lambda x:x, self.box)
     self.transformFrame()
     self.prev = self.now.copy()
     self.time = 0
 
-  def nextStep(self):
+  def nextStep(self, mode='training'):
     self.prevBox = map(lambda x:x, self.box)
-    step = self.dataSource.nextStep()
-    b = self.dataSource.getBox()
-    self.box = map(int, [b[0]*self.deltaW, b[1]*self.deltaH, b[2]*self.deltaW, b[3]*self.deltaH])
+    end = self.dataSource.nextStep()
+    if mode == 'training':
+      b = self.dataSource.getBox()
+      self.box = map(int, [b[0]*self.deltaW, b[1]*self.deltaH, b[2]*self.deltaW, b[3]*self.deltaH])
+    else:
+      b = self.dataSource.getBox()
+      tmp = map(int, [b[0]*self.deltaW, b[1]*self.deltaH, b[2]*self.deltaW, b[3]*self.deltaH])
+      print 'Predicted:',self.predictedBox, 'Real:',tmp,'Diff:',[tmp[i]-self.predictedBox[i] for i in range(len(tmp))]
+      self.box = map(lambda x:x, self.predictedBox)
     self.time += 1
-    return step
+    return end
 
-  def getFrame(self, mode='training', savePath=None):
+  def getFrame(self, savePath=None):
     if savePath is not None:
+      with open(savePath + '/rects.txt','a') as rects:
+        rects.write(' '.join(map(str,self.box)) + '\n')
       savePath += '/' + str(self.time).zfill(4) + '.jpg'
 
     self.prv = self.now
@@ -84,17 +98,15 @@ class VideoSequenceData():
     else:
       flow = None
 
-    if mode == 'training':
-      return maskFrame(self.now, flow, self.box)
-    else:
-      return maskFrame(self.now, flow, self.predictedBox)
+    return maskFrame(self.now, flow, self.box)
 
   def getMove(self):
     delta = [int(self.box[i]-self.prevBox[i])/MAX_SPEED_PIXELS for i in range(len(self.box))]
     return delta
 
-  def setPredictedBox(self, delta):
-    self.predictedBox = [self.box[i] + delta[i] for i in range(len(self.box))]
+  def setMove(self, delta):
+    self.predictedBox = [int(self.box[i] + delta[i]*MAX_SPEED_PIXELS) for i in range(len(self.box))]
+    self.dataSource.reportBox(self.predictedBox)
 
   def transformFrame(self, save=None, box=None):
     frame = self.dataSource.getFrame()
@@ -108,3 +120,58 @@ class VideoSequenceData():
       frame.save(save)
     self.now = np.array(frame)
 
+class StaticDataSource(object):
+
+  def __init__(self, directory):
+    data = os.listdir(directory)
+    self.dir = directory
+    self.frames = [d for d in data if d.endswith(".jpg")]
+    self.frames.sort()
+    self.boxes = [ map(int,b.split()) for b in open(directory + '/rects.txt')]
+    self.img = Image.open(self.dir + self.frames[0])
+    self.current = 0
+  
+  def getFrame(self):
+    return self.img
+
+  def getBox(self):
+    return self.boxes[self.current]
+
+  def reportBox(self, box):
+    return
+
+  def nextStep(self):
+    if self.current < len(self.frames)-1:
+      self.current += 1
+      self.img = Image.open(self.dir + self.frames[self.current])
+      return True
+    else:
+      return False
+
+class TraxClientWrapper(object):
+
+  def __init__(self):
+    self.client = tc.TraxClient()
+    self.path = self.client.nextFramePath()
+    self.box = self.client.initialize()
+    # TODO: Transform box from 4 coordinates to 2 coordinates
+
+  def getFrame(self):
+    img = Image.open(self.path)
+    return img
+
+  def getBox(self):
+    return self.box
+
+  def reportBox(self, box):
+    # TODO: Transform from 2 coordinates to 4 coordinates
+    self.box = box
+    self.client.reportRegion(box)
+
+  def nextStep(self):
+    self.path = self.client.nextFramePath()
+    if self.path == '':
+      self.client.quit()
+      return False
+    else:
+      return True
