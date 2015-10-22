@@ -15,7 +15,7 @@ require 'paths'
 require 'hdf5'
 
 gpu = true
-workingDir = '/home/jccaicedoru/data/tracking/simulations/'
+workingDir = '/home/jccaicedo/data/tracking/simulations/'
 
 -- ConvNet
 net = nn.Sequential()
@@ -66,7 +66,7 @@ end
 -- Training
 lr = 0.001
 updateInterval = 10
-iterations = 100000
+iterations = 50000
 i = 1
 avgErr = 0
 t = torch.Timer()
@@ -78,7 +78,7 @@ net:training()
 print('Training begins')
 while i < iterations do
    -- Search simulation data
-   while not paths.filep(simulationFile) do
+   while not paths.filep(simulationFile) or not paths.filep(simulationFile .. '.ready') do
      sys.sleep(0.1)
    end
    -- Read all sequences in the simulation file
@@ -91,6 +91,7 @@ while i < iterations do
    end
    data:close()
    sys.execute('rm ' .. simulationFile)
+   sys.execute('rm ' .. simulationFile .. '.ready')
    -- Use all read sequences
    for j=0,99 do
      if gpu then
@@ -123,5 +124,6 @@ while i < iterations do
   end
 end
 print('Total training time: ' .. timer:time().real)
-torch.save('net.snapshot.bin', net)
+torch.save(workingDir .. 'net.snapshot.bin', net)
+sys.execute('rm ' .. simulationFile .. '.running')
 
