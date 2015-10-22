@@ -73,11 +73,15 @@ def simulate(seq):
 if __name__ == '__main__':
 
   generators = [vsd.VideoSequenceData() for i in range(GEN)]
-  while True:
+  processFile = filePath + '.running'
+  os.system('touch ' + processFile)
+  while os.path.exists(processFile):
     outFile = h5py.File(filePath,'w')
     processData(generators, SIM, outFile)
     outFile.close()
+    os.system('touch ' + filePath + '.ready')
 
-    while os.path.exists(filePath):
+    while os.path.exists(filePath) and os.path.exists(processFile):
       time.sleep(0.5)
 
+  print 'Simulation server shut down'

@@ -12,7 +12,7 @@ except:
   channels = 2
 
 #TODO: Put this configuration in an external file or rely entirely on Coco's data
-dataDir = '/home/jccaicedoru/data/tracking/simulations/'
+dataDir = '/data1/vot-challenge/simulations/'
 scene = dataDir + 'bogota.jpg'
 obj = dataDir + 'photo.jpg'
 box = [0, 100, 0, 100]
@@ -65,7 +65,8 @@ class VideoSequenceData(object):
     self.deltaH = float(imgSize)/self.dataSource.getFrame().size[1]
     b = self.dataSource.getBox()
     self.box = map(int, [b[0]*self.deltaW, b[1]*self.deltaH, b[2]*self.deltaW, b[3]*self.deltaH])
-    self.prevBox = map(int, [b[0]*self.deltaW, b[1]*self.deltaH, b[2]*self.deltaW, b[3]*self.deltaH])
+    self.prevBox = map(lambda x:x, self.box)
+    self.predictedBox = map(lambda x:x, self.box)
     self.transformFrame()
     self.prev = self.now.copy()
     self.time = 0
@@ -77,6 +78,9 @@ class VideoSequenceData(object):
       b = self.dataSource.getBox()
       self.box = map(int, [b[0]*self.deltaW, b[1]*self.deltaH, b[2]*self.deltaW, b[3]*self.deltaH])
     else:
+      b = self.dataSource.getBox()
+      tmp = map(int, [b[0]*self.deltaW, b[1]*self.deltaH, b[2]*self.deltaW, b[3]*self.deltaH])
+      print 'Predicted:',self.predictedBox, 'Real:',tmp,'Diff:',[tmp[i]-self.predictedBox[i] for i in range(len(tmp))]
       self.box = map(lambda x:x, self.predictedBox)
     self.time += 1
     return end
