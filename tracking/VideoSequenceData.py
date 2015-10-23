@@ -105,7 +105,8 @@ class VideoSequenceData(object):
     return delta
 
   def setMove(self, delta):
-    self.predictedBox = [int(self.box[i] + delta[i]*MAX_SPEED_PIXELS) for i in range(len(self.box))]
+    print 'Delta:',delta
+    self.predictedBox = [round(self.box[i] + delta[i]*MAX_SPEED_PIXELS) for i in range(len(self.box))]
     self.dataSource.reportBox(self.predictedBox)
 
   def transformFrame(self, save=None, box=None):
