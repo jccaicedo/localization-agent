@@ -5,6 +5,7 @@ from PIL import Image
 from PIL import ImageEnhance
 from PIL import ImageDraw
 import numpy.linalg
+import pickle
 
 def startRandGen():
   r = random.Random()
@@ -239,7 +240,7 @@ class OcclussionGenerator():
 
 class TrajectorySimulator():
 
-  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9, camSize=(224,224), axes=False, maxSteps=None, contentTransforms=None, shapeTransforms=None, cameraContentTransforms=None, cameraShapeTransforms=None, drawBox=False, camera=True, drawCam=False):
+  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9, camSize=(224,224), axes=False, maxSteps=None, contentTransforms=None, shapeTransforms=None, cameraContentTransforms=None, cameraShapeTransforms=None, drawBox=False, camera=True, drawCam=False, trajectoryModelPath=None):
     self.randGen = startRandGen()
     if maxSteps is None:
         maxSteps = len(RANGE)
@@ -293,16 +294,31 @@ class TrajectorySimulator():
         ]
     else:
         self.shapeTransforms = shapeTransforms
-    if contentTransforms is None:
-        self.contentTransforms = [
-            Transformation(scaleX, 0.7, 1.3),
-            Transformation(scaleY, 0.7, 1.3),
-            Transformation(rotate, -np.pi/50, np.pi/50),
-            Transformation(translateX, 0, self.camSize[0]-max(self.objSize)),
-            Transformation(translateY, 0, self.camSize[1]-max(self.objSize)),
-        ]
+    if trajectoryModelPath is None:
+        if contentTransforms is None:
+            self.contentTransforms = [
+                Transformation(scaleX, 0.7, 1.3),
+                Transformation(scaleY, 0.7, 1.3),
+                Transformation(rotate, -np.pi/50, np.pi/50),
+                Transformation(translateX, 0, self.camSize[0]-max(self.objSize)),
+                Transformation(translateY, 0, self.camSize[1]-max(self.objSize)),
+            ]
+        else:
+            self.contentTransforms = contentTransforms
     else:
-        self.contentTransforms = contentTransforms
+        trajectoryModelFile = open(trajectoryModelPath, 'r')
+        trajectoryModel = pickle.load(trajectoryModelFile)
+        trajectoryModelFile.close()
+        nComponents = trajectoryModel.n_components
+        clusterIds = np.random.choice(nComponents, size=np.random.choice(10))
+        trajectory = numpy.mean(trajectoryModel.means_[clusterIds], axis=0)
+        self.contentTransforms = [
+            Transformation(scaleX, 0.7, 1.3, pathFunction=lambda a,b,steps: 10.0**trajectory[60*2:60*3]),
+            Transformation(scaleY, 0.7, 1.3, pathFunction=lambda a,b,steps: 10.0**trajectory[60*3:60*4]),
+            #Transformation(rotate, -np.pi/50, np.pi/50),
+            Transformation(translateX, 0, self.camSize[0]-max(self.objSize), pathFunction=lambda a,b,steps: trajectory[60*0:60*1]*self.scene.size[0]),
+            Transformation(translateY, 0, self.camSize[1]-max(self.objSize), pathFunction=lambda a,b,steps: trajectory[60*1:60*2]*self.scene.size[1]),
+        ]
     if cameraContentTransforms is None:
         cameraDiagonal = np.sqrt(self.camSize[0]**2+self.camSize[1]**2)
         self.cameraContentTransforms = OffsetTrajectory(self.scene.size[0], self.scene.size[1], cameraDiagonal).transforms
