@@ -13,6 +13,7 @@ except:
 
 #TODO: Put this configuration in an external file or rely entirely on Coco's data
 dataDir = '/home/juan/Pictures/test/'
+#dataDir = '/home/jccaicedo/data/tracking/simulations/'
 #dataDir = '/data1/vot-challenge/simulations/'
 scene = dataDir + 'bogota.jpg'
 obj = dataDir + 'photo.jpg'
@@ -106,7 +107,8 @@ class VideoSequenceData(object):
     return delta
 
   def setMove(self, delta):
-    self.predictedBox = [int(self.box[i] + delta[i]*MAX_SPEED_PIXELS) for i in range(len(self.box))]
+    print 'Delta:',delta
+    self.predictedBox = [round(self.box[i] + delta[i]*MAX_SPEED_PIXELS) for i in range(len(self.box))]
     self.dataSource.reportBox(self.predictedBox)
 
   def transformFrame(self, save=None, box=None):

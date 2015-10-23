@@ -16,7 +16,9 @@ require 'hdf5'
 
 gpu = true
 workingDir = '/home/jccaicedo/data/tracking/simulations/'
+--workingDir = '/data1/vot-challenge/simulations/'
 
+--[[
 -- ConvNet
 net = nn.Sequential()
 net:add( nn.Sequencer( nn.SpatialConvolution(4,64,5,5,2,2,1,1) ) )       --  64 -> 32
@@ -54,7 +56,9 @@ lstm = nn.Sequencer(nn.FastLSTM(inputSize, hiddenSize))
 -- Prediction Layers
 net:add( lstm )
 net:add( nn.Sequencer( nn.Linear(hiddenSize,nIndex) ) )
+]]--
 --net:add( nn.Sequencer( nn.LogSoftMax() ) )
+net = torch.load(workingDir .. 'net.snapshot.bin')
 criterion = nn.SequencerCriterion(nn.MSECriterion())
 
 -- GPU based
@@ -64,7 +68,7 @@ if gpu then
 end
 
 -- Training
-lr = 0.001
+lr = 0.0001
 updateInterval = 10
 iterations = 50000
 i = 1
@@ -74,7 +78,7 @@ simulationFile = workingDir .. 'simulation.hdf5'
 
 timer = torch.Timer()
 t = torch.Timer()
-net:training()
+--net:training()
 print('Training begins')
 while i < iterations do
    -- Search simulation data
@@ -112,6 +116,7 @@ while i < iterations do
      -- Update network parameters
      local gradOutput = criterion:backward(output, targets)
      local netGrad = net:backward(inputs, gradOutput)
+     net:updateGradParameters(0.9)
      net:updateParameters(lr)
      -- Update counters and print messages
      i = i + 1
@@ -124,6 +129,6 @@ while i < iterations do
   end
 end
 print('Total training time: ' .. timer:time().real)
-torch.save(workingDir .. 'net.snapshot.bin', net)
+torch.save(workingDir .. 'net.snapshot.bin', net:float())
 sys.execute('rm ' .. simulationFile .. '.running')
 
