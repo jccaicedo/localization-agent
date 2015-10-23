@@ -12,7 +12,8 @@ except:
   channels = 2
 
 #TODO: Put this configuration in an external file or rely entirely on Coco's data
-dataDir = '/data1/vot-challenge/simulations/'
+dataDir = '/home/jccaicedo/data/tracking/simulations/'
+#dataDir = '/data1/vot-challenge/simulations/'
 scene = dataDir + 'bogota.jpg'
 obj = dataDir + 'photo.jpg'
 box = [0, 100, 0, 100]

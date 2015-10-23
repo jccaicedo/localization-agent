@@ -1,11 +1,16 @@
 import os,sys
 import numpy as np
-import random
+import random, time
 from PIL import Image
 from PIL import ImageEnhance
 from PIL import ImageDraw
 import numpy.linalg
 import pickle
+
+def startRandGen():
+  r = random.Random()
+  r.jumpahead(long(time.time()))
+  return r
 
 def segmentCrop(image, polygon):
     cropMask = Image.new('L', image.size, 0)
@@ -65,11 +70,11 @@ def stretch(values, z1, z2):
   ma = max(values)
   return (z2 - z1)*( (values-mi)/(ma-mi) ) + z1
 
-def cosine(y1, y2):
-    a = (MAX_AMPLITUDE - MIN_AMPLITUDE)*np.random.rand() + MIN_AMPLITUDE
-    b = (MAX_PERIOD - MIN_PERIOD)*np.random.rand() + MIN_PERIOD
-    c = (MAX_PHASE - MIN_PHASE)*np.random.rand() + MIN_PHASE
-    d = (MAX_VSHIFT - MIN_VSHIFT)*np.random.rand() + MIN_VSHIFT
+def cosine(y1, y2, randGen):
+    a = (MAX_AMPLITUDE - MIN_AMPLITUDE)*randGen.random() + MIN_AMPLITUDE
+    b = (MAX_PERIOD - MIN_PERIOD)*randGen.random() + MIN_PERIOD
+    c = (MAX_PHASE - MIN_PHASE)*randGen.random() + MIN_PHASE
+    d = (MAX_VSHIFT - MIN_VSHIFT)*randGen.random() + MIN_VSHIFT
 
     f = a*np.cos(b*RANGE - c) + d
     return stretch(f, y1, y2)
@@ -108,14 +113,15 @@ class BoundedTrajectory():
     # Do sampling of starting and ending points (fixed number of steps).
     # Implicitly selects speed, length and direction of movement.
     # Assume constant speed (no acceleration).
-    x1 = (0.8*w - 0.2*w)*np.random.rand() + 0.2*w
-    y1 = (0.8*h - 0.2*h)*np.random.rand() + 0.2*h
-    x2 = (0.8*w - 0.2*w)*np.random.rand() + 0.2*w
-    y2 = (0.8*h - 0.2*h)*np.random.rand() + 0.2*h
+    self.randGen = startRandGen()
+    x1 = (0.8*w - 0.2*w)*elf.randGen.random() + 0.2*w
+    y1 = (0.8*h - 0.2*h)*self.randGen.random() + 0.2*h
+    x2 = (0.8*w - 0.2*w)*self.randGen.random() + 0.2*w
+    y2 = (0.8*h - 0.2*h)*self.randGen.random() + 0.2*h
     print 'Trajectory: from',int(x1),int(y1),'to',int(x2),int(y2)
 
     # Sample direction of waving
-    if np.random.rand() > 0.5:
+    if self.randGen.random() > 0.5:
       # Horizontal steps, vertical wave
       self.X = stretch(RANGE, x1, x2)
       self.Y = cosine(y1, y2)
@@ -135,16 +141,17 @@ class Transformation():
 
   def __init__(self, f, a, b, pathFunction=None, steps=64):
     self.func = f
+    self.randGen = startRandGen()
     if pathFunction is None:
         # Initialize range of transformation
-        alpha = (b - a)*np.random.rand() + a
-        beta = (b - a)*np.random.rand() + a
+        alpha = (b - a)*self.randGen.random() + a
+        beta = (b - a)*self.randGen.random() + a
         if alpha > beta:
           c = alpha
           alpha = beta
           beta = c
         # Generate a transformation "path"
-        self.X = cosine(alpha, beta)
+        self.X = cosine(alpha, beta, self.randGen)
     else:
         self.X = pathFunction(a, b, steps)
 
@@ -210,13 +217,14 @@ def identityShape(w, h, factor):
 class OcclussionGenerator():
 
   def __init__(self, w, h, maxSize):
-    num = np.random.randint(10)
+    self.randGen = startRandGen()
+    num = self.randGen.randint(0,10)
     self.boxes = []
     for i in range(num):
-      x1 = (w - maxSize)*np.random.rand()
-      y1 = (h - maxSize)*np.random.rand()
-      wb = maxSize*np.random.rand()
-      hb = maxSize*np.random.rand()
+      x1 = (w - maxSize)*self.randGen.random()
+      y1 = (h - maxSize)*self.randGen.random()
+      wb = maxSize*self.randGen.random()
+      hb = maxSize*self.randGen.random()
       box = map(int, [x1, y1, x1+wb, y1+hb])
       self.boxes.append(box)
 
@@ -233,6 +241,7 @@ class OcclussionGenerator():
 class TrajectorySimulator():
 
   def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9, camSize=(224,224), axes=False, maxSteps=None, contentTransforms=None, shapeTransforms=None, cameraContentTransforms=None, cameraShapeTransforms=None, drawBox=False, camera=True, drawCam=False, trajectoryModelPath=None):
+    self.randGen = startRandGen()
     if maxSteps is None:
         maxSteps = len(RANGE)
     self.maxSteps = maxSteps
@@ -329,7 +338,7 @@ class TrajectorySimulator():
     # Initial scale of the object is 
     # a fraction of the smallest side of the scene
     smallestSide = min(self.camSize)
-    side = smallestSide*( 0.4*np.random.rand() + 0.4 )
+    side = smallestSide*( 0.4*self.randGen.random() + 0.4 )
     # Preserve object's aspect ratio with the largest side being "side"
     ar = float(self.obj.size[1])/float(self.obj.size[0])
     if self.obj.size[1] > self.obj.size[0]:
@@ -455,6 +464,7 @@ try:
 
         #Assumes standard data layout as specified in https://github.com/pdollar/coco/blob/master/README.txt
         def __init__(self, dataDir, dataType):
+            self.randGen = startRandGen()
             self.dataDir = dataDir
             self.dataType = dataType
             self.annFile = '%s/annotations/instances_%s.json'%(dataDir,dataType)
@@ -473,11 +483,11 @@ try:
             
         def createInstance(self, *args, **kwargs):
             #Select a random image for the scene
-            sceneData = self.coco.loadImgs(self.fullImgIds[np.random.randint(0, len(self.fullImgIds))])[0]
+            sceneData = self.coco.loadImgs(self.fullImgIds[self.randGen.randint(0, len(self.fullImgIds))])[0]
             scenePath = self.imagePathTemplate%(self.dataDir, self.dataType, sceneData['file_name'])
 
             #Select a random image for the object, restricted to annotation categories
-            objData = self.coco.loadImgs(self.imgIds[np.random.randint(0, len(self.imgIds))])[0]
+            objData = self.coco.loadImgs(self.imgIds[self.randGen.randint(0, len(self.imgIds))])[0]
             objPath = self.imagePathTemplate%(self.dataDir, self.dataType, objData['file_name'])
 
             #Get annotations for object scene
@@ -485,9 +495,9 @@ try:
             objAnns = self.coco.loadAnns(objAnnIds)
 
             #Select a random object in the scene and read the segmentation polygon
-            objectAnnotations = objAnns[np.random.randint(0, len(objAnns))]
+            objectAnnotations = objAnns[self.randGen.randint(0, len(objAnns))]
             print 'Segmenting object from category {}'.format(self.coco.loadCats(objectAnnotations['category_id'])[0]['name'])
-            polygon = objectAnnotations['segmentation'][np.random.randint(0, len(objectAnnotations['segmentation']))]
+            polygon = objectAnnotations['segmentation'][self.randGen.randint(0, len(objectAnnotations['segmentation']))]
 
             scene = Image.open(scenePath)
             scene.close()
@@ -503,9 +513,9 @@ try:
             objPath = self.imagePathTemplate%(self.dataDir, self.dataType, objectDict['file_name'])
             objAnnIds = self.coco.getAnnIds(imgIds=objectDict['id'], catIds=self.catIds, iscrowd=None)
             objAnns = self.coco.loadAnns(objAnnIds)
-            objectAnnotations = objAnns[np.random.randint(0, len(objAnns))]
+            objectAnnotations = objAnns[self.randGen.randint(0, len(objAnns))]
             print 'Segmenting object from category {}'.format(self.coco.loadCats(objectAnnotations['category_id'])[0]['name'])
-            polygon = objectAnnotations['segmentation'][np.random.randint(0, len(objectAnnotations['segmentation']))]
+            polygon = objectAnnotations['segmentation'][self.randGen.randint(0, len(objectAnnotations['segmentation']))]
             scene = Image.open(scenePath)
             camSize = map(int, (scene.size[0]*0.5, scene.size[1]*0.5))
             scene.close()
