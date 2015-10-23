@@ -68,7 +68,7 @@ if gpu then
 end
 
 -- Training
-lr = 0.001
+lr = 0.0001
 updateInterval = 10
 iterations = 50000
 i = 1
@@ -116,6 +116,7 @@ while i < iterations do
      -- Update network parameters
      local gradOutput = criterion:backward(output, targets)
      local netGrad = net:backward(inputs, gradOutput)
+     net:updateGradParameters(0.9)
      net:updateParameters(lr)
      -- Update counters and print messages
      i = i + 1
