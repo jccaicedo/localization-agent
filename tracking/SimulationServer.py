@@ -72,11 +72,11 @@ def simulate(seq):
 # Main Procedure
 if __name__ == '__main__':
 
-  generators = [vsd.VideoSequenceData() for i in range(GEN)]
   processFile = filePath + '.running'
   os.system('touch ' + processFile)
   while os.path.exists(processFile):
     outFile = h5py.File(filePath,'w')
+    generators = [vsd.VideoSequenceData() for i in range(GEN)]
     processData(generators, SIM, outFile)
     outFile.close()
     os.system('touch ' + filePath + '.ready')

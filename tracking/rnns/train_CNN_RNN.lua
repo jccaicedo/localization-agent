@@ -16,7 +16,7 @@ require 'hdf5'
 
 gpu = true
 workingDir = '/home/jccaicedo/data/tracking/simulations/'
-workingDir = '/data1/vot-challenge/simulations/'
+--workingDir = '/data1/vot-challenge/simulations/'
 
 --[[
 -- ConvNet
@@ -70,7 +70,7 @@ end
 -- Training
 lr = 0.001
 updateInterval = 10
-iterations = 10000
+iterations = 50000
 i = 1
 avgErr = 0
 t = torch.Timer()
