@@ -22,6 +22,7 @@ polygon = [50, 0, 100, 50, 50, 100, 0, 50]
 imgSize = 64
 totalFrames = 60
 cam = False
+maskMove = 6
 
 MAX_SPEED_PIXELS = 1.0
 
@@ -74,7 +75,8 @@ class VideoSequenceData(object):
     self.time = 0
 
   def nextStep(self, mode='training'):
-    self.prevBox = map(lambda x:x, self.box)
+    if self.time % maskMove == 0:
+      self.prevBox = map(lambda x:x, self.box)
     end = self.dataSource.nextStep()
     if mode == 'training':
       b = self.dataSource.getBox()
@@ -100,7 +102,7 @@ class VideoSequenceData(object):
     else:
       flow = None
 
-    return maskFrame(self.now, flow, self.box)
+    return maskFrame(self.now, flow, self.prevBox)
 
   def getMove(self):
     delta = [int(self.box[i]-self.prevBox[i])/MAX_SPEED_PIXELS for i in range(len(self.box))]
