@@ -6,8 +6,8 @@ import os,sys
 from multiprocessing import Process, JoinableQueue, Queue
 
 filePath = vsd.dataDir + 'simulation.hdf5' # Output filename
-GEN = 10 # Number of generator objects
-SIM = 10 # Simulations per generator
+GEN = 16 # Number of generator objects
+SIM = 12 # Simulations per generator
 
 # FUNCTION
 # Distribute work in multiple cores
@@ -26,7 +26,7 @@ def worker(inQueue, outQueue, simulations, output):
 # FUNCTION
 # Coordination of multiple workers and their results
 def processData(sequenceGenerators, simulations, output):
-  numProcs = min(len(sequenceGenerators),10) # max number of cores: 10
+  numProcs = min(len(sequenceGenerators),GEN) # max number of cores: GEN
   taskQueue = JoinableQueue()
   resultQueue = Queue()
   processes = []
@@ -75,13 +75,15 @@ if __name__ == '__main__':
   processFile = filePath + '.running'
   os.system('touch ' + processFile)
   while os.path.exists(processFile):
+    startTime = time.time()
     outFile = h5py.File(filePath,'w')
     generators = [vsd.VideoSequenceData() for i in range(GEN)]
     processData(generators, SIM, outFile)
     outFile.close()
     os.system('touch ' + filePath + '.ready')
+    print 'Simulations done in',(time.time() - startTime),'seconds'
 
     while os.path.exists(filePath) and os.path.exists(processFile):
-      time.sleep(0.5)
+      time.sleep(0.1)
 
   print 'Simulation server shut down'

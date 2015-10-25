@@ -5,12 +5,12 @@ import VideoSequenceData as vsd
 import os,sys
 from multiprocessing import Process, JoinableQueue, Queue
 
-inputFile = vsd.dataDir + 'input.hdf5' # Input file for tracker
-responseFile = vsd.dataDir + 'output.hdf5' # Output of the tracker
+inputFile = vsd.dataDir + 'test/input.hdf5' # Input file for tracker
+responseFile = vsd.dataDir + 'test/output.hdf5' # Output of the tracker
 loadFrom = vsd.dataDir + 'test/'
 #loadFrom = 'TraxClient'
 
-SEQLEN = 60 # Number of input frames that the tracker takes
+SEQLEN = 6 # Number of input frames that the tracker takes
 
 def writeRequest(packet):
   output = h5py.File(inputFile,'w')

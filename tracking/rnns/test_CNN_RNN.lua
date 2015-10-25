@@ -10,7 +10,7 @@ require 'hdf5'
 
 gpu = true
 workingDir = '/data1/vot-challenge/simulations/'
-workingDir = '/home/jccaicedo/data/tracking/simulations/'
+workingDir = '/home/jccaicedo/data/tracking/simulations/test/'
 
 net = torch.load(workingDir .. 'net.snapshot.bin')
 

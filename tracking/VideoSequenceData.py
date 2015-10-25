@@ -12,8 +12,8 @@ except:
   channels = 2
 
 #TODO: Put this configuration in an external file or rely entirely on Coco's data
-dataDir = '/home/juan/Pictures/test/'
-#dataDir = '/home/jccaicedo/data/tracking/simulations/'
+#dataDir = '/home/juan/Pictures/test/'
+dataDir = '/home/jccaicedo/data/tracking/simulations/'
 #dataDir = '/data1/vot-challenge/simulations/'
 scene = dataDir + 'bogota.jpg'
 obj = dataDir + 'photo.jpg'
@@ -24,12 +24,18 @@ totalFrames = 60
 cam = False
 maskMove = 6
 
-MAX_SPEED_PIXELS = 1.0
+MAX_SPEED_PIXELS = 5.0
 
 def fraction(b,k):
   w = (b[2]-b[0])*(1-k)/2.
   h = (b[3]-b[1])*(1-k)/2.
   return [b[0]+w,b[1]+h, b[2]-w,b[3]-h]
+
+def makeMask(w,h,box):
+  mask = np.zeros(w,h)
+  for factor in [(1.00, 1), (0.75, -1), (0.5, 1), (0.25, -1)]:
+    b = map(int, fraction(box, factor[0]))
+    mask[b[1]:b[3], b[0]:b[2]] = factor[1]
 
 def maskFrame(frame, flow, box):
   if flow is not None:
@@ -42,9 +48,9 @@ def maskFrame(frame, flow, box):
   maskedF[-1,:,:] = 0
   for factor in [(1.00, 1), (0.75, -1), (0.5, 1), (0.25, -1)]:
     b = map(int, fraction(box, factor[0]))
-    maskedF[-1, b[0]:b[2], b[1]:b[3]] = factor[1]
+    maskedF[-1, b[1]:b[3], b[0]:b[2]] = factor[1]
   #import pylab
-  #pylab.imshow(maskedF[-1,:,:])
+  #pylab.imshow(np.swapaxes(np.swapaxes(maskedF[[3,1,0],:,:],0,2),0,1))
   #pylab.show()
   return maskedF
 
