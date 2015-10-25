@@ -41,8 +41,8 @@ def makeMask(w,h,box):
 def maskFrame(frame, flow, box):
   if flow is not None:
     maskedF = np.zeros( (4, frame.shape[0], frame.shape[1]) )
-    maskedF[1,:,:] = flow[...,0]/10
-    maskedF[2,:,:] = flow[...,1]/10
+    maskedF[1,:,:] = flow[...,0]
+    maskedF[2,:,:] = flow[...,1]
   else:
     maskedF = np.zeros( (2, frame.shape[0], frame.shape[1]) )
   maskedF[0,:,:] = (frame - 128.0)/128.0
@@ -50,7 +50,7 @@ def maskFrame(frame, flow, box):
   #import pylab
   #pylab.imshow(np.swapaxes(np.swapaxes(maskedF[[3,1,0],:,:],0,2),0,1))
   #pylab.show()
-  #return maskedF
+  return maskedF
 
 class VideoSequenceData(object):
 
@@ -68,28 +68,28 @@ class VideoSequenceData(object):
       self.dataSource = TraxClientWrapper()
     else:
       self.dataSource = StaticDataSource(loadSequence) 
-    self.deltaW = float(imgSize)/self.dataSource.getFrame().size[0]
-    self.deltaH = float(imgSize)/self.dataSource.getFrame().size[1]
+    self.scaleW = float(imgSize)/self.dataSource.getFrame().size[0]
+    self.scaleH = float(imgSize)/self.dataSource.getFrame().size[1]
     b = self.dataSource.getBox()
-    self.box = map(int, [b[0]*self.deltaW, b[1]*self.deltaH, b[2]*self.deltaW, b[3]*self.deltaH])
-    self.prevBox = map(lambda x:x, self.box)
-    self.predictedBox = map(lambda x:x, self.box)
+    self.box = map(int, [b[0]*self.scaleW, b[1]*self.scaleH, b[2]*self.scaleW, b[3]*self.scaleH])
+    self.prevBox = self.box[:]
+    self.predictedBox = self.box[:]
     self.transformFrame()
     self.prev = self.now.copy()
     self.time = 0
 
   def nextStep(self, mode='training'):
     if self.time % maskMove == 0:
-      self.prevBox = map(lambda x:x, self.box)
+      self.prevBox = self.box[:]
     end = self.dataSource.nextStep()
     if mode == 'training':
       b = self.dataSource.getBox()
-      self.box = map(int, [b[0]*self.deltaW, b[1]*self.deltaH, b[2]*self.deltaW, b[3]*self.deltaH])
+      self.box = map(int, [b[0]*self.scaleW, b[1]*self.scaleH, b[2]*self.scaleW, b[3]*self.scaleH])
     else:
       b = self.dataSource.getBox()
-      tmp = map(int, [b[0]*self.deltaW, b[1]*self.deltaH, b[2]*self.deltaW, b[3]*self.deltaH])
+      tmp = map(int, [b[0]*self.scaleW, b[1]*self.scaleH, b[2]*self.scaleW, b[3]*self.scaleH])
       print 'Predicted:',self.predictedBox, 'Real:',tmp,'Diff:',[tmp[i]-self.predictedBox[i] for i in range(len(tmp))]
-      self.box = map(lambda x:x, self.predictedBox)
+      self.box = self.predictedBox[:]
     self.time += 1
     return end
 
@@ -114,8 +114,11 @@ class VideoSequenceData(object):
 
   def setMove(self, delta):
     print 'Delta:',delta
-    self.predictedBox = [round(self.box[i] + delta[i]*MAX_SPEED_PIXELS) for i in range(len(self.box))]
-    self.dataSource.reportBox(self.predictedBox)
+    b = [round(self.box[i] + delta[i]*MAX_SPEED_PIXELS) for i in range(len(self.box))]
+    b = [max(min(x,imgSize-1),0) for x in b]
+    rescaledBox = map(int, [b[0]/self.scaleW, b[1]/self.scaleH, b[2]/self.scaleW, b[3]/self.scaleH])
+    self.dataSource.reportBox(rescaledBox)
+    self.predictedBox = b
 
   def transformFrame(self, save=None, box=None):
     frame = self.dataSource.getFrame()

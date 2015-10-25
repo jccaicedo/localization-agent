@@ -36,6 +36,7 @@ if __name__ == '__main__':
   frames[0,...] = seq.getFrame()
   step = 1
   os.system('touch ' + inputFile + '.running')
+  predictions = []
   while seq.nextStep(mode='test'):
     print 'Working at step ',step
 
@@ -46,6 +47,8 @@ if __name__ == '__main__':
     else:
       frames[0:SEQLEN-1,...] = frames[1:SEQLEN,...]
       frames[-1,...] = seq.getFrame()
+      mask = vsd.makeMask(vsd.imgSize,vsd.imgSize,predictions[step-SEQLEN])
+      frames[:,-1,:,:] = mask
       outFrames = frames
     step += 1
 
@@ -66,6 +69,7 @@ if __name__ == '__main__':
 
     # Update the sequencer
     seq.setMove(data)
+    predictions.append( seq.predictedBox[:] )
 
 os.remove(inputFile + '.running')
 print 'Finished'
