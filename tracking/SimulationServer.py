@@ -2,10 +2,11 @@ import h5py
 import numpy as np
 import time
 import BoxSearchSequence as bss
+import TrajectorySimulator as ts
 import os,sys
 from multiprocessing import Process, JoinableQueue, Queue
 
-GEN = 16 # Number of generator objects
+GEN = 6 # Number of generator objects
 SIM = 3 # Simulations per generator
 SEQUENCE_LENGTH = 50
 
@@ -57,7 +58,7 @@ def processData(sequenceGenerators, simulations, output):
 # FUNCTION
 # Simulation of one sequence
 def simulate(seq):
-  seq.prepareSequence()
+  seq.prepareSequence(loadSequence='coco')
   # Store in a numpy array
   # Sequence structure: steps, views, channels, height, width
   simFrames = np.zeros((SEQUENCE_LENGTH,2,bss.channels,bss.imgSize,bss.imgSize))
@@ -90,13 +91,15 @@ if __name__ == '__main__':
 
   workingDir = sys.argv[1]
   filePath = workingDir + 'simulation.hdf5' # Output filename
+  cocoFactory =  ts.COCOSimulatorFactory('/home/datasets/datasets1/mscoco/','train2014',\
+                 trajectoryModelPath = workingDir + 'gmmDenseAbsoluteNormalized.pkl')
 
   processFile = filePath + '.running'
   os.system('touch ' + processFile)
   while os.path.exists(processFile):
     startTime = time.time()
     outFile = h5py.File(filePath,'w')
-    generators = [bss.BoxSearchSequenceData(workingDir) for i in range(GEN)]
+    generators = [bss.BoxSearchSequenceData(workingDir, cocoFactory) for i in range(GEN)]
     processData(generators, SIM, outFile)
     outFile.close()
     os.system('touch ' + filePath + '.ready')

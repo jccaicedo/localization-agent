@@ -241,7 +241,7 @@ class OcclussionGenerator():
 
 class TrajectorySimulator():
 
-  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9, camSize=(224,224), axes=False, maxSteps=None, contentTransforms=None, shapeTransforms=None, cameraContentTransforms=None, cameraShapeTransforms=None, drawBox=False, camera=True, drawCam=False, trajectoryModelPath=None, trajectoryModelLength=60):
+  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9, camSize=(224,224), axes=False, maxSteps=None, contentTransforms=None, shapeTransforms=None, cameraContentTransforms=None, cameraShapeTransforms=None, drawBox=False, camera=True, drawCam=False, trajectoryModel=None, trajectoryModelLength=60):
     self.randGen = startRandGen()
     if maxSteps is None:
         maxSteps = len(RANGE)
@@ -295,7 +295,7 @@ class TrajectorySimulator():
         ]
     else:
         self.shapeTransforms = shapeTransforms
-    if trajectoryModelPath is None:
+    if trajectoryModel is None:
         if contentTransforms is None:
             self.contentTransforms = [
                 Transformation(scaleX, 0.7, 1.3),
@@ -307,10 +307,10 @@ class TrajectorySimulator():
         else:
             self.contentTransforms = contentTransforms
     else:
-        model = TrajectoryModel(trajectoryModelPath, trajectoryModelLength)
+        model = TrajectoryModel(trajectoryModel, trajectoryModelLength)
         self.contentTransforms = model.sample(self.scene.size)
     if cameraContentTransforms is None:
-        if trajectoryModelPath is None:
+        if trajectoryModel is None:
             cameraDiagonal = np.sqrt(self.camSize[0]**2+self.camSize[1]**2)
             self.cameraContentTransforms = OffsetTrajectory(self.scene.size[0], self.scene.size[1], cameraDiagonal).transforms
         else:
@@ -457,8 +457,7 @@ try:
     class COCOSimulatorFactory():
 
         #Assumes standard data layout as specified in https://github.com/pdollar/coco/blob/master/README.txt
-        def __init__(self, dataDir, dataType):
-            self.randGen = startRandGen()
+        def __init__(self, dataDir, dataType, trajectoryModelPath):
             self.dataDir = dataDir
             self.dataType = dataType
             self.annFile = '%s/annotations/instances_%s.json'%(dataDir,dataType)
@@ -474,14 +473,19 @@ try:
             self.fullImgIds = self.coco.getImgIds()
             print 'Number of categories {} and corresponding images {}'.format(len(self.catIds), len(self.imgIds))
             print 'Category names: {}'.format(', '.join(nms))
+            modelFile = open(trajectoryModelPath, 'r')
+            self.trajectoryModel = pickle.load(modelFile)
+            modelFile.close()
+
             
         def createInstance(self, *args, **kwargs):
+            self.randGen = startRandGen()
             #Select a random image for the scene
-            sceneData = self.coco.loadImgs(self.fullImgIds[self.randGen.randint(0, len(self.fullImgIds))])[0]
+            sceneData = self.coco.loadImgs(self.fullImgIds[self.randGen.randint(0, len(self.fullImgIds)-1)])[0]
             scenePath = self.imagePathTemplate%(self.dataDir, self.dataType, sceneData['file_name'])
 
             #Select a random image for the object, restricted to annotation categories
-            objData = self.coco.loadImgs(self.imgIds[self.randGen.randint(0, len(self.imgIds))])[0]
+            objData = self.coco.loadImgs(self.imgIds[self.randGen.randint(0, len(self.imgIds)-1)])[0]
             objPath = self.imagePathTemplate%(self.dataDir, self.dataType, objData['file_name'])
 
             #Get annotations for object scene
@@ -489,13 +493,13 @@ try:
             objAnns = self.coco.loadAnns(objAnnIds)
 
             #Select a random object in the scene and read the segmentation polygon
-            objectAnnotations = objAnns[self.randGen.randint(0, len(objAnns))]
+            objectAnnotations = objAnns[self.randGen.randint(0, len(objAnns)-1)]
             print 'Segmenting object from category {}'.format(self.coco.loadCats(objectAnnotations['category_id'])[0]['name'])
-            polygon = objectAnnotations['segmentation'][self.randGen.randint(0, len(objectAnnotations['segmentation']))]
+            polygon = objectAnnotations['segmentation'][self.randGen.randint(0, len(objectAnnotations['segmentation'])-1)]
 
             scene = Image.open(scenePath)
             scene.close()
-            simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, *args, **kwargs)
+            simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, trajectoryModel=self.trajectoryModel, *args, **kwargs)
             
             return simulator
 
@@ -522,11 +526,8 @@ except Exception as e:
 
 class TrajectoryModel():
 
-    def __init__(self, modelPath, length, maxSize=10, base=10.0):
-        self.modelPath = modelPath
-        modelFile = open(self.modelPath, 'r')
-        self.model = pickle.load(modelFile)
-        modelFile.close()
+    def __init__(self, model, length, maxSize=10, base=10.0):
+        self.model = model
         self.length = length
         self.maxSize = maxSize
 
