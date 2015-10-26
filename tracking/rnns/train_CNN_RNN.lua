@@ -14,9 +14,13 @@ require 'sys'
 require 'paths'
 require 'hdf5'
 
+cmd = torch.CmdLine()
+cmd:option('-workingDir','/home/jccaicedo/data/tracking/simulations/debug/','Directory where files are written and loaded')
+cmd:option('-iter',200,'Number of iterations')
+params = cmd:parse(arg or {})
+
 gpu = true
-workingDir = '/home/jccaicedo/data/tracking/simulations/'
---workingDir = '/data1/vot-challenge/simulations/'
+workingDir = params.workingDir
 
 if paths.filep(workingDir .. 'net.snapshot.bin') then
   print('Loading pretrained network')
@@ -60,19 +64,21 @@ if gpu then
 end
 
 -- Training
-lr = 0.0001
+schedule = {0.01,0.005,0.001}
 updateInterval = 10
-iterations = 50000
+iterations = params.iter
+batchSize = 64
+-- Data size and dimensions
+simulationFile = workingDir .. 'simulation.hdf5'
+numVideos = 192-1
+seqPerVideo = 10
+framesPerSeq = 6
+-- Loop vars
 i = 1
 avgErr = 0
 t = torch.Timer()
-simulationFile = workingDir .. 'simulation.hdf5'
 
-timer = torch.Timer()
-t = torch.Timer()
---net:training()
-print('Training begins')
-while i < iterations do
+function getBatches()
    -- Search simulation data
    while not paths.filep(simulationFile) or not paths.filep(simulationFile .. '.ready') do
      sys.sleep(0.1)
@@ -81,46 +87,85 @@ while i < iterations do
    local data = hdf5.open(simulationFile, 'r')
    local frames = {}
    local moves = {}
-   for j=0,99 do
+   for j=0,numVideos do
      frames[j] = data:read('frames'..j):all()
      moves[j] = data:read('targets'..j):all()
    end
+   fSize = frames[0]:size()
+   mSize = moves[0]:size()
    data:close()
    sys.execute('rm ' .. simulationFile)
    sys.execute('rm ' .. simulationFile .. '.ready')
-   -- Use all read sequences
-   for j=0,99 do
-     if gpu then
-       frames_j = frames[j]:cuda()
-       moves_j = moves[j]:cuda()
-     end
-     for m=1,10 do
+   -- Split videos in sequences of frames
+   local inputs = {}
+   local targets = {}
+   for j=0,numVideos do
+     for m=1,seqPerVideo do
        -- Prepare tables for one sequence
-       local inputs = {}
-       local targets = {}
-       for n=1,6 do
-         inputs[n] = frames_j[{ {(m-1)*6 + n}, {}, {}, {}  }]
-         targets[n] = moves_j[{ {(m-1)*6 + n}, {} }]
+       local sequence = {}
+       local targetOut = {}
+       for n=1,framesPerSeq do
+         sequence[n] = frames[j][{ {(m-1)*framesPerSeq + n}, {}, {}, {}  }]
+         targetOut[n] = moves[j][{ {(m-1)*framesPerSeq + n}, {} }]
        end
-       -- Feed data to the network
-       local output = net:forward(inputs)
-       local err = criterion:forward(output, targets)
-       net:zeroGradParameters()
-       -- Update network parameters
-       local gradOutput = criterion:backward(output, targets)
-       local netGrad = net:backward(inputs, gradOutput)
-       net:updateGradParameters(0.9)
-       net:updateParameters(lr)
-       -- Update counters and print messages
-       i = i + 1
-       avgErr = avgErr + err
-       if i % updateInterval == 0 then
-          print(i,avgErr/updateInterval,t:time().real)
-          avgErr = 0
-          t = torch.Timer()
+       table.insert(inputs, sequence)
+       table.insert(targets, targetOut)
+     end
+   end
+   -- Organize batches
+   local batches = {}
+   local allBatches = torch.floor(#inputs/batchSize)
+   local permIdx = torch.randperm(#inputs)
+   for i=1,allBatches do
+     batches[i] = {}
+     batches[i].inputs = {} 
+     batches[i].targets = {}
+     for j=1,framesPerSeq do
+       I = torch.Tensor(batchSize,fSize[2],fSize[3],fSize[4])
+       T = torch.Tensor(batchSize,mSize[2])
+       for k=1,batchSize do
+         idx = permIdx[(i-1)*batchSize + k]
+         I[{{k},{},{},{}}] = inputs[idx][j]
+         T[{{k},{}}] = targets[idx][j]
        end
-    end
-  end
+       batches[i].inputs[j] = I:cuda()
+       batches[i].targets[j] = T:cuda()
+     end
+   end
+   return batches
+end
+
+timer = torch.Timer()
+t = torch.Timer()
+net:training()
+print('Training begins')
+while i < iterations do
+   batches = getBatches()
+   for k=1,#batches do
+     -- Feed data to the network
+     local output = net:forward(batches[k].inputs)
+     for s=1,#output do
+       output[s] = torch.round(output[s])
+     end
+     local err = criterion:forward(output, batches[k].targets)
+     net:zeroGradParameters()
+     -- Update network parameters
+     local gradOutput = criterion:backward(output, batches[k].targets)
+     local netGrad = net:backward(batches[k].inputs, gradOutput)
+     local lr = schedule[ torch.ceil((i/iterations)*#schedule) ] or schedule[#schedule]
+     net:updateGradParameters(0.9)
+     net:updateParameters(lr)
+     -- Update counters and print messages
+     i = i + 1
+     avgErr = avgErr + err
+     if i % updateInterval == 0 then
+        print(i,avgErr/updateInterval,t:time().real)
+        avgErr = 0
+        t = torch.Timer()
+        --e = (output[6][1]-batches[k].targets[6][1])*5
+        --print(output[6][1]*5,batches[k].targets[6][1]*5,torch.sum(e:pow(2)))
+     end
+   end
 end
 print('Total training time: ' .. timer:time().real)
 torch.save(workingDir .. 'net.snapshot.bin', net:float())

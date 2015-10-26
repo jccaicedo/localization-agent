@@ -10,7 +10,7 @@ require 'hdf5'
 
 gpu = true
 workingDir = '/data1/vot-challenge/simulations/'
-workingDir = '/home/jccaicedo/data/tracking/simulations/'
+workingDir = '/home/jccaicedo/data/tracking/simulations/test/'
 
 net = torch.load(workingDir .. 'net.snapshot.bin')
 
@@ -37,12 +37,16 @@ while keepRunning do
    if not keepRunning then
      break
    end
+   print('Waiting file '..t:time().real)
+   t = torch.Timer()
    -- Read the sequence in the input file
    local data = hdf5.open(dataFile, 'r')
    local frames = data:read('sequence'):all()
    data:close()
    sys.execute('rm ' .. dataFile)
    sys.execute('rm ' .. dataFile .. '.ready')
+   print('Reading file '..t:time().real)
+   t = torch.Timer()
    if gpu then
      frames = frames:cuda()
    end
@@ -52,7 +56,10 @@ while keepRunning do
    for k=1,s[1] do
      inputs[k] = frames[{ {k}, {}, {}, {}  }]
    end
+   print('Preparing data '..t:time().real)
+   t = torch.Timer()
    -- Feed data to the network
+   net:forget()
    local output = net:forward(inputs)
    outFile = hdf5.open(predictionsFile, 'w')
    outFile:write('predictions', output[#output]:float())
