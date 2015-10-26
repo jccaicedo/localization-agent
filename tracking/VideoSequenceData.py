@@ -12,11 +12,6 @@ except:
   channels = 2
 
 #TODO: Put this configuration in an external file or rely entirely on Coco's data
-#dataDir = '/home/juan/Pictures/test/'
-dataDir = '/home/jccaicedo/data/tracking/simulations/'
-#dataDir = '/data1/vot-challenge/simulations/'
-scene = dataDir + 'bogota.jpg'
-obj = dataDir + 'photo.jpg'
 box = [0, 100, 0, 100]
 polygon = [50, 0, 100, 50, 50, 100, 0, 50]
 imgSize = 64
@@ -24,7 +19,7 @@ totalFrames = 60
 cam = False
 maskMove = 6
 
-MAX_SPEED_PIXELS = 5.0
+MAX_SPEED_PIXELS = 1.0
 
 def fraction(b,k):
   w = (b[2]-b[0])*(1-k)/2.
@@ -54,15 +49,18 @@ def maskFrame(frame, flow, box):
 
 class VideoSequenceData(object):
 
-  def __init__(self):
+  def __init__(self, workingDir='/home/jccaicedo/data/tracking/simulations/debug/'):
     self.predictedBox = [0,0,0,0]
     self.prevBox = [0,0,0,0]
     self.box = [0,0,0,0]
     self.prv = None
     self.now = None
+    self.workingDir = workingDir
 
   def prepareSequence(self, loadSequence=None):
     if loadSequence is None:
+      scene = self.workingDir + 'bogota.jpg'
+      obj = self.workingDir + 'photo.jpg'
       self.dataSource = ts.TrajectorySimulator(scene, obj, box, polygon, camera=cam)
     elif loadSequence == 'TraxClient':
       self.dataSource = TraxClientWrapper()
@@ -114,7 +112,7 @@ class VideoSequenceData(object):
 
   def setMove(self, delta):
     print 'Delta:',delta
-    b = [round(self.box[i] + delta[i]*MAX_SPEED_PIXELS) for i in range(len(self.box))]
+    b = [self.box[i] + round(delta[i]*MAX_SPEED_PIXELS) for i in range(len(self.box))]
     b = [max(min(x,imgSize-1),0) for x in b]
     rescaledBox = map(int, [b[0]/self.scaleW, b[1]/self.scaleH, b[2]/self.scaleW, b[3]/self.scaleH])
     self.dataSource.reportBox(rescaledBox)

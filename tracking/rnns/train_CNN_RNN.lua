@@ -14,9 +14,13 @@ require 'sys'
 require 'paths'
 require 'hdf5'
 
+cmd = torch.CmdLine()
+cmd:option('-workingDir','/home/jccaicedo/data/tracking/simulations/debug/','Directory where files are written and loaded')
+cmd:option('-iter',200,'Number of iterations')
+params = cmd:parse(arg or {})
+
 gpu = true
-workingDir = '/home/jccaicedo/data/tracking/simulations/'
---workingDir = '/data1/vot-challenge/simulations/'
+workingDir = params.workingDir
 
 if paths.filep(workingDir .. 'net.snapshot.bin') then
   print('Loading pretrained network')
@@ -60,9 +64,9 @@ if gpu then
 end
 
 -- Training
-schedule = {0.01,0.005,0.001,0.0005}
+schedule = {0.01,0.005,0.001}
 updateInterval = 10
-iterations = 15000
+iterations = params.iter
 batchSize = 64
 -- Data size and dimensions
 simulationFile = workingDir .. 'simulation.hdf5'
@@ -140,6 +144,9 @@ while i < iterations do
    for k=1,#batches do
      -- Feed data to the network
      local output = net:forward(batches[k].inputs)
+     for s=1,#output do
+       output[s] = torch.round(output[s])
+     end
      local err = criterion:forward(output, batches[k].targets)
      net:zeroGradParameters()
      -- Update network parameters
@@ -155,6 +162,8 @@ while i < iterations do
         print(i,avgErr/updateInterval,t:time().real)
         avgErr = 0
         t = torch.Timer()
+        --e = (output[6][1]-batches[k].targets[6][1])*5
+        --print(output[6][1]*5,batches[k].targets[6][1]*5,torch.sum(e:pow(2)))
      end
    end
 end

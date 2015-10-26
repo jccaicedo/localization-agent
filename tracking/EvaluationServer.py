@@ -4,10 +4,14 @@ import time
 import VideoSequenceData as vsd
 import os,sys
 from multiprocessing import Process, JoinableQueue, Queue
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
-inputFile = vsd.dataDir + 'test/input.hdf5' # Input file for tracker
-responseFile = vsd.dataDir + 'test/output.hdf5' # Output of the tracker
-loadFrom = vsd.dataDir + 'test/'
+testDir = '/home/jccaicedo/data/tracking/simulations/test/'
+inputFile = testDir + 'input.hdf5' # Input file for tracker
+responseFile = testDir + 'output.hdf5' # Output of the tracker
+loadFrom = testDir
 #loadFrom = 'TraxClient'
 
 SEQLEN = 6 # Number of input frames that the tracker takes
@@ -25,6 +29,12 @@ def readResponse():
   os.remove(responseFile)
   os.remove(responseFile+'.ready')
   return data
+
+def saveSequenceImages(seq,step,dir):
+  s = seq.shape[0]
+  for i in range(s):
+    plt.imshow(np.swapaxes(np.swapaxes(seq[i,[3,2,0],:,:],0,2),0,1))
+    plt.savefig(dir + 'seq_' + str(step) + '_' + str(i) + '.png')
 
 # Main Procedure
 if __name__ == '__main__':
@@ -50,6 +60,7 @@ if __name__ == '__main__':
       mask = vsd.makeMask(vsd.imgSize,vsd.imgSize,predictions[step-SEQLEN])
       frames[:,-1,:,:] = mask
       outFrames = frames
+    #saveSequenceImages(outFrames,step,testDir)
     step += 1
 
     # Store the sequence

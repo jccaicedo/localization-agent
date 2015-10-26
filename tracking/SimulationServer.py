@@ -5,7 +5,6 @@ import VideoSequenceData as vsd
 import os,sys
 from multiprocessing import Process, JoinableQueue, Queue
 
-filePath = vsd.dataDir + 'simulation.hdf5' # Output filename
 GEN = 16 # Number of generator objects
 SIM = 12 # Simulations per generator
 
@@ -72,12 +71,19 @@ def simulate(seq):
 # Main Procedure
 if __name__ == '__main__':
 
+  if len(sys.argv) < 2:
+    print 'Use: SimulationServer.py workingDir'
+    sys.exit()
+
+  workingDir = sys.argv[1]
+  filePath = workingDir + 'simulation.hdf5' # Output filename
+
   processFile = filePath + '.running'
   os.system('touch ' + processFile)
   while os.path.exists(processFile):
     startTime = time.time()
     outFile = h5py.File(filePath,'w')
-    generators = [vsd.VideoSequenceData() for i in range(GEN)]
+    generators = [vsd.VideoSequenceData(workingDir) for i in range(GEN)]
     processData(generators, SIM, outFile)
     outFile.close()
     os.system('touch ' + filePath + '.ready')
