@@ -68,7 +68,6 @@ class TrackerState():
     elif action[0] == SCALE_DOWN:         newBox = self.scaleDown()
     elif action[0] == ASPECT_RATIO_DOWN:  newBox = self.aspectRatioDown()
     elif action[0] == PLACE_LANDMARK:     newBox = self.placeLandmark()
-    #elif action[0] == SKIP_REGION:        newBox = self.skipRegion()
 
     self.box = newBox
     self.boxW = self.box[2] - self.box[0]
@@ -251,9 +250,6 @@ class TrackerState():
     self.landmarkIndex[ fingerprint(self.box) ] = self.box[:]
     self.stepsWithoutLandmark = 0
     return self.box
-
-  #def skipRegion(self):
-  #  return self.box
 
   def reset(self, initialBox):
     self.stepsWithoutLandmark = 0

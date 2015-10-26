@@ -35,22 +35,22 @@ def makeMask(w,h,box):
   mask = np.zeros((w,h))
   for factor in [(1.00, 1), (0.75, -1), (0.5, 1), (0.25, -1)]:
     b = map(int, fraction(box, factor[0]))
-    mask[b[1]:b[3], b[0]:b[2]] = factor[1]
+    mask[b[1]:b[3], b[0]:b[2]] = factor[1] # y dimensions first (rows)
   return mask
 
 def maskFrame(frame, flow, box):
   if flow is not None:
     maskedF = np.zeros( (4, frame.shape[0], frame.shape[1]) )
-    maskedF[1,:,:] = flow[...,0]/10
-    maskedF[2,:,:] = flow[...,1]/10
+    maskedF[1,:,:] = flow[...,0]
+    maskedF[2,:,:] = flow[...,1]
   else:
     maskedF = np.zeros( (2, frame.shape[0], frame.shape[1]) )
   maskedF[0,:,:] = (frame - 128.0)/128.0
   maskedF[-1,:,:] = makeMask(frame.shape[0], frame.shape[1], box)
   #import pylab
-  #pylab.imshow(np.swapaxes(np.swapaxes(maskedF[[3,1,0],:,:],0,2),0,1))
+  #pylab.imshow(np.swapaxes(np.swapaxes(maskedF[[3,2,1],:,:],0,2),0,1))
   #pylab.show()
-  #return maskedF
+  return maskedF
 
 class VideoSequenceData(object):
 
