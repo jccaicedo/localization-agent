@@ -7,6 +7,7 @@ from PIL import ImageDraw
 import numpy.linalg
 import pickle
 
+#TODO: correct methods not following same logic as numpy.random, e.g. randint (includes both extremes)
 def startRandGen():
   r = random.Random()
   r.jumpahead(long(time.time()))
@@ -240,7 +241,7 @@ class OcclussionGenerator():
 
 class TrajectorySimulator():
 
-  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9, camSize=(224,224), axes=False, maxSteps=None, contentTransforms=None, shapeTransforms=None, cameraContentTransforms=None, cameraShapeTransforms=None, drawBox=False, camera=True, drawCam=False, trajectoryModelPath=None):
+  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9, camSize=(224,224), axes=False, maxSteps=None, contentTransforms=None, shapeTransforms=None, cameraContentTransforms=None, cameraShapeTransforms=None, drawBox=False, camera=True, drawCam=False, trajectoryModelPath=None, trajectoryModelLength=60):
     self.randGen = startRandGen()
     if maxSteps is None:
         maxSteps = len(RANGE)
@@ -306,22 +307,15 @@ class TrajectorySimulator():
         else:
             self.contentTransforms = contentTransforms
     else:
-        trajectoryModelFile = open(trajectoryModelPath, 'r')
-        trajectoryModel = pickle.load(trajectoryModelFile)
-        trajectoryModelFile.close()
-        nComponents = trajectoryModel.n_components
-        clusterIds = np.random.choice(nComponents, size=np.random.choice(10))
-        trajectory = numpy.mean(trajectoryModel.means_[clusterIds], axis=0)
-        self.contentTransforms = [
-            Transformation(scaleX, 0.7, 1.3, pathFunction=lambda a,b,steps: 10.0**trajectory[60*2:60*3]),
-            Transformation(scaleY, 0.7, 1.3, pathFunction=lambda a,b,steps: 10.0**trajectory[60*3:60*4]),
-            #Transformation(rotate, -np.pi/50, np.pi/50),
-            Transformation(translateX, 0, self.camSize[0]-max(self.objSize), pathFunction=lambda a,b,steps: trajectory[60*0:60*1]*self.scene.size[0]),
-            Transformation(translateY, 0, self.camSize[1]-max(self.objSize), pathFunction=lambda a,b,steps: trajectory[60*1:60*2]*self.scene.size[1]),
-        ]
+        model = TrajectoryModel(trajectoryModelPath, trajectoryModelLength)
+        self.contentTransforms = model.sample(self.scene.size)
     if cameraContentTransforms is None:
-        cameraDiagonal = np.sqrt(self.camSize[0]**2+self.camSize[1]**2)
-        self.cameraContentTransforms = OffsetTrajectory(self.scene.size[0], self.scene.size[1], cameraDiagonal).transforms
+        if trajectoryModelPath is None:
+            cameraDiagonal = np.sqrt(self.camSize[0]**2+self.camSize[1]**2)
+            self.cameraContentTransforms = OffsetTrajectory(self.scene.size[0], self.scene.size[1], cameraDiagonal).transforms
+        else:
+            #TODO: camera transforms related to sampled trajectory
+            self.cameraContentTransforms = []
     else:
         self.cameraContentTransforms = cameraContentTransforms
     if cameraShapeTransforms is None:
@@ -525,3 +519,31 @@ try:
             return simulator
 except Exception as e:
     print 'No support for pycoco'
+
+class TrajectoryModel():
+
+    def __init__(self, modelPath, length, maxSize=10, base=10.0):
+        self.modelPath = modelPath
+        modelFile = open(self.modelPath, 'r')
+        self.model = pickle.load(modelFile)
+        modelFile.close()
+        self.length = length
+        self.maxSize = maxSize
+
+    def sample(self, sceneSize, base=10.0):
+        nComponents = self.model.n_components
+        clusterIds = np.random.choice(nComponents, size=np.random.choice(self.maxSize))
+        trajectory = np.mean(self.model.means_[clusterIds], axis=0)
+        trajectory = trajectory.reshape(int(trajectory.shape[0]/self.length), self.length)
+        tx, ty, sx, sy = trajectory
+        tx = tx*sceneSize[0]
+        ty = ty*sceneSize[1]
+        sx = base**sx
+        sy = base**sy
+        transforms = [
+            Transformation(scaleX, None, None, pathFunction=lambda a,b,steps: sx),
+            Transformation(scaleY, None, None, pathFunction=lambda a,b,steps: sy),
+            Transformation(translateX, None, None, pathFunction=lambda a,b,steps: tx),
+            Transformation(translateY, None, None, pathFunction=lambda a,b,steps: ty),
+        ]
+        return transforms
