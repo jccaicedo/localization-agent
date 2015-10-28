@@ -1,12 +1,13 @@
 import h5py
 import numpy as np
 import time
-import VideoSequenceData as vsd
+import BoxSearchSequence as bss
 import os,sys
 from multiprocessing import Process, JoinableQueue, Queue
 
 GEN = 16 # Number of generator objects
-SIM = 12 # Simulations per generator
+SIM = 3 # Simulations per generator
+SEQUENCE_LENGTH = 50
 
 # FUNCTION
 # Distribute work in multiple cores
@@ -58,13 +59,25 @@ def processData(sequenceGenerators, simulations, output):
 def simulate(seq):
   seq.prepareSequence()
   # Store in a numpy array
-  simFrames = np.zeros((vsd.totalFrames,vsd.channels,vsd.imgSize,vsd.imgSize))
-  simTargets = np.zeros((vsd.totalFrames,4))
+  # Sequence structure: steps, views, channels, height, width
+  simFrames = np.zeros((SEQUENCE_LENGTH,2,bss.channels,bss.imgSize,bss.imgSize))
+  simTargets = np.zeros((SEQUENCE_LENGTH,1))
+  frame = 0
   step = 0
+  skip = np.random.randint(0,30)
   while seq.nextStep():
-    simFrames[step,:,:,:] = seq.getFrame()
-    simTargets[step,:] = seq.getMove()
-    step += 1
+    if frame > skip:
+      views = seq.getFrame()
+      actions = seq.getMove()
+      k = 0
+      while step < SEQUENCE_LENGTH and k < len(views):
+        simFrames[step,:,:,:,:] = views[k]
+        simTargets[step,:] = actions[k]
+        step += 1
+        k += 1
+      if step >= SEQUENCE_LENGTH:
+        break
+    frame += 1
   return (simFrames,simTargets)
 
 # USE
@@ -83,7 +96,7 @@ if __name__ == '__main__':
   while os.path.exists(processFile):
     startTime = time.time()
     outFile = h5py.File(filePath,'w')
-    generators = [vsd.VideoSequenceData(workingDir) for i in range(GEN)]
+    generators = [bss.BoxSearchSequenceData(workingDir) for i in range(GEN)]
     processData(generators, SIM, outFile)
     outFile.close()
     os.system('touch ' + filePath + '.ready')

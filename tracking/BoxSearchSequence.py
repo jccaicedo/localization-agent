@@ -5,52 +5,31 @@ import PIL.ImageDraw as ImageDraw
 import TrajectorySimulator as ts
 import TraxClient as tc
 import TrackerState as bs
-try:
-  import cv2
-  channels = 4
-except:
-  cv2 = None
-  channels = 2
 
 #TODO: Put this configuration in an external file or rely entirely on Coco's data
-dataDir = '/home/juan/Pictures/test/'
-#dataDir = '/home/jccaicedo/data/tracking/simulations/'
-#dataDir = '/data1/vot-challenge/simulations/'
-scene = dataDir + 'bogota.jpg'
-obj = dataDir + 'photo.jpg'
 box = [0, 100, 0, 100]
 polygon = [50, 0, 100, 50, 50, 100, 0, 50]
-imgSize = 224
+
+imgSize = 64
+channels = 3
 totalFrames = 60
 cam = False
-
-MAX_SPEED_PIXELS = 1.0
 
 def fraction(b,k):
   w = (b[2]-b[0])*(1-k)/2.
   h = (b[3]-b[1])*(1-k)/2.
   return [b[0]+w,b[1]+h, b[2]-w,b[3]-h]
 
-def makeMask(w,h,box):
-  mask = np.zeros((w,h))
-  for factor in [(1.00, 1), (0.75, -1), (0.5, 1), (0.25, -1)]:
-    b = map(int, fraction(box, factor[0]))
-    mask[b[1]:b[3], b[0]:b[2]] = factor[1] # y dimensions first (rows)
-  return mask
-
-def maskFrame(frame, flow, box):
-  if flow is not None:
-    maskedF = np.zeros( (4, frame.shape[0], frame.shape[1]) )
-    maskedF[1,:,:] = flow[...,0]
-    maskedF[2,:,:] = flow[...,1]
+def normalize(img, box=None):
+  if box is not None:
+    view = img.crop(map(int,box))
+    view.load()
   else:
-    maskedF = np.zeros( (2, frame.shape[0], frame.shape[1]) )
-  maskedF[0,:,:] = (frame - 128.0)/128.0
-  maskedF[-1,:,:] = makeMask(frame.shape[0], frame.shape[1], box)
-  #import pylab
-  #pylab.imshow(np.swapaxes(np.swapaxes(maskedF[[3,2,1],:,:],0,2),0,1))
-  #pylab.show()
-  return maskedF
+    view = img.copy()
+  view = view.resize((imgSize,imgSize),Image.ANTIALIAS)
+  view = (np.array(view) - 128)/128
+  view = np.swapaxes(np.swapaxes(view, 0, 2), 1, 2)
+  return view
 
 class SearchSequenceGenerator(object):
 
@@ -61,42 +40,45 @@ class SearchSequenceGenerator(object):
     self.time = 0
     self.save = save
 
-  def generateSequence(self, pair, targetBox):
+  def generateSequence(self, pairView, targetBox):
     searcher = bs.TrackerState(self.image,target=targetBox)
-    a = searcher.sampleBestAction()
+    a = searcher.sampleBestAction() # Given the full scene, take the best action
+    self.moveOneStep(searcher.box, pairView) # Record the first view
+    self.actions.append( a ) # Record the movement given the view
     while a != bs.PLACE_LANDMARK and a != bs.ABORT:
-      self.actions.append( a )
-      box = searcher.performAction(a)
-      self.moveOneStep(box, pair)
-      a = searcher.sampleBestAction()
-    self.actions.append( a )
-    #print len(self.actions),self.actions
-    if a == bs.ABORT:
+      box = searcher.performAction(a)  # Move the box according to the previous decision
+      a = searcher.sampleBestAction()  # Given the current view, take the best action
+      self.moveOneStep(box, pairView)  # Record the current view
+      self.actions.append( a )         # Record the next movement given the current view
+    if a == bs.PLACE_LANDMARK:
+      self.moveOneStep(box, pairView)  # Duplicate the last view
+      self.actions.append( a )         # End the sequence with the terminal action
+    else:
       self.views, self.actions = [],[]
     return self.views, self.actions
 
   def moveOneStep(self, box, pair):
-    view = self.image.crop(map(int, box))
-    view = view.resize((imgSize,imgSize),Image.ANTIALIAS)
-    #if self.save is not None:
-    #  view.save(self.save + '.' + str(self.time), "JPEG")
     data = np.zeros( (2,pair.shape[0],pair.shape[1],pair.shape[2]) )
     data[0,:,:,:] = pair
-    data[1,:,:,:] = np.array(view)
+    data[1,:,:,:] = normalize(self.image, box)
     self.views.append( data )
     self.time += 1
 
 class BoxSearchSequenceData(object):
 
-  def __init__(self):
+  def __init__(self, workingDir='/home/jccaicedo/data/tracking/simulations/debug/'):
     self.predictedBox = [0,0,0,0]
     self.prevBox = [0,0,0,0]
     self.box = [0,0,0,0]
     self.scene = None
-    self.target = None
+    self.targetView = None
+    self.workingDir = workingDir
 
   def prepareSequence(self, loadSequence=None):
     if loadSequence is None:
+      scene = self.workingDir + 'bogota.jpg'
+      obj = self.workingDir + 'photo.jpg'
+
       self.dataSource = ts.TrajectorySimulator(scene, obj, box, polygon, camera=cam)
     elif loadSequence == 'TraxClient':
       self.dataSource = TraxClientWrapper()
@@ -121,7 +103,7 @@ class BoxSearchSequenceData(object):
       b = self.dataSource.getBox()
       tmp = map(int, [b[0]*self.deltaW, b[1]*self.deltaH, b[2]*self.deltaW, b[3]*self.deltaH])
       print 'Predicted:',self.predictedBox, 'Real:',tmp,'Diff:',[tmp[i]-self.predictedBox[i] for i in range(len(tmp))]
-      self.box = map(lambda x:x, self.predictedBox)
+      self.box = self.predictedBox[:]
     self.time += 1
     return end
 
@@ -139,12 +121,10 @@ class BoxSearchSequenceData(object):
 
   def setMove(self, delta):
     print 'Delta:',delta
-    self.predictedBox = [round(self.box[i] + delta[i]*MAX_SPEED_PIXELS) for i in range(len(self.box))]
     self.dataSource.reportBox(self.predictedBox)
 
   def transformFrame(self, save=None, box=None):
     frame = self.dataSource.getFrame()
-    #frame = frame.convert('L')
     frame = frame.resize((imgSize,imgSize),Image.ANTIALIAS)
     '''if box is not None:
       draw = ImageDraw.Draw(frame)
@@ -152,9 +132,16 @@ class BoxSearchSequenceData(object):
         draw.rectangle(fraction(box,f),outline=255)
     if save != None:
       frame.save(save)'''
+    # Prepare the target in the first frame
+    if self.targetView is None:
+      self.targetView = normalize(frame, box)
+    # Compute the sequence of box transformations to reach the target
     ssg = SearchSequenceGenerator(frame,save=save)
-    views, actions = ssg.generateSequence(np.array(frame), self.prevBox)
+    views, actions = ssg.generateSequence(self.targetView, self.box)
     self.now = {'views':views, 'actions':actions}
+    # The target for the next frame is initialized here
+    self.targetView = normalize(frame, box)
+
 
 class StaticDataSource(object):
 
