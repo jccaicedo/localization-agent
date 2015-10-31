@@ -52,7 +52,7 @@ class BoxSearchState():
       self.taskSimulator.groundTruth = self.groundTruth
       self.taskSimulator.loadGroundTruth(self.imageName)
     self.stepsWithoutLandmark = 0
-    self.actionHistory = [0 for i in range(NUM_ACTIONS*config.geti('actionHistoryLength'))]
+    self.actionHistory = [0 for i in range(config.geti('outputActions') * config.geti('actionHistoryLength'))]
 
   def performAction(self, action):
     self.actionChosen = action[0]

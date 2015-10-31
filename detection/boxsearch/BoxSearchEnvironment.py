@@ -19,7 +19,7 @@ def tanh(x, a=5, b=0.5, c=2.0):
   return c*np.tanh(a*x + b)
 
 TEST_TIME_OUT = config.geti('testTimeOut')
-ACTION_HISTORY_SIZE = bs.NUM_ACTIONS*config.geti('actionHistoryLength')
+ACTION_HISTORY_SIZE = config.geti('outputActions') * config.geti('actionHistoryLength')
 MARK_WIDTH = config.getf('markWidth')
 
 class BoxSearchEnvironment(Environment, Named):
