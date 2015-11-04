@@ -491,7 +491,7 @@ try:
                 pickle.dump(self.summary, summaryFile)
                 summaryFile.close()
                 #Free memory
-                del coco
+                del coco, catIds, cats, catDict, imgIds, objData, objAnnIds, objAnns
             else:
                 print 'Loading summary from file {}'.format(summaryPath)
                 summaryFile = open(summaryPath, 'r')
@@ -548,8 +548,9 @@ class TrajectoryModel():
         self.maxSize = maxSize
 
     def sample(self, sceneSize, base=10.0):
+        self.randGen = startRandGen()
         nComponents = self.model.n_components
-        clusterIds = np.random.choice(nComponents, size=np.random.choice(self.maxSize))
+        clusterIds = np.array([self.randGen.randrange(nComponents) for i in np.arange(self.randGen.randrange(1, self.maxSize))])
         trajectory = np.mean(self.model.means_[clusterIds], axis=0)
         trajectory = trajectory.reshape(int(trajectory.shape[0]/self.length), self.length)
         tx, ty, sx, sy = trajectory
