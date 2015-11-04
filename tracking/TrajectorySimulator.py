@@ -455,15 +455,15 @@ try:
     import pycocotools.coco
 
     class COCOSimulatorFactory():
-        self.SUMMARY_KEY='summary'
-        self.CATEGORY_KEY='categories'
 
         #Assumes standard data layout as specified in https://github.com/pdollar/coco/blob/master/README.txt
-        def __init__(self, dataDir, dataType, trajectoryModelPath, summaryPath=None):
+        def __init__(self, dataDir, dataType, trajectoryModelPath, summaryPath):
+            self.SUMMARY_KEY='summary'
+            self.CATEGORY_KEY='categories'
             self.dataDir = dataDir
             self.dataType = dataType
             self.imagePathTemplate = '%s/images/%s/%s'
-            if summaryPath is None:
+            if summaryPath is None or not os.path.exists(summaryPath):
                 self.annFile = '%s/annotations/instances_%s.json'%(dataDir,dataType)
                 #COCO dataset handler object
                 print '!!!!!!!!!!!!! WARNING: Loading the COCO annotations can take up to 3 GB RAM !!!!!!!!!!!!!'
@@ -493,6 +493,7 @@ try:
                 #Free memory
                 del coco
             else:
+                print 'Loading summary from file {}'.format(summaryPath)
                 summaryFile = open(summaryPath, 'r')
                 self.summary = pickle.load(summaryFile)
                 summaryFile.close()
@@ -504,7 +505,7 @@ try:
         def createInstance(self, *args, **kwargs):
             self.randGen = startRandGen()
             #Select a random image for the scene
-            scenePath = self.imagePathTemplate % (self.dataDir, self.dataType, self.randGen.choice(os.listdir(os.path.join(dataDir, 'images', dataType)))['file_name'])
+            scenePath = self.imagePathTemplate % (self.dataDir, self.dataType, self.randGen.choice(os.listdir(os.path.join(self.dataDir, 'images', self.dataType))))
 
             #Select a random image for the object, restricted to annotation categories
             objData = self.randGen.choice(self.summary[self.SUMMARY_KEY])
@@ -536,7 +537,7 @@ try:
             simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, camSize=camSize, axes=axes)
 
             return simulator
-except Exception as e:
+except ImportError as e:
     print 'No support for pycoco'
 
 class TrajectoryModel():
