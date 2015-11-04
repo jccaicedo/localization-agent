@@ -455,24 +455,47 @@ try:
     import pycocotools.coco
 
     class COCOSimulatorFactory():
+        self.SUMMARY_KEY='summary'
+        self.CATEGORY_KEY='categories'
 
         #Assumes standard data layout as specified in https://github.com/pdollar/coco/blob/master/README.txt
-        def __init__(self, dataDir, dataType, trajectoryModelPath):
+        def __init__(self, dataDir, dataType, trajectoryModelPath, summaryPath=None):
             self.dataDir = dataDir
             self.dataType = dataType
-            self.annFile = '%s/annotations/instances_%s.json'%(dataDir,dataType)
             self.imagePathTemplate = '%s/images/%s/%s'
-            #COCO dataset handler object
-            print '!!!!!!!!!!!!! WARNING: Loading the COCO annotations can take up to 3 GB RAM !!!!!!!!!!!!!'
-            self.coco = pycocotools.coco.COCO(self.annFile)
-            #TODO: Filter the categories to use in sequence generation
-            self.catIds = self.coco.getCatIds()
-            cats = self.coco.loadCats(self.catIds)
-            nms=[cat['name'] for cat in cats]
-            self.imgIds = self.coco.getImgIds(catIds=self.catIds)
-            self.fullImgIds = self.coco.getImgIds()
-            print 'Number of categories {} and corresponding images {}'.format(len(self.catIds), len(self.imgIds))
-            print 'Category names: {}'.format(', '.join(nms))
+            if summaryPath is None:
+                self.annFile = '%s/annotations/instances_%s.json'%(dataDir,dataType)
+                #COCO dataset handler object
+                print '!!!!!!!!!!!!! WARNING: Loading the COCO annotations can take up to 3 GB RAM !!!!!!!!!!!!!'
+                coco = pycocotools.coco.COCO(self.annFile)
+                #TODO: Filter the categories to use in sequence generation
+                catIds = coco.getCatIds()
+                cats = coco.loadCats(catIds)
+                catDict = {cat['id']:cat['name'] for cat in cats}
+                imgIds = coco.getImgIds(catIds=catIds)
+                objData = coco.loadImgs(imgIds)
+                objAnnIds = coco.getAnnIds(imgIds=[obj['id'] for obj in objData], catIds=catIds, iscrowd=False)
+                objAnns = coco.loadAnns(objAnnIds)
+                objFileNames = {obj['id']:obj['file_name'] for obj in objData}
+                cocoDict = [
+                    {
+                        k:obj.get(k, objFileNames[obj['image_id']] if k == 'file_name' else None)
+                        for k in ['category_id', 'image_id', 'segmentation', 'file_name']
+                    }
+                    for obj in objAnns
+                ]
+                print 'Number of categories {} and corresponding images {}'.format(len(catIds), len(imgIds))
+                print 'Category names: {}'.format(', '.join(catDict.values()))
+                self.summary = {self.SUMMARY_KEY: cocoDict, self.CATEGORY_KEY: catDict}
+                summaryFile = open(summaryPath, 'w')
+                pickle.dump(self.summary, summaryFile)
+                summaryFile.close()
+                #Free memory
+                del coco
+            else:
+                summaryFile = open(summaryPath, 'r')
+                self.summary = pickle.load(summaryFile)
+                summaryFile.close()
             modelFile = open(trajectoryModelPath, 'r')
             self.trajectoryModel = pickle.load(modelFile)
             modelFile.close()
@@ -481,24 +504,16 @@ try:
         def createInstance(self, *args, **kwargs):
             self.randGen = startRandGen()
             #Select a random image for the scene
-            sceneData = self.coco.loadImgs(self.fullImgIds[self.randGen.randint(0, len(self.fullImgIds)-1)])[0]
-            scenePath = self.imagePathTemplate%(self.dataDir, self.dataType, sceneData['file_name'])
+            scenePath = self.imagePathTemplate % (self.dataDir, self.dataType, self.randGen.choice(os.listdir(os.path.join(dataDir, 'images', dataType)))['file_name'])
 
             #Select a random image for the object, restricted to annotation categories
-            objData = self.coco.loadImgs(self.imgIds[self.randGen.randint(0, len(self.imgIds)-1)])[0]
+            objData = self.randGen.choice(self.summary[self.SUMMARY_KEY])
             objPath = self.imagePathTemplate%(self.dataDir, self.dataType, objData['file_name'])
 
-            #Get annotations for object scene
-            objAnnIds = self.coco.getAnnIds(imgIds=objData['id'], catIds=self.catIds, iscrowd=None)
-            objAnns = self.coco.loadAnns(objAnnIds)
-
             #Select a random object in the scene and read the segmentation polygon
-            objectAnnotations = objAnns[self.randGen.randint(0, len(objAnns)-1)]
-            print 'Segmenting object from category {}'.format(self.coco.loadCats(objectAnnotations['category_id'])[0]['name'])
-            polygon = objectAnnotations['segmentation'][self.randGen.randint(0, len(objectAnnotations['segmentation'])-1)]
+            print 'Segmenting object from category {}'.format(self.summary[self.CATEGORY_KEY][objData['category_id']])
+            polygon = self.randGen.choice(objData['segmentation'])
 
-            scene = Image.open(scenePath)
-            scene.close()
             simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, trajectoryModel=self.trajectoryModel, *args, **kwargs)
             
             return simulator
