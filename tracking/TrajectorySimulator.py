@@ -463,7 +463,7 @@ try:
             self.dataDir = dataDir
             self.dataType = dataType
             self.imagePathTemplate = '%s/images/%s/%s'
-            if summaryPath is None or not os.path.exists(summaryPath):
+            if not os.path.exists(summaryPath):
                 self.annFile = '%s/annotations/instances_%s.json'%(dataDir,dataType)
                 #COCO dataset handler object
                 print '!!!!!!!!!!!!! WARNING: Loading the COCO annotations can take up to 3 GB RAM !!!!!!!!!!!!!'
