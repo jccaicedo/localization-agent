@@ -2,14 +2,14 @@
 py = require('fb.python')
 require 'nn'
 require 'rnn'
-require 'cutorch'
-require 'cunnx'
+--require 'cutorch'
+--require 'cunnx'
 -- Add the directory to the PYTHONPATH env variable:
 -- export PYTHONPATH=$PYTHONPATH:/home/juan/workspace/localization-agent/tracking
 py.exec([=[import SyntheticTinyPaths]=])
 stp = py.reval('SyntheticTinyPaths')
 
-gpu = true
+gpu = false
 
 -- ConvNet
 net = nn.Sequential()
@@ -96,7 +96,7 @@ for j=1,length do
   if gpu then
     inputs[j] = I[{{j},{},{},{}}]:cuda()
   else
-    inputs[j] = I[{{j},{},{},{}}]:cuda()
+    inputs[j] = I[{{j},{},{},{}}]
   end
   targets[j] = T[j]
 end

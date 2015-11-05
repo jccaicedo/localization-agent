@@ -7,6 +7,7 @@ from PIL import ImageDraw
 import numpy.linalg
 import pickle
 
+#TODO: correct methods not following same logic as numpy.random, e.g. randint (includes both extremes)
 def startRandGen():
   r = random.Random()
   r.jumpahead(long(time.time()))
@@ -240,7 +241,7 @@ class OcclussionGenerator():
 
 class TrajectorySimulator():
 
-  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9, camSize=(224,224), axes=False, maxSteps=None, contentTransforms=None, shapeTransforms=None, cameraContentTransforms=None, cameraShapeTransforms=None, drawBox=False, camera=True, drawCam=False, trajectoryModelPath=None):
+  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9, camSize=(224,224), axes=False, maxSteps=None, contentTransforms=None, shapeTransforms=None, cameraContentTransforms=None, cameraShapeTransforms=None, drawBox=False, camera=True, drawCam=False, trajectoryModel=None, trajectoryModelLength=60):
     self.randGen = startRandGen()
     if maxSteps is None:
         maxSteps = len(RANGE)
@@ -294,7 +295,7 @@ class TrajectorySimulator():
         ]
     else:
         self.shapeTransforms = shapeTransforms
-    if trajectoryModelPath is None:
+    if trajectoryModel is None:
         if contentTransforms is None:
             self.contentTransforms = [
                 Transformation(scaleX, 0.7, 1.3),
@@ -306,22 +307,15 @@ class TrajectorySimulator():
         else:
             self.contentTransforms = contentTransforms
     else:
-        trajectoryModelFile = open(trajectoryModelPath, 'r')
-        trajectoryModel = pickle.load(trajectoryModelFile)
-        trajectoryModelFile.close()
-        nComponents = trajectoryModel.n_components
-        clusterIds = np.random.choice(nComponents, size=np.random.choice(10))
-        trajectory = numpy.mean(trajectoryModel.means_[clusterIds], axis=0)
-        self.contentTransforms = [
-            Transformation(scaleX, 0.7, 1.3, pathFunction=lambda a,b,steps: 10.0**trajectory[60*2:60*3]),
-            Transformation(scaleY, 0.7, 1.3, pathFunction=lambda a,b,steps: 10.0**trajectory[60*3:60*4]),
-            #Transformation(rotate, -np.pi/50, np.pi/50),
-            Transformation(translateX, 0, self.camSize[0]-max(self.objSize), pathFunction=lambda a,b,steps: trajectory[60*0:60*1]*self.scene.size[0]),
-            Transformation(translateY, 0, self.camSize[1]-max(self.objSize), pathFunction=lambda a,b,steps: trajectory[60*1:60*2]*self.scene.size[1]),
-        ]
+        model = TrajectoryModel(trajectoryModel, trajectoryModelLength)
+        self.contentTransforms = model.sample(self.scene.size)
     if cameraContentTransforms is None:
-        cameraDiagonal = np.sqrt(self.camSize[0]**2+self.camSize[1]**2)
-        self.cameraContentTransforms = OffsetTrajectory(self.scene.size[0], self.scene.size[1], cameraDiagonal).transforms
+        if trajectoryModel is None:
+            cameraDiagonal = np.sqrt(self.camSize[0]**2+self.camSize[1]**2)
+            self.cameraContentTransforms = OffsetTrajectory(self.scene.size[0], self.scene.size[1], cameraDiagonal).transforms
+        else:
+            #TODO: camera transforms related to sampled trajectory
+            self.cameraContentTransforms = []
     else:
         self.cameraContentTransforms = cameraContentTransforms
     if cameraShapeTransforms is None:
@@ -463,45 +457,65 @@ try:
     class COCOSimulatorFactory():
 
         #Assumes standard data layout as specified in https://github.com/pdollar/coco/blob/master/README.txt
-        def __init__(self, dataDir, dataType):
-            self.randGen = startRandGen()
+        def __init__(self, dataDir, dataType, trajectoryModelPath, summaryPath):
+            self.SUMMARY_KEY='summary'
+            self.CATEGORY_KEY='categories'
             self.dataDir = dataDir
             self.dataType = dataType
-            self.annFile = '%s/annotations/instances_%s.json'%(dataDir,dataType)
             self.imagePathTemplate = '%s/images/%s/%s'
-            #COCO dataset handler object
-            print '!!!!!!!!!!!!! WARNING: Loading the COCO annotations can take up to 3 GB RAM !!!!!!!!!!!!!'
-            self.coco = pycocotools.coco.COCO(self.annFile)
-            #TODO: Filter the categories to use in sequence generation
-            self.catIds = self.coco.getCatIds()
-            cats = self.coco.loadCats(self.catIds)
-            nms=[cat['name'] for cat in cats]
-            self.imgIds = self.coco.getImgIds(catIds=self.catIds)
-            self.fullImgIds = self.coco.getImgIds()
-            print 'Number of categories {} and corresponding images {}'.format(len(self.catIds), len(self.imgIds))
-            print 'Category names: {}'.format(', '.join(nms))
+            if not os.path.exists(summaryPath):
+                self.annFile = '%s/annotations/instances_%s.json'%(dataDir,dataType)
+                #COCO dataset handler object
+                print '!!!!!!!!!!!!! WARNING: Loading the COCO annotations can take up to 3 GB RAM !!!!!!!!!!!!!'
+                coco = pycocotools.coco.COCO(self.annFile)
+                #TODO: Filter the categories to use in sequence generation
+                catIds = coco.getCatIds()
+                cats = coco.loadCats(catIds)
+                catDict = {cat['id']:cat['name'] for cat in cats}
+                imgIds = coco.getImgIds(catIds=catIds)
+                objData = coco.loadImgs(imgIds)
+                objAnnIds = coco.getAnnIds(imgIds=[obj['id'] for obj in objData], catIds=catIds, iscrowd=False)
+                objAnns = coco.loadAnns(objAnnIds)
+                objFileNames = {obj['id']:obj['file_name'] for obj in objData}
+                cocoDict = [
+                    {
+                        k:obj.get(k, objFileNames[obj['image_id']] if k == 'file_name' else None)
+                        for k in ['category_id', 'image_id', 'segmentation', 'file_name']
+                    }
+                    for obj in objAnns
+                ]
+                print 'Number of categories {} and corresponding images {}'.format(len(catIds), len(imgIds))
+                print 'Category names: {}'.format(', '.join(catDict.values()))
+                self.summary = {self.SUMMARY_KEY: cocoDict, self.CATEGORY_KEY: catDict}
+                summaryFile = open(summaryPath, 'w')
+                pickle.dump(self.summary, summaryFile)
+                summaryFile.close()
+                #Free memory
+                del coco, catIds, cats, catDict, imgIds, objData, objAnnIds, objAnns
+            else:
+                print 'Loading summary from file {}'.format(summaryPath)
+                summaryFile = open(summaryPath, 'r')
+                self.summary = pickle.load(summaryFile)
+                summaryFile.close()
+            modelFile = open(trajectoryModelPath, 'r')
+            self.trajectoryModel = pickle.load(modelFile)
+            modelFile.close()
+
             
         def createInstance(self, *args, **kwargs):
+            self.randGen = startRandGen()
             #Select a random image for the scene
-            sceneData = self.coco.loadImgs(self.fullImgIds[self.randGen.randint(0, len(self.fullImgIds))])[0]
-            scenePath = self.imagePathTemplate%(self.dataDir, self.dataType, sceneData['file_name'])
+            scenePath = self.imagePathTemplate % (self.dataDir, self.dataType, self.randGen.choice(os.listdir(os.path.join(self.dataDir, 'images', self.dataType))))
 
             #Select a random image for the object, restricted to annotation categories
-            objData = self.coco.loadImgs(self.imgIds[self.randGen.randint(0, len(self.imgIds))])[0]
+            objData = self.randGen.choice(self.summary[self.SUMMARY_KEY])
             objPath = self.imagePathTemplate%(self.dataDir, self.dataType, objData['file_name'])
 
-            #Get annotations for object scene
-            objAnnIds = self.coco.getAnnIds(imgIds=objData['id'], catIds=self.catIds, iscrowd=None)
-            objAnns = self.coco.loadAnns(objAnnIds)
-
             #Select a random object in the scene and read the segmentation polygon
-            objectAnnotations = objAnns[self.randGen.randint(0, len(objAnns))]
-            print 'Segmenting object from category {}'.format(self.coco.loadCats(objectAnnotations['category_id'])[0]['name'])
-            polygon = objectAnnotations['segmentation'][self.randGen.randint(0, len(objectAnnotations['segmentation']))]
+            print 'Segmenting object from category {}'.format(self.summary[self.CATEGORY_KEY][objData['category_id']])
+            polygon = self.randGen.choice(objData['segmentation'])
 
-            scene = Image.open(scenePath)
-            scene.close()
-            simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, *args, **kwargs)
+            simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, trajectoryModel=self.trajectoryModel, *args, **kwargs)
             
             return simulator
 
@@ -523,5 +537,31 @@ try:
             simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, camSize=camSize, axes=axes)
 
             return simulator
-except Exception as e:
+except ImportError as e:
     print 'No support for pycoco'
+
+class TrajectoryModel():
+
+    def __init__(self, model, length, maxSize=10, base=10.0):
+        self.model = model
+        self.length = length
+        self.maxSize = maxSize
+
+    def sample(self, sceneSize, base=10.0):
+        self.randGen = startRandGen()
+        nComponents = self.model.n_components
+        clusterIds = np.array([self.randGen.randrange(nComponents) for i in np.arange(self.randGen.randrange(1, self.maxSize))])
+        trajectory = np.mean(self.model.means_[clusterIds], axis=0)
+        trajectory = trajectory.reshape(int(trajectory.shape[0]/self.length), self.length)
+        tx, ty, sx, sy = trajectory
+        tx = tx*sceneSize[0]
+        ty = ty*sceneSize[1]
+        sx = base**sx
+        sy = base**sy
+        transforms = [
+            Transformation(scaleX, None, None, pathFunction=lambda a,b,steps: sx),
+            Transformation(scaleY, None, None, pathFunction=lambda a,b,steps: sy),
+            Transformation(translateX, None, None, pathFunction=lambda a,b,steps: tx),
+            Transformation(translateY, None, None, pathFunction=lambda a,b,steps: ty),
+        ]
+        return transforms

@@ -1,13 +1,14 @@
 import h5py
 import numpy as np
 import time
-import VideoSequenceData as vsd
+import BoxSearchSequence as bss
+import TrajectorySimulator as ts
 import os,sys
 from multiprocessing import Process, JoinableQueue, Queue
 
-filePath = vsd.dataDir + 'simulation.hdf5' # Output filename
-GEN = 10 # Number of generator objects
-SIM = 10 # Simulations per generator
+GEN = 6 # Number of generator objects
+SIM = 3 # Simulations per generator
+SEQUENCE_LENGTH = 50
 
 # FUNCTION
 # Distribute work in multiple cores
@@ -26,7 +27,7 @@ def worker(inQueue, outQueue, simulations, output):
 # FUNCTION
 # Coordination of multiple workers and their results
 def processData(sequenceGenerators, simulations, output):
-  numProcs = min(len(sequenceGenerators),10) # max number of cores: 10
+  numProcs = min(len(sequenceGenerators),GEN) # max number of cores: GEN
   taskQueue = JoinableQueue()
   resultQueue = Queue()
   processes = []
@@ -57,31 +58,54 @@ def processData(sequenceGenerators, simulations, output):
 # FUNCTION
 # Simulation of one sequence
 def simulate(seq):
-  seq.prepareSequence()
+  seq.prepareSequence(loadSequence='coco')
   # Store in a numpy array
-  simFrames = np.zeros((vsd.totalFrames,vsd.channels,vsd.imgSize,vsd.imgSize))
-  simTargets = np.zeros((vsd.totalFrames,4))
+  # Sequence structure: steps, views, channels, height, width
+  simFrames = np.zeros((SEQUENCE_LENGTH,2,bss.channels,bss.imgSize,bss.imgSize))
+  simTargets = np.zeros((SEQUENCE_LENGTH,1))
+  frame = 0
   step = 0
+  skip = np.random.randint(0,30)
   while seq.nextStep():
-    simFrames[step,:,:,:] = seq.getFrame()
-    simTargets[step,:] = seq.getMove()
-    step += 1
+    if frame > skip:
+      views = seq.getFrame()
+      actions = seq.getMove()
+      k = 0
+      while step < SEQUENCE_LENGTH and k < len(views):
+        simFrames[step,:,:,:,:] = views[k]
+        simTargets[step,:] = actions[k]
+        step += 1
+        k += 1
+      if step >= SEQUENCE_LENGTH:
+        break
+    frame += 1
   return (simFrames,simTargets)
 
 # USE
 # Main Procedure
 if __name__ == '__main__':
 
+  if len(sys.argv) < 2:
+    print 'Use: SimulationServer.py workingDir'
+    sys.exit()
+
+  workingDir = sys.argv[1]
+  filePath = workingDir + 'simulation.hdf5' # Output filename
+  cocoFactory =  ts.COCOSimulatorFactory('/home/datasets/datasets1/mscoco/','train2014',\
+                 trajectoryModelPath = workingDir + 'gmmDenseAbsoluteNormalized.pkl')
+
   processFile = filePath + '.running'
   os.system('touch ' + processFile)
   while os.path.exists(processFile):
+    startTime = time.time()
     outFile = h5py.File(filePath,'w')
-    generators = [vsd.VideoSequenceData() for i in range(GEN)]
+    generators = [bss.BoxSearchSequenceData(workingDir, cocoFactory) for i in range(GEN)]
     processData(generators, SIM, outFile)
     outFile.close()
     os.system('touch ' + filePath + '.ready')
+    print 'Simulations done in',(time.time() - startTime),'seconds'
 
     while os.path.exists(filePath) and os.path.exists(processFile):
-      time.sleep(0.5)
+      time.sleep(0.1)
 
   print 'Simulation server shut down'
