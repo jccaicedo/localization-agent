@@ -8,6 +8,9 @@ require 'sys'
 require 'paths'
 require 'hdf5'
 
+inputFile = arg[1]
+outputFile = arg[2]
+
 gpu = true
 workingDir = '/data1/vot-challenge/simulations/'
 workingDir = '/home/jccaicedo/data/tracking/simulations/test/'
@@ -19,20 +22,22 @@ if gpu then
   net = net:cuda()
 end
 
-dataFile = workingDir .. 'input.hdf5'
-predictionsFile = workingDir .. 'output.hdf5'
+dataFile = workingDir .. inputFile
+predictionsFile = workingDir .. outputFile
 
 timer = torch.Timer()
 t = torch.Timer()
+globalTimer = torch.Timer()
+timeout = 5
 net:evaluate()
 local i = 1
-local keepRunning = paths.filep(dataFile .. '.running')
-print('Test begins')
+local keepRunning = paths.filep(dataFile .. '.running') and (globalTimer:time().real < timeout)
+print('Test begins', net)
 while keepRunning do
    -- Search input data
    while (not paths.filep(dataFile) or not paths.filep(dataFile .. '.ready')) and keepRunning do
      sys.sleep(0.1)
-     keepRunning = paths.filep(dataFile .. '.running')
+     keepRunning = paths.filep(dataFile .. '.running') and (globalTimer:time().real < timeout)
    end
    if not keepRunning then
      break
@@ -66,10 +71,11 @@ while keepRunning do
    outFile:close()
    sys.execute('touch ' .. predictionsFile .. '.ready')
 
-   print('Frame '..i,t:time().real)
+   --print('Frame '..i,t:time().real)
    t = torch.Timer()
+   globalTimer = torch.Timer()
    i = i + 1
-   keepRunning = paths.filep(dataFile .. '.running')
+   keepRunning = paths.filep(dataFile .. '.running') and (globalTimer:time().real < timeout)
 end
-print('Total tracking time: ' .. timer:time().real)
+--print('Total tracking time: ' .. timer:time().real)
 
