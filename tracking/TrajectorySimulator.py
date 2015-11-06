@@ -86,13 +86,13 @@ def cosine(y1, y2, randGen):
 
 class OffsetTrajectory():
 
-    def __init__(self, w, h, offset):
+    def __init__(self, w, h, objSize):
         self.thetaMin = -np.pi/12
         self.thetaMax = np.pi/12
-        self.xMin = np.max(np.abs(offset*np.sin([self.thetaMin, self.thetaMax])))
-        self.yMin = np.max(np.abs(offset*np.sin([self.thetaMin, self.thetaMax])))
-        self.xMax = w-offset
-        self.yMax = h-offset
+        self.xMin = -objSize[0]/2.0
+        self.yMin = -objSize[1]/2.0
+        self.xMax = objSize[0]/2.0
+        self.yMax = objSize[1]/2.0
         self.scaleMax = 1.0
         self.scaleMin = 0.8
         print('Translation bounds: {} to {}'.format([self.xMin, self.yMin], [self.xMax, self.yMax]))
@@ -115,7 +115,7 @@ class BoundedTrajectory():
     # Implicitly selects speed, length and direction of movement.
     # Assume constant speed (no acceleration).
     self.randGen = startRandGen()
-    x1 = (0.8*w - 0.2*w)*elf.randGen.random() + 0.2*w
+    x1 = (0.8*w - 0.2*w)*self.randGen.random() + 0.2*w
     y1 = (0.8*h - 0.2*h)*self.randGen.random() + 0.2*h
     x2 = (0.8*w - 0.2*w)*self.randGen.random() + 0.2*w
     y2 = (0.8*h - 0.2*h)*self.randGen.random() + 0.2*h
@@ -309,15 +309,17 @@ class TrajectorySimulator():
     else:
         model = TrajectoryModel(trajectoryModel, trajectoryModelLength)
         self.contentTransforms = model.sample(self.scene.size)
+    offsetWidth = (self.camSize[0]-self.objSize[0])/2
+    offsetHeight = (self.camSize[1]-self.objSize[1])/2
     if cameraContentTransforms is None:
-        if trajectoryModel is None:
-            cameraDiagonal = np.sqrt(self.camSize[0]**2+self.camSize[1]**2)
-            self.cameraContentTransforms = OffsetTrajectory(self.scene.size[0], self.scene.size[1], cameraDiagonal).transforms
-        else:
-            #TODO: camera transforms related to sampled trajectory
-            self.cameraContentTransforms = []
+        self.cameraContentTransforms = OffsetTrajectory(self.scene.size[0], self.scene.size[1], (offsetWidth, offsetHeight)).transforms
     else:
         self.cameraContentTransforms = cameraContentTransforms
+    centeringTransforms = [
+        Transformation(translateX, -(offsetWidth), -(offsetWidth)),
+        Transformation(translateY, -(offsetHeight), -(offsetHeight))
+    ]
+    self.cameraContentTransforms += centeringTransforms
     if cameraShapeTransforms is None:
         self.cameraShapeTransforms = [
             Transformation(identityShape, 1, 1),
@@ -352,8 +354,10 @@ class TrajectorySimulator():
     self.objSize = self.shapeTransforms[0].transformShape(self.objSize[0], self.objSize[1], self.step)
     self.objView = self.obj.resize(self.objSize, Image.ANTIALIAS)
     # Concatenate transforms and apply them to obtain transformed object
+    self.objectTransform = concatenateTransforms((self.contentTransforms[i].transformContent(self.step) for i in xrange(len(self.contentTransforms))))
     self.cameraTransform = concatenateTransforms((self.cameraContentTransforms[i].transformContent(self.step) for i in xrange(len(self.cameraContentTransforms))))
-    self.currentTransform = concatenateTransforms((self.contentTransforms[i].transformContent(self.step) for i in xrange(len(self.contentTransforms))))
+    self.currentTransform = np.linalg.inv(self.cameraTransform)
+    self.cameraTransform = concatenateTransforms([self.objectTransform, self.cameraTransform])
     self.objView = applyTransform(self.objView, np.dot(self.cameraTransform, self.currentTransform), self.scene.size)
 
   def render(self):
@@ -366,7 +370,6 @@ class TrajectorySimulator():
       self.sceneView = self.sceneView.resize(self.sceneSize, Image.ANTIALIAS).crop((0,0) + self.scene.size)
     # Obtain definite camera transform by appending object transform
     self.camView = applyTransform(self.sceneView, np.linalg.inv(self.cameraTransform), self.camSize)
-    referenceTransform = self.cameraTransform
     # Obtain bounding box points on camera coordinate system
     if self.camera:
         boxPoints = transform_points(self.currentTransform, self.bounds)
