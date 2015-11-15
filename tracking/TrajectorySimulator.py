@@ -125,11 +125,15 @@ class BoundedTrajectory():
     if self.randGen.random() > 0.5:
       # Horizontal steps, vertical wave
       self.X = stretch(RANGE, x1, x2)
-      self.Y = cosine(y1, y2)
+      self.Y = cosine(y1, y2, self.randGen)
     else:
       # Horizontal wave, vertical steps
-      self.X = cosine(x1, x2)
+      self.X = cosine(x1, x2, self.randGen)
       self.Y = stretch(RANGE, y1, y2)
+    self.transforms = [
+        Transformation(translateX, None, None, lambda a,b,steps: self.X),
+        Transformation(translateY, None, None, lambda a,b,steps: self.Y),
+    ]
 
   def getCoord(self, j):
     return (self.X[j], self.Y[j])
@@ -271,8 +275,7 @@ class TrajectorySimulator():
     self.shapeTransforms = shapeTransforms
     self.contentTransforms = contentTransforms
     if trajectoryModel is not None:
-      model = TrajectoryModel(trajectoryModel, trajectoryModelLength)
-      self.contentTransforms = model.sample(self.scene.size)
+      self.trajectoryModel = TrajectoryModel(trajectoryModel, trajectoryModelLength)
     self.cameraContentTransforms = cameraContentTransforms
     self.cameraShapeTransforms = cameraShapeTransforms
     print '@TrajectorySimulator: New simulation with scene {} and object {}'.format(sceneFile, objectFile)
@@ -305,28 +308,27 @@ class TrajectorySimulator():
         self.shapeTransforms = [
             Transformation(identityShape, 1, 1),
         ]
-    if self.contentTransforms is None:
-        self.contentTransforms = [
-            Transformation(scaleX, 0.7, 1.3),
-            Transformation(scaleY, 0.7, 1.3),
-            Transformation(rotate, -np.pi/50, np.pi/50),
-            Transformation(translateX, 0, self.camSize[0]-max(self.objSize)),
-            Transformation(translateY, 0, self.camSize[1]-max(self.objSize)),
-        ]
-    offsetWidth = (self.camSize[0]-self.objSize[0])/2
-    offsetHeight = (self.camSize[1]-self.objSize[1])/2
-    if self.cameraContentTransforms is None:
-        self.cameraContentTransforms = OffsetTrajectory(self.scene.size[0], self.scene.size[1], (offsetWidth, offsetHeight)).transforms
-    centeringTransforms = [
-        Transformation(translateX, -(offsetWidth), -(offsetWidth)),
-        Transformation(translateY, -(offsetHeight), -(offsetHeight))
-    ]
-    self.cameraContentTransforms += centeringTransforms
+    if self.trajectoryModel is None:
+        if self.contentTransforms is None:
+            self.contentTransforms = [
+                Transformation(scaleX, 0.7, 1.3),
+                Transformation(scaleY, 0.7, 1.3),
+                Transformation(rotate, -np.pi/50, np.pi/50),
+                Transformation(translateX, 0, self.camSize[0]-max(self.objSize)),
+                Transformation(translateY, 0, self.camSize[1]-max(self.objSize)),
+            ]
+        if self.cameraContentTransforms is None:
+            #TODO: camera transforms related to sampled trajectory
+            cameraDiagonal = np.sqrt(self.camSize[0]**2+self.camSize[1]**2)
+            #self.cameraContentTransforms = OffsetTrajectory(self.scene.size[0], self.scene.size[1], cameraDiagonal).transforms
+            self.cameraContentTransforms = BoundedTrajectory(self.scene.size[0], self.scene.size[1]).transforms
+    else:
+        self.contentTransforms = self.trajectoryModel.sample(self.camSize)
+        self.cameraContentTransforms = self.trajectoryModel.sample(self.scene.size)
     if self.cameraShapeTransforms is None:
         self.cameraShapeTransforms = [
             Transformation(identityShape, 1, 1),
         ]
-
     self.transform()
     self.render()
 
@@ -354,10 +356,8 @@ class TrajectorySimulator():
     self.objSize = self.shapeTransforms[0].transformShape(self.objSize[0], self.objSize[1], self.step)
     self.objView = self.obj.resize(self.objSize, Image.ANTIALIAS)
     # Concatenate transforms and apply them to obtain transformed object
-    self.objectTransform = concatenateTransforms((self.contentTransforms[i].transformContent(self.step) for i in xrange(len(self.contentTransforms))))
     self.cameraTransform = concatenateTransforms((self.cameraContentTransforms[i].transformContent(self.step) for i in xrange(len(self.cameraContentTransforms))))
-    self.currentTransform = np.linalg.inv(self.cameraTransform)
-    self.cameraTransform = concatenateTransforms([self.objectTransform, self.cameraTransform])
+    self.currentTransform = concatenateTransforms((self.contentTransforms[i].transformContent(self.step) for i in xrange(len(self.contentTransforms))))
     self.objView = applyTransform(self.objView, np.dot(self.cameraTransform, self.currentTransform), self.scene.size)
 
   def render(self):
