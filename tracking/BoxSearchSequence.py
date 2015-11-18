@@ -66,22 +66,22 @@ class SearchSequenceGenerator(object):
 
 class BoxSearchSequenceData(object):
 
-  def __init__(self, workingDir='/home/jccaicedo/data/tracking/simulations/debug/', cocoFactory=None):
+  def __init__(self, workingDir='/home/jccaicedo/data/tracking/simulations/debug/', sequenceList=None):
     self.predictedBox = [0,0,0,0]
     self.prevBox = [0,0,0,0]
     self.box = [0,0,0,0]
     self.scene = None
     self.targetView = None
     self.workingDir = workingDir
-    self.cocoFactory = cocoFactory
+    self.sequenceList = sequenceList
 
   def prepareSequence(self, loadSequence=None):
     if loadSequence is None:
       scene = self.workingDir + 'bogota.jpg'
       obj = self.workingDir + 'photo.jpg'
       self.dataSource = ts.TrajectorySimulator(scene, obj, box, polygon, camera=cam)
-    elif loadSequence == 'coco' and self.cocoFactory is not None:
-      self.dataSource = self.cocoFactory.createInstance(drawBox=True, camera=False)
+    elif loadSequence == 'list' and self.sequenceList is not None:
+      self.dataSource = self.sequenceList.pop()
     elif loadSequence == 'TraxClient':
       self.dataSource = TraxClientWrapper()
     else:

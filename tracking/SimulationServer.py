@@ -58,7 +58,7 @@ def processData(sequenceGenerators, simulations, output):
 # FUNCTION
 # Simulation of one sequence
 def simulate(seq):
-  seq.prepareSequence(loadSequence='coco')
+  seq.prepareSequence(loadSequence='list')
   # Store in a numpy array
   # Sequence structure: steps, views, channels, height, width
   simFrames = np.zeros((SEQUENCE_LENGTH,2,bss.channels,bss.imgSize,bss.imgSize))
@@ -99,7 +99,7 @@ if __name__ == '__main__':
   while os.path.exists(processFile):
     startTime = time.time()
     outFile = h5py.File(filePath,'w')
-    generators = [bss.BoxSearchSequenceData(workingDir, cocoFactory) for i in range(GEN)]
+    generators = [bss.BoxSearchSequenceData(workingDir, [cocoFactory.createInstance() for j in range(SIM)]) for i in range(GEN)]
     processData(generators, SIM, outFile)
     outFile.close()
     os.system('touch ' + filePath + '.ready')
