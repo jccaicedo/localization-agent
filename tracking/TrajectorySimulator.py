@@ -454,19 +454,18 @@ class TrajectorySimulator():
 # while o.nextStep(): o.saveFrame(dir)
 # o.sceneView
 
-try:
-    import pycocotools.coco
+class COCOSimulatorFactory():
 
-    class COCOSimulatorFactory():
-
-        #Assumes standard data layout as specified in https://github.com/pdollar/coco/blob/master/README.txt
-        def __init__(self, dataDir, dataType, trajectoryModelPath, summaryPath):
-            self.SUMMARY_KEY='summary'
-            self.CATEGORY_KEY='categories'
-            self.dataDir = dataDir
-            self.dataType = dataType
-            self.imagePathTemplate = '%s/images/%s/%s'
-            if not os.path.exists(summaryPath):
+    #Assumes standard data layout as specified in https://github.com/pdollar/coco/blob/master/README.txt
+    def __init__(self, dataDir, dataType, trajectoryModelPath, summaryPath):
+        self.SUMMARY_KEY='summary'
+        self.CATEGORY_KEY='categories'
+        self.dataDir = dataDir
+        self.dataType = dataType
+        self.imagePathTemplate = '%s/images/%s/%s'
+        if not os.path.exists(summaryPath):
+            try:
+                import pycocotools.coco
                 self.annFile = '%s/annotations/instances_%s.json'%(dataDir,dataType)
                 #COCO dataset handler object
                 print '!!!!!!!!!!!!! WARNING: Loading the COCO annotations can take up to 3 GB RAM !!!!!!!!!!!!!'
@@ -495,53 +494,54 @@ try:
                 summaryFile.close()
                 #Free memory
                 del coco, catIds, cats, catDict, imgIds, objData, objAnnIds, objAnns
-            else:
-                print 'Loading summary from file {}'.format(summaryPath)
-                summaryFile = open(summaryPath, 'r')
-                self.summary = pickle.load(summaryFile)
-                summaryFile.close()
-            modelFile = open(trajectoryModelPath, 'r')
-            self.trajectoryModel = pickle.load(modelFile)
-            modelFile.close()
+            except ImportError as e:
+                print 'No support for pycoco'
+                raise e
+        else:
+            print 'Loading summary from file {}'.format(summaryPath)
+            summaryFile = open(summaryPath, 'r')
+            self.summary = pickle.load(summaryFile)
+            summaryFile.close()
+        modelFile = open(trajectoryModelPath, 'r')
+        self.trajectoryModel = pickle.load(modelFile)
+        modelFile.close()
 
-            
-        def createInstance(self, *args, **kwargs):
-            self.randGen = startRandGen()
-            #Select a random image for the scene
-            scenePath = self.imagePathTemplate % (self.dataDir, self.dataType, self.randGen.choice(os.listdir(os.path.join(self.dataDir, 'images', self.dataType))))
+        
+    def createInstance(self, *args, **kwargs):
+        self.randGen = startRandGen()
+        #Select a random image for the scene
+        scenePath = self.imagePathTemplate % (self.dataDir, self.dataType, self.randGen.choice(os.listdir(os.path.join(self.dataDir, 'images', self.dataType))))
 
-            #Select a random image for the object, restricted to annotation categories
-            objData = self.randGen.choice(self.summary[self.SUMMARY_KEY])
-            objPath = self.imagePathTemplate%(self.dataDir, self.dataType, objData['file_name'])
+        #Select a random image for the object, restricted to annotation categories
+        objData = self.randGen.choice(self.summary[self.SUMMARY_KEY])
+        objPath = self.imagePathTemplate%(self.dataDir, self.dataType, objData['file_name'])
 
-            #Select a random object in the scene and read the segmentation polygon
-            print 'Segmenting object from category {}'.format(self.summary[self.CATEGORY_KEY][objData['category_id']])
-            polygon = self.randGen.choice(objData['segmentation'])
+        #Select a random object in the scene and read the segmentation polygon
+        print 'Segmenting object from category {}'.format(self.summary[self.CATEGORY_KEY][objData['category_id']])
+        polygon = self.randGen.choice(objData['segmentation'])
 
-            simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, trajectoryModel=self.trajectoryModel, *args, **kwargs)
-            
-            return simulator
+        simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, trajectoryModel=self.trajectoryModel, *args, **kwargs)
+        
+        return simulator
 
-        def create(self, sceneFullPath, objectFullPath, axes=False):
-            #TODO: make really definite
-            sceneDict = [data for data in self.coco.loadImgs(self.fullImgIds) if str(data['file_name']) == os.path.basename(sceneFullPath)][0]
-            objectDict = [data for data in self.coco.loadImgs(self.imgIds) if str(data['file_name']) == os.path.basename(objectFullPath)][0]
-            scenePath = self.imagePathTemplate%(self.dataDir, self.dataType, sceneDict['file_name'])
-            objPath = self.imagePathTemplate%(self.dataDir, self.dataType, objectDict['file_name'])
-            objAnnIds = self.coco.getAnnIds(imgIds=objectDict['id'], catIds=self.catIds, iscrowd=None)
-            objAnns = self.coco.loadAnns(objAnnIds)
-            objectAnnotations = objAnns[self.randGen.randint(0, len(objAnns))]
-            print 'Segmenting object from category {}'.format(self.coco.loadCats(objectAnnotations['category_id'])[0]['name'])
-            polygon = objectAnnotations['segmentation'][self.randGen.randint(0, len(objectAnnotations['segmentation']))]
-            scene = Image.open(scenePath)
-            camSize = map(int, (scene.size[0]*0.5, scene.size[1]*0.5))
-            scene.close()
+    def create(self, sceneFullPath, objectFullPath, axes=False):
+        #TODO: make really definite
+        sceneDict = [data for data in self.coco.loadImgs(self.fullImgIds) if str(data['file_name']) == os.path.basename(sceneFullPath)][0]
+        objectDict = [data for data in self.coco.loadImgs(self.imgIds) if str(data['file_name']) == os.path.basename(objectFullPath)][0]
+        scenePath = self.imagePathTemplate%(self.dataDir, self.dataType, sceneDict['file_name'])
+        objPath = self.imagePathTemplate%(self.dataDir, self.dataType, objectDict['file_name'])
+        objAnnIds = self.coco.getAnnIds(imgIds=objectDict['id'], catIds=self.catIds, iscrowd=None)
+        objAnns = self.coco.loadAnns(objAnnIds)
+        objectAnnotations = objAnns[self.randGen.randint(0, len(objAnns))]
+        print 'Segmenting object from category {}'.format(self.coco.loadCats(objectAnnotations['category_id'])[0]['name'])
+        polygon = objectAnnotations['segmentation'][self.randGen.randint(0, len(objectAnnotations['segmentation']))]
+        scene = Image.open(scenePath)
+        camSize = map(int, (scene.size[0]*0.5, scene.size[1]*0.5))
+        scene.close()
 
-            simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, camSize=camSize, axes=axes)
+        simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, camSize=camSize, axes=axes)
 
-            return simulator
-except ImportError as e:
-    print 'No support for pycoco'
+        return simulator
 
 class TrajectoryModel():
 
