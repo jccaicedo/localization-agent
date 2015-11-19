@@ -266,10 +266,22 @@ class TrajectorySimulator():
     self.drawBox = drawBox
     self.drawCam = drawCam
     self.camera = camera
+    self.axes = axes
+    # Default transformations
+    self.shapeTransforms = shapeTransforms
+    self.contentTransforms = contentTransforms
+    if trajectoryModel is not None:
+      model = TrajectoryModel(trajectoryModel, trajectoryModelLength)
+      self.contentTransforms = model.sample(self.scene.size)
+    self.cameraContentTransforms = cameraContentTransforms
+    self.cameraShapeTransforms = cameraShapeTransforms
+    print '@TrajectorySimulator: New simulation with scene {} and object {}'.format(sceneFile, objectFile)
+
+  def start(self):
     #Segment the object using the polygon and crop to the resulting axes-aligned bounding box
-    self.obj = segmentCrop(self.obj, polygon)
+    self.obj = segmentCrop(self.obj, self.polygon)
     # Draw coordinate axes for each source
-    if axes:
+    if self.axes:
       self.scene = self.draw_axes(self.scene)
       self.obj = self.draw_axes(self.obj)
     self.objSize = self.obj.size
@@ -289,46 +301,34 @@ class TrajectorySimulator():
     #TODO: reactivate shape transforms
     # Initialize transformations
     #TODO: select adequate values for transforms and maybe sample them from a given distribution
-    if shapeTransforms is None:
+    if self.shapeTransforms is None:
         self.shapeTransforms = [
             Transformation(identityShape, 1, 1),
         ]
-    else:
-        self.shapeTransforms = shapeTransforms
-    if trajectoryModel is None:
-        if contentTransforms is None:
-            self.contentTransforms = [
-                Transformation(scaleX, 0.7, 1.3),
-                Transformation(scaleY, 0.7, 1.3),
-                Transformation(rotate, -np.pi/50, np.pi/50),
-                Transformation(translateX, 0, self.camSize[0]-max(self.objSize)),
-                Transformation(translateY, 0, self.camSize[1]-max(self.objSize)),
-            ]
-        else:
-            self.contentTransforms = contentTransforms
-    else:
-        model = TrajectoryModel(trajectoryModel, trajectoryModelLength)
-        self.contentTransforms = model.sample(self.scene.size)
+    if self.contentTransforms is None:
+        self.contentTransforms = [
+            Transformation(scaleX, 0.7, 1.3),
+            Transformation(scaleY, 0.7, 1.3),
+            Transformation(rotate, -np.pi/50, np.pi/50),
+            Transformation(translateX, 0, self.camSize[0]-max(self.objSize)),
+            Transformation(translateY, 0, self.camSize[1]-max(self.objSize)),
+        ]
     offsetWidth = (self.camSize[0]-self.objSize[0])/2
     offsetHeight = (self.camSize[1]-self.objSize[1])/2
-    if cameraContentTransforms is None:
+    if self.cameraContentTransforms is None:
         self.cameraContentTransforms = OffsetTrajectory(self.scene.size[0], self.scene.size[1], (offsetWidth, offsetHeight)).transforms
-    else:
-        self.cameraContentTransforms = cameraContentTransforms
     centeringTransforms = [
         Transformation(translateX, -(offsetWidth), -(offsetWidth)),
         Transformation(translateY, -(offsetHeight), -(offsetHeight))
     ]
     self.cameraContentTransforms += centeringTransforms
-    if cameraShapeTransforms is None:
+    if self.cameraShapeTransforms is None:
         self.cameraShapeTransforms = [
             Transformation(identityShape, 1, 1),
         ]
-    else:
-        self.cameraShapeTransforms = cameraShapeTransforms
+
     self.transform()
     self.render()
-    print '@TrajectorySimulator: New simulation with scene {} and object {}'.format(sceneFile, objectFile)
 
   def scaleObject(self):
     # Initial scale of the object is 

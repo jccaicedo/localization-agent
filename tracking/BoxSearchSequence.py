@@ -82,6 +82,7 @@ class BoxSearchSequenceData(object):
       self.dataSource = ts.TrajectorySimulator(scene, obj, box, polygon, camera=cam)
     elif loadSequence == 'list' and self.sequenceList is not None:
       self.dataSource = self.sequenceList.pop()
+      self.dataSource.start()
     elif loadSequence == 'TraxClient':
       self.dataSource = TraxClientWrapper()
     else:

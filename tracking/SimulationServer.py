@@ -91,8 +91,9 @@ if __name__ == '__main__':
 
   workingDir = sys.argv[1]
   filePath = workingDir + 'simulation.hdf5' # Output filename
-  cocoFactory =  ts.COCOSimulatorFactory('/home/datasets/datasets1/mscoco/','train2014',\
-                 trajectoryModelPath = workingDir + 'gmmDenseAbsoluteNormalized.pkl')
+  cocoFactory =  ts.COCOSimulatorFactory('/home/jccaicedo/data/coco/','train2014',\
+                 trajectoryModelPath = workingDir + 'gmmDenseAbsoluteNormalized.pkl',\
+                 summaryPath = workingDir + 'cocoSummary.pkl')
 
   processFile = filePath + '.running'
   os.system('touch ' + processFile)
