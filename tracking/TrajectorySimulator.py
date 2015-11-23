@@ -457,12 +457,13 @@ class TrajectorySimulator():
 class COCOSimulatorFactory():
 
     #Assumes standard data layout as specified in https://github.com/pdollar/coco/blob/master/README.txt
-    def __init__(self, dataDir, dataType, trajectoryModelPath, summaryPath):
+    def __init__(self, dataDir, dataType, trajectoryModelPath, summaryPath, scenePathTemplate = 'images/train2014', objectPathTemplate = 'images/train2014'):
         self.SUMMARY_KEY='summary'
         self.CATEGORY_KEY='categories'
         self.dataDir = dataDir
         self.dataType = dataType
-        self.imagePathTemplate = '%s/images/%s/%s'
+        self.scenePathTemplate = scenePathTemplate
+        self.objectPathTemplate = objectPathTemplate
         if not os.path.exists(summaryPath):
             try:
                 import pycocotools.coco
@@ -510,11 +511,11 @@ class COCOSimulatorFactory():
     def createInstance(self, *args, **kwargs):
         self.randGen = startRandGen()
         #Select a random image for the scene
-        scenePath = self.imagePathTemplate % (self.dataDir, self.dataType, self.randGen.choice(os.listdir(os.path.join(self.dataDir, 'images', self.dataType))))
+        scenePath = os.path.join(self.dataDir, self.scenePathTemplate, self.randGen.choice(os.listdir(os.path.join(self.dataDir, self.scenePathTemplate))))
 
         #Select a random image for the object, restricted to annotation categories
         objData = self.randGen.choice(self.summary[self.SUMMARY_KEY])
-        objPath = self.imagePathTemplate%(self.dataDir, self.dataType, objData['file_name'])
+        objPath = os.path.join(self.dataDir, self.objectPathTemplate, objData['file_name'])
 
         #Select a random object in the scene and read the segmentation polygon
         print 'Segmenting object from category {}'.format(self.summary[self.CATEGORY_KEY][objData['category_id']])
@@ -528,8 +529,8 @@ class COCOSimulatorFactory():
         #TODO: make really definite
         sceneDict = [data for data in self.coco.loadImgs(self.fullImgIds) if str(data['file_name']) == os.path.basename(sceneFullPath)][0]
         objectDict = [data for data in self.coco.loadImgs(self.imgIds) if str(data['file_name']) == os.path.basename(objectFullPath)][0]
-        scenePath = self.imagePathTemplate%(self.dataDir, self.dataType, sceneDict['file_name'])
-        objPath = self.imagePathTemplate%(self.dataDir, self.dataType, objectDict['file_name'])
+        scenePath = self.scenePathTemplate%(self.dataDir, sceneDict['file_name'])
+        objPath = self.objectPathTemplate%(self.dataDir, objectDict['file_name'])
         objAnnIds = self.coco.getAnnIds(imgIds=objectDict['id'], catIds=self.catIds, iscrowd=None)
         objAnns = self.coco.loadAnns(objAnnIds)
         objectAnnotations = objAnns[self.randGen.randint(0, len(objAnns))]
