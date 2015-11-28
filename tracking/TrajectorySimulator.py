@@ -328,14 +328,48 @@ class TrajectorySimulator():
             #self.cameraContentTransforms = OffsetTrajectory(self.scene.size[0], self.scene.size[1], cameraDiagonal).transforms
             self.cameraContentTransforms = BoundedTrajectory(self.scene.size[0], self.scene.size[1]).transforms
     else:
+        #TODO: Check why the order (object, camera) generates different results
+        #Object transform sampling and correction
         self.contentTransforms = self.trajectoryModel.sample(self.camSize)
+        scaleCorr = self.correct_scale(self.contentTransforms, self.bounds, self.camSize)
+        self.contentTransforms = [Transformation(lambda a: scaleCorr, 0,0)] + self.contentTransforms
+        transCorr = self.correct_translation(self.contentTransforms, self.bounds, self.camSize)
+        self.contentTransforms = [Transformation(lambda a: transCorr, 0,0)] + self.contentTransforms
+        #Camera transform sampling and correction
         self.cameraContentTransforms = self.trajectoryModel.sample(self.scene.size)
+        scaleCorr = self.correct_scale(self.cameraContentTransforms, self.cameraBounds, self.scene.size)
+        self.cameraContentTransforms = [Transformation(lambda a: scaleCorr, 0,0)] + self.cameraContentTransforms
+        transCorr = self.correct_translation(self.cameraContentTransforms, self.cameraBounds, self.scene.size)
+        self.cameraContentTransforms = [Transformation(lambda a: transCorr, 0,0)] + self.cameraContentTransforms
     if self.cameraShapeTransforms is None:
         self.cameraShapeTransforms = [
             Transformation(identityShape, 1, 1),
         ]
     self.transform()
     self.render()
+
+  def correct_scale(self, transformations, refBounds, limits):
+    resPoints, resBounds, resSize = self.result_points(transformations, refBounds, limits)
+    scaleCorr = 1
+    if not np.less(resSize, limits).all():
+        ratios = np.array(limits)/resSize
+        scaleCorr = 0.9*np.min(ratios)
+    transCorr = concatenateTransforms((scaleX(scaleCorr), scaleY(scaleCorr)))
+    return transCorr
+
+  def result_points(self, transformations, refBounds, limits):
+    resPoints = np.array([transform_points(self.transform_step(transformations, i), refBounds) for i in xrange(self.trajectoryModelLength)])
+    resBounds = [np.min(resPoints[:,0,:]), np.min(resPoints[:,1,:]), np.max(resPoints[:,0,:]), np.max(resPoints[:,1,:])]
+    resSize = np.array([resBounds[2]-resBounds[0], resBounds[3]-resBounds[1]])  
+    return resPoints, resBounds, resSize
+
+  def correct_translation(self, transformations, refBounds, limits):
+    resPoints, resBounds, resSize = self.result_points(transformations, refBounds, limits)
+    gap = limits-resSize
+    newPos = [self.randGen.randint(0,int(gap[0])), self.randGen.randint(0,int(gap[1]))]
+    translation = np.array(newPos)-resBounds[:2]
+    transCorr = concatenateTransforms([translateX(translation[0]), translateY(translation[1])])
+    return transCorr
 
   def scaleObject(self):
     # Initial scale of the object is 
