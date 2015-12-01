@@ -1,6 +1,6 @@
 __author__ = "Juan C. Caicedo, caicedo@illinois.edu"
 
-import Image
+from PIL import Image
 import random
 
 import BoxSearchTask as bst
