@@ -557,8 +557,16 @@ class TrajectoryModel():
         trajectory = np.mean(self.model.means_[clusterIds], axis=0)
         trajectory = trajectory.reshape(int(trajectory.shape[0]/self.length), self.length)
         tx, ty, sx, sy = trajectory
-        tx = tx*sceneSize[0]
-        ty = ty*sceneSize[1]
+        if self.model.relative:
+            tx0, ty0 = (self.randGen.random()*sceneSize[0], self.randGen.random()*sceneSize[1])
+            tx = np.cumsum(tx)
+            ty = np.cumsum(ty)
+            sx = np.cumsum(sx)
+            sy = np.cumsum(sy)
+        else:
+            tx0, ty0 = (0,0)
+        tx = tx*sceneSize[0]+tx0
+        ty = ty*sceneSize[1]+ty0
         sx = base**sx
         sy = base**sy
         transforms = [
