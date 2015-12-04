@@ -457,11 +457,10 @@ class TrajectorySimulator():
 class COCOSimulatorFactory():
 
     #Assumes standard data layout as specified in https://github.com/pdollar/coco/blob/master/README.txt
-    def __init__(self, dataDir, dataType, trajectoryModelPath, summaryPath, scenePathTemplate = 'images/train2014', objectPathTemplate = 'images/train2014'):
+    def __init__(self, dataDir, trajectoryModelPath, summaryPath, scenePathTemplate = 'images/train2014', objectPathTemplate = 'images/train2014'):
         self.SUMMARY_KEY='summary'
         self.CATEGORY_KEY='categories'
         self.dataDir = dataDir
-        self.dataType = dataType
         self.scenePathTemplate = scenePathTemplate
         self.objectPathTemplate = objectPathTemplate
         if not os.path.exists(summaryPath):
@@ -515,10 +514,10 @@ class COCOSimulatorFactory():
 
         #Select a random image for the object, restricted to annotation categories
         objData = self.randGen.choice(self.summary[self.SUMMARY_KEY])
-        objPath = os.path.join(self.dataDir, self.objectPathTemplate, objData['file_name'])
+        objPath = os.path.join(self.dataDir, self.objectPathTemplate, objData['file_name'].strip())
 
         #Select a random object in the scene and read the segmentation polygon
-        print 'Segmenting object from category {}'.format(self.summary[self.CATEGORY_KEY][objData['category_id']])
+        print 'Segmenting object from category {}'.format(self.summary[self.CATEGORY_KEY][int(objData['category_id'])])
         polygon = self.randGen.choice(objData['segmentation'])
 
         simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, trajectoryModel=self.trajectoryModel, *args, **kwargs)
