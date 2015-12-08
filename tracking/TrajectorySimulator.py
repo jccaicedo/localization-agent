@@ -7,13 +7,13 @@ from PIL import ImageDraw
 import numpy.linalg
 import pickle
 
-#TODO: correct methods not following same logic as numpy.random, e.g. randint (includes both extremes)
 def startRandGen():
   r = random.Random()
   r.jumpahead(long(time.time()))
   return r
 
 def segmentCrop(image, polygon):
+    '''Segments an image using the given polygon and returns a crop of the bounding box including alpha channel'''
     cropMask = Image.new('L', image.size, 0)
     maskDraw = ImageDraw.Draw(cropMask)
     maskDraw.polygon(polygon, fill=255)
@@ -24,32 +24,41 @@ def segmentCrop(image, polygon):
     return crop
 
 def polygon_bounds(polygon):
+    '''Calculates the bounding box for the given polygon'''
     maskCoords = np.array(polygon).reshape(len(polygon)/2,2).T
     bounds = map(int, (maskCoords[0].min(), maskCoords[1].min(), maskCoords[0].max(), maskCoords[1].max()))
     return bounds
 
 def applyScale(scales):
+    '''Calculates a scaling transformation matrix with independent scaling'''
     return np.array([[scales[0], 0, 0],[0, scales[1], 0],[0, 0, 1]])
 
 def applyRotate(angle):
+    ''''Calculates a rotation transformation matrix from an angle in radians'''
     return np.array([[np.cos(angle), np.sin(angle), 0],[-np.sin(angle), np.cos(angle), 0],[0, 0, 1]])
 
 def applyTranslate(translation):
+    '''Calculates a trans;lation transformation matrix from x and y coordinates'''
     return np.array([[1, 0, translation[0]],[0,1,translation[1]],[0, 0, 1]])
 
 def applyTransform(crop, transform, camSize):
+    '''Applies an affine transform of the crop with range equal to the given camera size'''
     # Requires inverse as the parameters transform from object to camera 
     return crop.transform(camSize, Image.AFFINE, np.linalg.inv(transform).flatten()[:7])
 
 def concatenateTransforms(transforms):
-    # TODO: remove hard coded dimension
-    result = np.eye(3)
-    for aTransform in transforms:
-        result = np.dot(aTransform, result)
+    '''Calculates the resulting transformation in the inverse order'''
+    if len(transforms) < 1:
+        result = None
+    else:
+        transformDim = transforms[0].shape[0]
+        result = np.eye(transformDim)
+        for aTransform in transforms:
+            result = np.dot(aTransform, result)
     return result
 
-# Points must be in homogeneous coordinates
 def transform_points(transform, points):
+    '''Applies a transformation to an array of homogeneous points'''
     transformedCorners = np.dot(transform, points)
     return transformedCorners
     
@@ -454,65 +463,64 @@ class TrajectorySimulator():
 # while o.nextStep(): o.saveFrame(dir)
 # o.sceneView
 
-class COCOSimulatorFactory():
+def createCOCOSummary(dataDir, dataType, summaryPath):
+    try:
+        import pycocotools.coco
+        self.annFile = '%s/annotations/instances_%s.json'%(dataDir,dataType)
+        #COCO dataset handler object
+        print '!!!!!!!!!!!!! WARNING: Loading the COCO annotations can take up to 3 GB RAM !!!!!!!!!!!!!'
+        coco = pycocotools.coco.COCO(self.annFile)
+        #TODO: Filter the categories to use in sequence generation
+        catIds = coco.getCatIds()
+        cats = coco.loadCats(catIds)
+        catDict = {cat['id']:cat['name'] for cat in cats}
+        imgIds = coco.getImgIds(catIds=catIds)
+        objData = coco.loadImgs(imgIds)
+        objAnnIds = coco.getAnnIds(imgIds=[obj['id'] for obj in objData], catIds=catIds, iscrowd=False)
+        objAnns = coco.loadAnns(objAnnIds)
+        objFileNames = {obj['id']:obj['file_name'] for obj in objData}
+        cocoDict = [
+            {
+                k:obj.get(k, objFileNames[obj['image_id']] if k == 'file_name' else None)
+                for k in ['category_id', 'image_id', 'segmentation', 'file_name']
+            }
+            for obj in objAnns
+        ]
+        print 'Number of categories {} and corresponding images {}'.format(len(catIds), len(imgIds))
+        print 'Category names: {}'.format(', '.join(catDict.values()))
+        self.summary = {self.SUMMARY_KEY: cocoDict, self.CATEGORY_KEY: catDict}
+        summaryFile = open(summaryPath, 'w')
+        pickle.dump(self.summary, summaryFile)
+        summaryFile.close()
+        #Free memory
+        del coco, catIds, cats, catDict, imgIds, objData, objAnnIds, objAnns
+    except ImportError as e:
+        print 'No support for pycoco'
+        raise e
 
-    #Assumes standard data layout as specified in https://github.com/pdollar/coco/blob/master/README.txt
+class SimulatorFactory():
+
     def __init__(self, dataDir, trajectoryModelPath, summaryPath, scenePathTemplate = 'images/train2014', objectPathTemplate = 'images/train2014'):
         self.SUMMARY_KEY='summary'
         self.CATEGORY_KEY='categories'
         self.dataDir = dataDir
         self.scenePathTemplate = scenePathTemplate
         self.objectPathTemplate = objectPathTemplate
-        if not os.path.exists(summaryPath):
-            try:
-                import pycocotools.coco
-                self.annFile = '%s/annotations/instances_%s.json'%(dataDir,dataType)
-                #COCO dataset handler object
-                print '!!!!!!!!!!!!! WARNING: Loading the COCO annotations can take up to 3 GB RAM !!!!!!!!!!!!!'
-                coco = pycocotools.coco.COCO(self.annFile)
-                #TODO: Filter the categories to use in sequence generation
-                catIds = coco.getCatIds()
-                cats = coco.loadCats(catIds)
-                catDict = {cat['id']:cat['name'] for cat in cats}
-                imgIds = coco.getImgIds(catIds=catIds)
-                objData = coco.loadImgs(imgIds)
-                objAnnIds = coco.getAnnIds(imgIds=[obj['id'] for obj in objData], catIds=catIds, iscrowd=False)
-                objAnns = coco.loadAnns(objAnnIds)
-                objFileNames = {obj['id']:obj['file_name'] for obj in objData}
-                cocoDict = [
-                    {
-                        k:obj.get(k, objFileNames[obj['image_id']] if k == 'file_name' else None)
-                        for k in ['category_id', 'image_id', 'segmentation', 'file_name']
-                    }
-                    for obj in objAnns
-                ]
-                print 'Number of categories {} and corresponding images {}'.format(len(catIds), len(imgIds))
-                print 'Category names: {}'.format(', '.join(catDict.values()))
-                self.summary = {self.SUMMARY_KEY: cocoDict, self.CATEGORY_KEY: catDict}
-                summaryFile = open(summaryPath, 'w')
-                pickle.dump(self.summary, summaryFile)
-                summaryFile.close()
-                #Free memory
-                del coco, catIds, cats, catDict, imgIds, objData, objAnnIds, objAnns
-            except ImportError as e:
-                print 'No support for pycoco'
-                raise e
-        else:
-            print 'Loading summary from file {}'.format(summaryPath)
-            summaryFile = open(summaryPath, 'r')
-            self.summary = pickle.load(summaryFile)
-            summaryFile.close()
+        print 'Loading summary from file {}'.format(summaryPath)
+        summaryFile = open(summaryPath, 'r')
+        self.summary = pickle.load(summaryFile)
+        summaryFile.close()
         modelFile = open(trajectoryModelPath, 'r')
         self.trajectoryModel = pickle.load(modelFile)
         modelFile.close()
 
-        
     def createInstance(self, *args, **kwargs):
+        '''Generates TrajectorySimulator instances with a random scene from the scene template and a random object from the object template'''
         self.randGen = startRandGen()
         #Select a random image for the scene
         scenePath = os.path.join(self.dataDir, self.scenePathTemplate, self.randGen.choice(os.listdir(os.path.join(self.dataDir, self.scenePathTemplate))))
 
-        #Select a random image for the object, restricted to annotation categories
+        #Select a random image for the object
         objData = self.randGen.choice(self.summary[self.SUMMARY_KEY])
         objPath = os.path.join(self.dataDir, self.objectPathTemplate, objData['file_name'].strip())
 
@@ -524,25 +532,6 @@ class COCOSimulatorFactory():
         
         return simulator
 
-    def create(self, sceneFullPath, objectFullPath, axes=False):
-        #TODO: make really definite
-        sceneDict = [data for data in self.coco.loadImgs(self.fullImgIds) if str(data['file_name']) == os.path.basename(sceneFullPath)][0]
-        objectDict = [data for data in self.coco.loadImgs(self.imgIds) if str(data['file_name']) == os.path.basename(objectFullPath)][0]
-        scenePath = self.scenePathTemplate%(self.dataDir, sceneDict['file_name'])
-        objPath = self.objectPathTemplate%(self.dataDir, objectDict['file_name'])
-        objAnnIds = self.coco.getAnnIds(imgIds=objectDict['id'], catIds=self.catIds, iscrowd=None)
-        objAnns = self.coco.loadAnns(objAnnIds)
-        objectAnnotations = objAnns[self.randGen.randint(0, len(objAnns))]
-        print 'Segmenting object from category {}'.format(self.coco.loadCats(objectAnnotations['category_id'])[0]['name'])
-        polygon = objectAnnotations['segmentation'][self.randGen.randint(0, len(objectAnnotations['segmentation']))]
-        scene = Image.open(scenePath)
-        camSize = map(int, (scene.size[0]*0.5, scene.size[1]*0.5))
-        scene.close()
-
-        simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, camSize=camSize, axes=axes)
-
-        return simulator
-
 class TrajectoryModel():
 
     def __init__(self, model, length, maxSize=10, base=10.0):
@@ -551,12 +540,15 @@ class TrajectoryModel():
         self.maxSize = maxSize
 
     def sample(self, sceneSize, base=10.0):
+        '''Generates a sample trajectory from the model by taking the average of a random sample of clusters'''
         self.randGen = startRandGen()
         nComponents = self.model.n_components
         clusterIds = np.array([self.randGen.randrange(nComponents) for i in np.arange(self.randGen.randrange(1, self.maxSize))])
+        #Take the mean of the sampled clusters and reshape them using the length attribute and split into parameters
         trajectory = np.mean(self.model.means_[clusterIds], axis=0)
         trajectory = trajectory.reshape(int(trajectory.shape[0]/self.length), self.length)
         tx, ty, sx, sy = trajectory
+        #Integrate if model generates relative parameters
         if self.model.relative:
             tx0, ty0 = (self.randGen.random()*sceneSize[0], self.randGen.random()*sceneSize[1])
             tx = np.cumsum(tx)
@@ -565,6 +557,8 @@ class TrajectoryModel():
             sy = np.cumsum(sy)
         else:
             tx0, ty0 = (0,0)
+        #Revert normalization
+        #TODO: improve denormalization by extracting de/normalization to a class
         tx = tx*sceneSize[0]+tx0
         ty = ty*sceneSize[1]+ty0
         sx = base**sx
