@@ -48,13 +48,11 @@ def applyTransform(crop, transform, camSize):
 
 def concatenateTransforms(transforms):
     '''Calculates the resulting transformation in the inverse order'''
-    if len(transforms) < 1:
-        result = None
-    else:
-        transformDim = transforms[0].shape[0]
-        result = np.eye(transformDim)
-        for aTransform in transforms:
-            result = np.dot(aTransform, result)
+    #TODO: Check if transforms[0] pops the first element
+    transformDim = transforms[0].shape[0]
+    result = np.eye(transformDim)
+    for aTransform in transforms:
+        result = np.dot(aTransform, result)
     return result
 
 def transform_points(transform, points):
@@ -254,8 +252,9 @@ class OcclussionGenerator():
 
 class TrajectorySimulator():
 
-  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9, camSize=(224,224), axes=False, maxSteps=None, contentTransforms=None, shapeTransforms=None, cameraContentTransforms=None, cameraShapeTransforms=None, drawBox=False, camera=True, drawCam=False, trajectoryModel=None, trajectoryModelLength=60):
+  def __init__(self, sceneFile, objectFile, polygon, maxSegments=9, camSize=(224,224), axes=False, maxSteps=None, contentTransforms=None, shapeTransforms=None, cameraContentTransforms=None, cameraShapeTransforms=None, drawBox=False, camera=True, drawCam=False, trajectoryModel=None, trajectoryModelLength=60):
     self.randGen = startRandGen()
+    #Number of maximum steps/frames generated
     if maxSteps is None:
         maxSteps = len(RANGE)
     self.maxSteps = maxSteps
@@ -272,9 +271,6 @@ class TrajectorySimulator():
         if evenCamSize[index] % 2 ==1:
             evenCamSize[index] += 1
     self.camSize = tuple(evenCamSize) 
-    # Use box as polygon
-    if polygon is None:
-        polygon = (box[0], box[1], box[2], box[1], box[2], box[3], box[0], box[3])
     self.polygon = polygon
     self.drawBox = drawBox
     self.drawCam = drawCam
@@ -283,8 +279,9 @@ class TrajectorySimulator():
     # Default transformations
     self.shapeTransforms = shapeTransforms
     self.contentTransforms = contentTransforms
+    self.trajectoryModelLength = trajectoryModelLength
     if trajectoryModel is not None:
-      self.trajectoryModel = TrajectoryModel(trajectoryModel, trajectoryModelLength)
+      self.trajectoryModel = TrajectoryModel(trajectoryModel, self.trajectoryModelLength)
     self.cameraContentTransforms = cameraContentTransforms
     self.cameraShapeTransforms = cameraShapeTransforms
     print '@TrajectorySimulator: New simulation with scene {} and object {}'.format(sceneFile, objectFile)
@@ -312,7 +309,6 @@ class TrajectorySimulator():
     self.cameraTransform = np.eye(3,3)
     #TODO: reactivate shape transforms
     # Initialize transformations
-    #TODO: select adequate values for transforms and maybe sample them from a given distribution
     if self.shapeTransforms is None:
         self.shapeTransforms = [
             Transformation(identityShape, 1, 1),
@@ -357,16 +353,19 @@ class TrajectorySimulator():
     self.objView = self.obj.resize((int(w),int(h)), Image.ANTIALIAS)
     self.objSize = self.objView.size
 
-  def validate_bounds(self, transform, points, size):
-    transformedPoints = transform_points(transform, points)
+  def validate_bounds(self, transformedPoints, size):
     return np.all(np.logical_and(np.greater(transformedPoints[:2,:], [[0], [0]]), np.less(transformedPoints[:2,:], [[size[0]],[size[1]]])))
+
+  def transform_step(self, transformations, step):
+    '''Evaluates a step of the transformation for the specified transforms'''
+    return concatenateTransforms([transformations[i].transformContent(step) for i in xrange(len(transformations))])
 
   def transform(self):
     self.objSize = self.shapeTransforms[0].transformShape(self.objSize[0], self.objSize[1], self.step)
     self.objView = self.obj.resize(self.objSize, Image.ANTIALIAS)
     # Concatenate transforms and apply them to obtain transformed object
-    self.cameraTransform = concatenateTransforms((self.cameraContentTransforms[i].transformContent(self.step) for i in xrange(len(self.cameraContentTransforms))))
-    self.currentTransform = concatenateTransforms((self.contentTransforms[i].transformContent(self.step) for i in xrange(len(self.contentTransforms))))
+    self.cameraTransform = self.transform_step(self.cameraContentTransforms, self.step)
+    self.currentTransform = self.transform_step(self.contentTransforms, self.step)
     self.objView = applyTransform(self.objView, np.dot(self.cameraTransform, self.currentTransform), self.scene.size)
 
   def render(self):
@@ -377,7 +376,6 @@ class TrajectorySimulator():
     for i in range(len(self.cameraShapeTransforms)):
       self.sceneSize = self.cameraShapeTransforms[i].transformShape(self.scene.size[0], self.scene.size[1], self.step)
       self.sceneView = self.sceneView.resize(self.sceneSize, Image.ANTIALIAS).crop((0,0) + self.scene.size)
-    # Obtain definite camera transform by appending object transform
     self.camView = applyTransform(self.sceneView, np.linalg.inv(self.cameraTransform), self.camSize)
     # Obtain bounding box points on camera coordinate system
     if self.camera:
@@ -412,6 +410,7 @@ class TrajectorySimulator():
       return False
 
   def saveFrame(self, outDir):
+    '''Saves the current frame and appends the bounding box to the ground truth file'''
     fname = os.path.join(outDir, str(self.step).zfill(4) + '.jpg')
     self.getFrame().save(fname)
     gtPath = os.path.join(outDir, 'groundtruth_rect.txt')
@@ -424,6 +423,7 @@ class TrajectorySimulator():
     out.close()
 
   def getFrame(self):
+    '''Returns the correct rendered frame'''
     if self.camera:
       return self.camView
     else:
@@ -446,6 +446,7 @@ class TrajectorySimulator():
       raise StopIteration()
 
   def draw_axes(self, image):
+    '''Draws bottom-left aligned axis for the image reference frame'''
     size = image.size
     imageCopy = image.copy()
     draw = ImageDraw.Draw(imageCopy)
@@ -528,7 +529,7 @@ class SimulatorFactory():
         print 'Segmenting object from category {}'.format(self.summary[self.CATEGORY_KEY][int(objData['category_id'])])
         polygon = self.randGen.choice(objData['segmentation'])
 
-        simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, trajectoryModel=self.trajectoryModel, *args, **kwargs)
+        simulator = TrajectorySimulator(scenePath, objPath, polygon=polygon, trajectoryModel=self.trajectoryModel, *args, **kwargs)
         
         return simulator
 
