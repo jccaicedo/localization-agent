@@ -6,6 +6,7 @@ from PIL import ImageEnhance
 from PIL import ImageDraw
 import numpy.linalg
 import pickle
+import logging
 
 def startRandGen():
   r = random.Random()
@@ -332,15 +333,15 @@ class TrajectorySimulator():
         #Object transform sampling and correction
         self.contentTransforms = self.trajectoryModel.sample(self.camSize)
         scaleCorr = self.correct_scale(self.contentTransforms, self.bounds, self.camSize)
-        self.contentTransforms = [Transformation(lambda a: scaleCorr, 0,0)] + self.contentTransforms
+        self.contentTransforms = self.contentTransforms + [Transformation(lambda a: scaleCorr, 0,0)]
         transCorr = self.correct_translation(self.contentTransforms, self.bounds, self.camSize)
-        self.contentTransforms = [Transformation(lambda a: transCorr, 0,0)] + self.contentTransforms
+        self.contentTransforms = self.contentTransforms + [Transformation(lambda a: transCorr, 0,0)]
         #Camera transform sampling and correction
         self.cameraContentTransforms = self.trajectoryModel.sample(self.scene.size)
         scaleCorr = self.correct_scale(self.cameraContentTransforms, self.cameraBounds, self.scene.size)
-        self.cameraContentTransforms = [Transformation(lambda a: scaleCorr, 0,0)] + self.cameraContentTransforms
+        self.cameraContentTransforms = self.cameraContentTransforms + [Transformation(lambda a: scaleCorr, 0,0)]
         transCorr = self.correct_translation(self.cameraContentTransforms, self.cameraBounds, self.scene.size)
-        self.cameraContentTransforms = [Transformation(lambda a: transCorr, 0,0)] + self.cameraContentTransforms
+        self.cameraContentTransforms = self.cameraContentTransforms + [Transformation(lambda a: transCorr, 0,0)]
     if self.cameraShapeTransforms is None:
         self.cameraShapeTransforms = [
             Transformation(identityShape, 1, 1),
@@ -349,25 +350,34 @@ class TrajectorySimulator():
     self.render()
 
   def correct_scale(self, transformations, refBounds, limits):
-    resPoints, resBounds, resSize = self.result_points(transformations, refBounds, limits)
+    logging.debug('Correcting scale with refBounds: %s , limits: %s and %s transformations', refBounds, limits, len(transformations))
+    resPoints, resBounds, resSize = self.result_points(transformations, refBounds)
+    logging.debug('Resulting bounds: %s Resulting size: %s', resBounds, resSize)
     scaleCorr = 1
     if not np.less(resSize, limits).all():
         ratios = np.array(limits)/resSize
+        logging.debug('Ratios: %s', ratios)
         scaleCorr = 0.9*np.min(ratios)
+        logging.debug('Scale correction: %s', scaleCorr)
     transCorr = concatenateTransforms((scaleX(scaleCorr), scaleY(scaleCorr)))
     return transCorr
 
-  def result_points(self, transformations, refBounds, limits):
+  def result_points(self, transformations, refBounds):
     resPoints = np.array([transform_points(self.transform_step(transformations, i), refBounds) for i in xrange(self.trajectoryModelLength)])
-    resBounds = [np.min(resPoints[:,0,:]), np.min(resPoints[:,1,:]), np.max(resPoints[:,0,:]), np.max(resPoints[:,1,:])]
-    resSize = np.array([resBounds[2]-resBounds[0], resBounds[3]-resBounds[1]])  
+    resBounds = np.array([[np.min(resPoints[:,0,:]), np.min(resPoints[:,1,:])], [np.max(resPoints[:,0,:]), np.max(resPoints[:,1,:])]]).T
+    resSize = resBounds[:,1]-resBounds[:,0] 
     return resPoints, resBounds, resSize
 
   def correct_translation(self, transformations, refBounds, limits):
-    resPoints, resBounds, resSize = self.result_points(transformations, refBounds, limits)
-    gap = limits-resSize
-    newPos = [self.randGen.randint(0,int(gap[0])), self.randGen.randint(0,int(gap[1]))]
-    translation = np.array(newPos)-resBounds[:2]
+    logging.debug('Correcting translation with refBounds: %s , limits: %s and %s transformations', refBounds, limits, len(transformations))
+    resPoints, resBounds, resSize = self.result_points(transformations, refBounds)
+    logging.debug('Resulting bounds: %s Resulting size: %s', resBounds, resSize)
+    translation = np.array([[0],[0]])
+    if not self.validate_bounds(resBounds, limits):
+        gap = limits-resSize
+        newPos = [self.randGen.randint(0,int(gap[0])), self.randGen.randint(0,int(gap[1]))]
+        translation = np.array(newPos)-resBounds[:2,0]
+        logging.debug('Gap: %s New position: %s Translation: %s', gap, newPos, translation)
     transCorr = concatenateTransforms([translateX(translation[0]), translateY(translation[1])])
     return transCorr
 
