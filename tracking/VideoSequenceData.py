@@ -59,7 +59,8 @@ class VideoSequenceData(object):
         if loadSequence is None:
           scene = self.workingDir + 'bogota.jpg'
           obj = self.workingDir + 'photo.jpg'
-          self.dataSource = ts.TrajectorySimulator(scene, obj, box, polygon, camera=cam)
+          #TODO: convert box to polygon
+          self.dataSource = ts.TrajectorySimulator(scene, obj, polygon, camera=cam)
         elif loadSequence == 'TraxClient':
           self.dataSource = TraxClientWrapper()
         else:
