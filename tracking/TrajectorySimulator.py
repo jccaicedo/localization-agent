@@ -331,23 +331,23 @@ class TrajectorySimulator():
     else:
         #TODO: Check why the order (object, camera) generates different results
         #Object transform sampling and correction
-        self.contentTransforms = self.trajectoryModel.sample(self.camSize)
-        scaleCorr = self.correct_scale(self.contentTransforms, self.bounds, self.camSize)
-        self.contentTransforms = self.contentTransforms + [Transformation(lambda a: scaleCorr, 0,0)]
-        transCorr = self.correct_translation(self.contentTransforms, self.bounds, self.camSize)
-        self.contentTransforms = self.contentTransforms + [Transformation(lambda a: transCorr, 0,0)]
+        self.contentTransforms = self.fit_trajectory(self.bounds, self.camSize)
         #Camera transform sampling and correction
-        self.cameraContentTransforms = self.trajectoryModel.sample(self.scene.size)
-        scaleCorr = self.correct_scale(self.cameraContentTransforms, self.cameraBounds, self.scene.size)
-        self.cameraContentTransforms = self.cameraContentTransforms + [Transformation(lambda a: scaleCorr, 0,0)]
-        transCorr = self.correct_translation(self.cameraContentTransforms, self.cameraBounds, self.scene.size)
-        self.cameraContentTransforms = self.cameraContentTransforms + [Transformation(lambda a: transCorr, 0,0)]
+        self.cameraContentTransforms = self.fit_trajectory(self.cameraBounds, self.scene.size)
     if self.cameraShapeTransforms is None:
         self.cameraShapeTransforms = [
             Transformation(identityShape, 1, 1),
         ]
     self.transform()
     self.render()
+
+  def fit_trajectory(self, refBounds, limits):
+    transformations = self.trajectoryModel.sample(limits)
+    scaleCorr = self.correct_scale(transformations, refBounds, limits)
+    transformations += [Transformation(lambda a: scaleCorr, 0,0)]
+    transCorr = self.correct_translation(transformations, refBounds, limits)
+    transformations += [Transformation(lambda a: transCorr, 0,0)]
+    return transformations
 
   def correct_scale(self, transformations, refBounds, limits):
     logging.debug('Correcting scale with refBounds: %s , limits: %s and %s transformations', refBounds, limits, len(transformations))
