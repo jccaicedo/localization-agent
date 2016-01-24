@@ -511,17 +511,18 @@ class TrajectorySimulator():
 def createCOCOSummary(dataDir, dataType, summaryPath):
     try:
         import pycocotools.coco
-        self.annFile = '%s/annotations/instances_%s.json'%(dataDir,dataType)
+        annFile = '%s/annotations/instances_%s.json'%(dataDir,dataType)
         #COCO dataset handler object
         print '!!!!!!!!!!!!! WARNING: Loading the COCO annotations can take up to 3 GB RAM !!!!!!!!!!!!!'
-        coco = pycocotools.coco.COCO(self.annFile)
+        coco = pycocotools.coco.COCO(annFile)
         #TODO: Filter the categories to use in sequence generation
         catIds = coco.getCatIds()
         cats = coco.loadCats(catIds)
         catDict = {cat['id']:cat['name'] for cat in cats}
-        imgIds = coco.getImgIds(catIds=catIds)
+        #Ommitted category filter as it seems to return less results/images
+        imgIds = coco.getImgIds()
         objData = coco.loadImgs(imgIds)
-        objAnnIds = coco.getAnnIds(imgIds=[obj['id'] for obj in objData], catIds=catIds, iscrowd=False)
+        objAnnIds = coco.getAnnIds(imgIds=imgIds, catIds=catIds, iscrowd=False)
         objAnns = coco.loadAnns(objAnnIds)
         objFileNames = {obj['id']:obj['file_name'] for obj in objData}
         cocoDict = [
@@ -533,9 +534,9 @@ def createCOCOSummary(dataDir, dataType, summaryPath):
         ]
         print 'Number of categories {} and corresponding images {}'.format(len(catIds), len(imgIds))
         print 'Category names: {}'.format(', '.join(catDict.values()))
-        self.summary = {self.SUMMARY_KEY: cocoDict, self.CATEGORY_KEY: catDict}
+        summary = {SUMMARY_KEY: cocoDict, CATEGORY_KEY: catDict}
         summaryFile = open(summaryPath, 'w')
-        pickle.dump(self.summary, summaryFile)
+        pickle.dump(summary, summaryFile)
         summaryFile.close()
         #Free memory
         del coco, catIds, cats, catDict, imgIds, objData, objAnnIds, objAnns
@@ -543,11 +544,12 @@ def createCOCOSummary(dataDir, dataType, summaryPath):
         print 'No support for pycoco'
         raise e
 
+SUMMARY_KEY='summary'
+CATEGORY_KEY='categories'
+
 class SimulatorFactory():
 
     def __init__(self, dataDir, trajectoryModelPath, summaryPath, scenePathTemplate = 'images/train2014', objectPathTemplate = 'images/train2014'):
-        self.SUMMARY_KEY='summary'
-        self.CATEGORY_KEY='categories'
         self.dataDir = dataDir
         self.scenePathTemplate = scenePathTemplate
         self.objectPathTemplate = objectPathTemplate
@@ -566,11 +568,11 @@ class SimulatorFactory():
         scenePath = os.path.join(self.dataDir, self.scenePathTemplate, self.randGen.choice(os.listdir(os.path.join(self.dataDir, self.scenePathTemplate))))
 
         #Select a random image for the object
-        objData = self.randGen.choice(self.summary[self.SUMMARY_KEY])
+        objData = self.randGen.choice(self.summary[SUMMARY_KEY])
         objPath = os.path.join(self.dataDir, self.objectPathTemplate, objData['file_name'].strip())
 
         #Select a random object in the scene and read the segmentation polygon
-        print 'Segmenting object from category {}'.format(self.summary[self.CATEGORY_KEY][int(objData['category_id'])])
+        print 'Segmenting object from category {}'.format(self.summary[CATEGORY_KEY][int(objData['category_id'])])
         polygon = self.randGen.choice(objData['segmentation'])
 
         simulator = TrajectorySimulator(scenePath, objPath, polygon=polygon, trajectoryModel=self.trajectoryModel, *args, **kwargs)
