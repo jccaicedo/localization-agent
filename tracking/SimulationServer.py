@@ -94,7 +94,7 @@ if __name__ == '__main__':
 
   workingDir = sys.argv[1]
   filePath = workingDir + 'simulation.hdf5' # Output filename
-  cocoFactory =  ts.COCOSimulatorFactory('/home/jccaicedo/data/coco/','train2014',\
+  factory =  ts.SimulatorFactory('/home/jccaicedo/data/coco/',\
                  trajectoryModelPath = workingDir + 'gmmDenseAbsoluteNormalized.pkl',\
                  summaryPath = workingDir + 'cocoSummary.pkl')
 
@@ -103,7 +103,7 @@ if __name__ == '__main__':
   while os.path.exists(processFile):
     startTime = time.time()
     outFile = h5py.File(filePath,'w')
-    generators = [bss.BoxSearchSequenceData(workingDir, [cocoFactory.createInstance() for j in range(SIM)]) for i in range(GEN)]
+    generators = [bss.BoxSearchSequenceData(workingDir, [factory.createInstance() for j in range(SIM)]) for i in range(GEN)]
     processData(generators, SIM, outFile)
     outFile.close()
     os.system('touch ' + filePath + '.ready')

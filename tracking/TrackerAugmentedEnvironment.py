@@ -58,6 +58,7 @@ class TrackerAugmentedEnvironment(Environment, Named):
     sequenceDir = self.sequenceDir + '/' + self.episodes[0].seqName # change 0 for current sequence pointer?
     scene = np.random.randint(len(self.objectBoxes.keys()))
     obj = np.random.randint(len(self.objectBoxes.keys()))
+    #TODO: change box to polygon
     simulator = tsim.TrajectorySimulator(self.objectImageDir + '/' + self.objectBoxes.keys()[scene] + '.jpg', 
                             self.objectImageDir + '/' + self.objectBoxes.keys()[obj] + '.jpg' , 
                             map(int, self.objectBoxes[self.objectBoxes.keys()[obj]][0]) )

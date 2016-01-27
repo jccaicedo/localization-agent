@@ -6,14 +6,15 @@ from PIL import ImageEnhance
 from PIL import ImageDraw
 import numpy.linalg
 import pickle
+import logging
 
-#TODO: correct methods not following same logic as numpy.random, e.g. randint (includes both extremes)
 def startRandGen():
   r = random.Random()
   r.jumpahead(long(time.time()))
   return r
 
 def segmentCrop(image, polygon):
+    '''Segments an image using the given polygon and returns a crop of the bounding box including alpha channel'''
     cropMask = Image.new('L', image.size, 0)
     maskDraw = ImageDraw.Draw(cropMask)
     maskDraw.polygon(polygon, fill=255)
@@ -24,32 +25,39 @@ def segmentCrop(image, polygon):
     return crop
 
 def polygon_bounds(polygon):
+    '''Calculates the bounding box for the given polygon'''
     maskCoords = np.array(polygon).reshape(len(polygon)/2,2).T
     bounds = map(int, (maskCoords[0].min(), maskCoords[1].min(), maskCoords[0].max(), maskCoords[1].max()))
     return bounds
 
 def applyScale(scales):
+    '''Calculates a scaling transformation matrix with independent scaling'''
     return np.array([[scales[0], 0, 0],[0, scales[1], 0],[0, 0, 1]])
 
 def applyRotate(angle):
+    ''''Calculates a rotation transformation matrix from an angle in radians'''
     return np.array([[np.cos(angle), np.sin(angle), 0],[-np.sin(angle), np.cos(angle), 0],[0, 0, 1]])
 
 def applyTranslate(translation):
+    '''Calculates a trans;lation transformation matrix from x and y coordinates'''
     return np.array([[1, 0, translation[0]],[0,1,translation[1]],[0, 0, 1]])
 
 def applyTransform(crop, transform, camSize):
+    '''Applies an affine transform of the crop with range equal to the given camera size'''
     # Requires inverse as the parameters transform from object to camera 
     return crop.transform(camSize, Image.AFFINE, np.linalg.inv(transform).flatten()[:7])
 
 def concatenateTransforms(transforms):
-    # TODO: remove hard coded dimension
-    result = np.eye(3)
+    '''Calculates the resulting transformation in the inverse order'''
+    #TODO: Check if transforms[0] pops the first element
+    transformDim = transforms[0].shape[0]
+    result = np.eye(transformDim)
     for aTransform in transforms:
         result = np.dot(aTransform, result)
     return result
 
-# Points must be in homogeneous coordinates
 def transform_points(transform, points):
+    '''Applies a transformation to an array of homogeneous points'''
     transformedCorners = np.dot(transform, points)
     return transformedCorners
     
@@ -125,11 +133,15 @@ class BoundedTrajectory():
     if self.randGen.random() > 0.5:
       # Horizontal steps, vertical wave
       self.X = stretch(RANGE, x1, x2)
-      self.Y = cosine(y1, y2)
+      self.Y = cosine(y1, y2, self.randGen)
     else:
       # Horizontal wave, vertical steps
-      self.X = cosine(x1, x2)
+      self.X = cosine(x1, x2, self.randGen)
       self.Y = stretch(RANGE, y1, y2)
+    self.transforms = [
+        Transformation(translateX, None, None, lambda a,b,steps: self.X),
+        Transformation(translateY, None, None, lambda a,b,steps: self.Y),
+    ]
 
   def getCoord(self, j):
     return (self.X[j], self.Y[j])
@@ -241,8 +253,9 @@ class OcclussionGenerator():
 
 class TrajectorySimulator():
 
-  def __init__(self, sceneFile, objectFile, box, polygon=None, maxSegments=9, camSize=(224,224), axes=False, maxSteps=None, contentTransforms=None, shapeTransforms=None, cameraContentTransforms=None, cameraShapeTransforms=None, drawBox=False, camera=True, drawCam=False, trajectoryModel=None, trajectoryModelLength=60):
+  def __init__(self, sceneFile, objectFile, polygon, maxSegments=9, camSize=(224,224), axes=False, maxSteps=None, contentTransforms=None, shapeTransforms=None, cameraContentTransforms=None, cameraShapeTransforms=None, drawBox=False, camera=True, drawCam=False, trajectoryModel=None, trajectoryModelLength=60):
     self.randGen = startRandGen()
+    #Number of maximum steps/frames generated
     if maxSteps is None:
         maxSteps = len(RANGE)
     self.maxSteps = maxSteps
@@ -259,9 +272,6 @@ class TrajectorySimulator():
         if evenCamSize[index] % 2 ==1:
             evenCamSize[index] += 1
     self.camSize = tuple(evenCamSize) 
-    # Use box as polygon
-    if polygon is None:
-        polygon = (box[0], box[1], box[2], box[1], box[2], box[3], box[0], box[3])
     self.polygon = polygon
     self.drawBox = drawBox
     self.drawCam = drawCam
@@ -270,9 +280,9 @@ class TrajectorySimulator():
     # Default transformations
     self.shapeTransforms = shapeTransforms
     self.contentTransforms = contentTransforms
+    self.trajectoryModelLength = trajectoryModelLength
     if trajectoryModel is not None:
-      model = TrajectoryModel(trajectoryModel, trajectoryModelLength)
-      self.contentTransforms = model.sample(self.scene.size)
+      self.trajectoryModel = TrajectoryModel(trajectoryModel, self.trajectoryModelLength)
     self.cameraContentTransforms = cameraContentTransforms
     self.cameraShapeTransforms = cameraShapeTransforms
     print '@TrajectorySimulator: New simulation with scene {} and object {}'.format(sceneFile, objectFile)
@@ -300,35 +310,76 @@ class TrajectorySimulator():
     self.cameraTransform = np.eye(3,3)
     #TODO: reactivate shape transforms
     # Initialize transformations
-    #TODO: select adequate values for transforms and maybe sample them from a given distribution
     if self.shapeTransforms is None:
         self.shapeTransforms = [
             Transformation(identityShape, 1, 1),
         ]
-    if self.contentTransforms is None:
-        self.contentTransforms = [
-            Transformation(scaleX, 0.7, 1.3),
-            Transformation(scaleY, 0.7, 1.3),
-            Transformation(rotate, -np.pi/50, np.pi/50),
-            Transformation(translateX, 0, self.camSize[0]-max(self.objSize)),
-            Transformation(translateY, 0, self.camSize[1]-max(self.objSize)),
-        ]
-    offsetWidth = (self.camSize[0]-self.objSize[0])/2
-    offsetHeight = (self.camSize[1]-self.objSize[1])/2
-    if self.cameraContentTransforms is None:
-        self.cameraContentTransforms = OffsetTrajectory(self.scene.size[0], self.scene.size[1], (offsetWidth, offsetHeight)).transforms
-    centeringTransforms = [
-        Transformation(translateX, -(offsetWidth), -(offsetWidth)),
-        Transformation(translateY, -(offsetHeight), -(offsetHeight))
-    ]
-    self.cameraContentTransforms += centeringTransforms
+    if self.trajectoryModel is None:
+        if self.contentTransforms is None:
+            self.contentTransforms = [
+                Transformation(scaleX, 0.7, 1.3),
+                Transformation(scaleY, 0.7, 1.3),
+                Transformation(rotate, -np.pi/50, np.pi/50),
+                Transformation(translateX, 0, self.camSize[0]-max(self.objSize)),
+                Transformation(translateY, 0, self.camSize[1]-max(self.objSize)),
+            ]
+        if self.cameraContentTransforms is None:
+            #TODO: camera transforms related to sampled trajectory
+            cameraDiagonal = np.sqrt(self.camSize[0]**2+self.camSize[1]**2)
+            #self.cameraContentTransforms = OffsetTrajectory(self.scene.size[0], self.scene.size[1], cameraDiagonal).transforms
+            self.cameraContentTransforms = BoundedTrajectory(self.scene.size[0], self.scene.size[1]).transforms
+    else:
+        #TODO: Check why the order (object, camera) generates different results
+        #Object transform sampling and correction
+        self.contentTransforms = self.fit_trajectory(self.bounds, self.camSize)
+        #Camera transform sampling and correction
+        self.cameraContentTransforms = self.fit_trajectory(self.cameraBounds, self.scene.size)
     if self.cameraShapeTransforms is None:
         self.cameraShapeTransforms = [
             Transformation(identityShape, 1, 1),
         ]
-
     self.transform()
     self.render()
+
+  def fit_trajectory(self, refBounds, limits):
+    transformations = self.trajectoryModel.sample(limits)
+    scaleCorr = self.correct_scale(transformations, refBounds, limits)
+    transformations += [Transformation(lambda a: scaleCorr, 0,0)]
+    transCorr = self.correct_translation(transformations, refBounds, limits)
+    transformations += [Transformation(lambda a: transCorr, 0,0)]
+    return transformations
+
+  def correct_scale(self, transformations, refBounds, limits):
+    logging.debug('Correcting scale with refBounds: %s , limits: %s and %s transformations', refBounds, limits, len(transformations))
+    resPoints, resBounds, resSize = self.result_points(transformations, refBounds)
+    logging.debug('Resulting bounds: %s Resulting size: %s', resBounds, resSize)
+    scaleCorr = 1
+    if not np.less(resSize, limits).all():
+        ratios = np.array(limits)/resSize
+        logging.debug('Ratios: %s', ratios)
+        scaleCorr = 0.9*np.min(ratios)
+        logging.debug('Scale correction: %s', scaleCorr)
+    transCorr = concatenateTransforms((scaleX(scaleCorr), scaleY(scaleCorr)))
+    return transCorr
+
+  def result_points(self, transformations, refBounds):
+    resPoints = np.array([transform_points(self.transform_step(transformations, i), refBounds) for i in xrange(self.trajectoryModelLength)])
+    resBounds = np.array([[np.min(resPoints[:,0,:]), np.min(resPoints[:,1,:])], [np.max(resPoints[:,0,:]), np.max(resPoints[:,1,:])]]).T
+    resSize = resBounds[:,1]-resBounds[:,0] 
+    return resPoints, resBounds, resSize
+
+  def correct_translation(self, transformations, refBounds, limits):
+    logging.debug('Correcting translation with refBounds: %s , limits: %s and %s transformations', refBounds, limits, len(transformations))
+    resPoints, resBounds, resSize = self.result_points(transformations, refBounds)
+    logging.debug('Resulting bounds: %s Resulting size: %s', resBounds, resSize)
+    translation = np.array([[0],[0]])
+    if not self.validate_bounds(resBounds, limits):
+        gap = limits-resSize
+        newPos = [self.randGen.randint(0,int(gap[0])), self.randGen.randint(0,int(gap[1]))]
+        translation = np.array(newPos)-resBounds[:2,0]
+        logging.debug('Gap: %s New position: %s Translation: %s', gap, newPos, translation)
+    transCorr = concatenateTransforms([translateX(translation[0]), translateY(translation[1])])
+    return transCorr
 
   def scaleObject(self):
     # Initial scale of the object is 
@@ -346,18 +397,19 @@ class TrajectorySimulator():
     self.objView = self.obj.resize((int(w),int(h)), Image.ANTIALIAS)
     self.objSize = self.objView.size
 
-  def validate_bounds(self, transform, points, size):
-    transformedPoints = transform_points(transform, points)
+  def validate_bounds(self, transformedPoints, size):
     return np.all(np.logical_and(np.greater(transformedPoints[:2,:], [[0], [0]]), np.less(transformedPoints[:2,:], [[size[0]],[size[1]]])))
+
+  def transform_step(self, transformations, step):
+    '''Evaluates a step of the transformation for the specified transforms'''
+    return concatenateTransforms([transformations[i].transformContent(step) for i in xrange(len(transformations))])
 
   def transform(self):
     self.objSize = self.shapeTransforms[0].transformShape(self.objSize[0], self.objSize[1], self.step)
     self.objView = self.obj.resize(self.objSize, Image.ANTIALIAS)
     # Concatenate transforms and apply them to obtain transformed object
-    self.objectTransform = concatenateTransforms((self.contentTransforms[i].transformContent(self.step) for i in xrange(len(self.contentTransforms))))
-    self.cameraTransform = concatenateTransforms((self.cameraContentTransforms[i].transformContent(self.step) for i in xrange(len(self.cameraContentTransforms))))
-    self.currentTransform = np.linalg.inv(self.cameraTransform)
-    self.cameraTransform = concatenateTransforms([self.objectTransform, self.cameraTransform])
+    self.cameraTransform = self.transform_step(self.cameraContentTransforms, self.step)
+    self.currentTransform = self.transform_step(self.contentTransforms, self.step)
     self.objView = applyTransform(self.objView, np.dot(self.cameraTransform, self.currentTransform), self.scene.size)
 
   def render(self):
@@ -368,7 +420,6 @@ class TrajectorySimulator():
     for i in range(len(self.cameraShapeTransforms)):
       self.sceneSize = self.cameraShapeTransforms[i].transformShape(self.scene.size[0], self.scene.size[1], self.step)
       self.sceneView = self.sceneView.resize(self.sceneSize, Image.ANTIALIAS).crop((0,0) + self.scene.size)
-    # Obtain definite camera transform by appending object transform
     self.camView = applyTransform(self.sceneView, np.linalg.inv(self.cameraTransform), self.camSize)
     # Obtain bounding box points on camera coordinate system
     if self.camera:
@@ -403,6 +454,7 @@ class TrajectorySimulator():
       return False
 
   def saveFrame(self, outDir):
+    '''Saves the current frame and appends the bounding box to the ground truth file'''
     fname = os.path.join(outDir, str(self.step).zfill(4) + '.jpg')
     self.getFrame().save(fname)
     gtPath = os.path.join(outDir, 'groundtruth_rect.txt')
@@ -415,6 +467,7 @@ class TrajectorySimulator():
     out.close()
 
   def getFrame(self):
+    '''Returns the correct rendered frame'''
     if self.camera:
       return self.camView
     else:
@@ -437,6 +490,7 @@ class TrajectorySimulator():
       raise StopIteration()
 
   def draw_axes(self, image):
+    '''Draws bottom-left aligned axis for the image reference frame'''
     size = image.size
     imageCopy = image.copy()
     draw = ImageDraw.Draw(imageCopy)
@@ -454,93 +508,75 @@ class TrajectorySimulator():
 # while o.nextStep(): o.saveFrame(dir)
 # o.sceneView
 
-class COCOSimulatorFactory():
+def createCOCOSummary(dataDir, dataType, summaryPath):
+    try:
+        import pycocotools.coco
+        annFile = '%s/annotations/instances_%s.json'%(dataDir,dataType)
+        #COCO dataset handler object
+        print '!!!!!!!!!!!!! WARNING: Loading the COCO annotations can take up to 3 GB RAM !!!!!!!!!!!!!'
+        coco = pycocotools.coco.COCO(annFile)
+        #TODO: Filter the categories to use in sequence generation
+        catIds = coco.getCatIds()
+        cats = coco.loadCats(catIds)
+        catDict = {cat['id']:cat['name'] for cat in cats}
+        #Ommitted category filter as it seems to return less results/images
+        imgIds = coco.getImgIds()
+        objData = coco.loadImgs(imgIds)
+        objAnnIds = coco.getAnnIds(imgIds=imgIds, catIds=catIds, iscrowd=False)
+        objAnns = coco.loadAnns(objAnnIds)
+        objFileNames = {obj['id']:obj['file_name'] for obj in objData}
+        cocoDict = [
+            {
+                k:obj.get(k, objFileNames[obj['image_id']] if k == 'file_name' else None)
+                for k in ['category_id', 'image_id', 'segmentation', 'file_name']
+            }
+            for obj in objAnns
+        ]
+        print 'Number of categories {} and corresponding images {}'.format(len(catIds), len(imgIds))
+        print 'Category names: {}'.format(', '.join(catDict.values()))
+        summary = {SUMMARY_KEY: cocoDict, CATEGORY_KEY: catDict}
+        summaryFile = open(summaryPath, 'w')
+        pickle.dump(summary, summaryFile)
+        summaryFile.close()
+        #Free memory
+        del coco, catIds, cats, catDict, imgIds, objData, objAnnIds, objAnns
+    except ImportError as e:
+        print 'No support for pycoco'
+        raise e
 
-    #Assumes standard data layout as specified in https://github.com/pdollar/coco/blob/master/README.txt
-    def __init__(self, dataDir, dataType, trajectoryModelPath, summaryPath):
-        self.SUMMARY_KEY='summary'
-        self.CATEGORY_KEY='categories'
+SUMMARY_KEY='summary'
+CATEGORY_KEY='categories'
+
+class SimulatorFactory():
+
+    def __init__(self, dataDir, trajectoryModelPath, summaryPath, scenePathTemplate = 'images/train2014', objectPathTemplate = 'images/train2014'):
         self.dataDir = dataDir
-        self.dataType = dataType
-        self.imagePathTemplate = '%s/images/%s/%s'
-        if not os.path.exists(summaryPath):
-            try:
-                import pycocotools.coco
-                self.annFile = '%s/annotations/instances_%s.json'%(dataDir,dataType)
-                #COCO dataset handler object
-                print '!!!!!!!!!!!!! WARNING: Loading the COCO annotations can take up to 3 GB RAM !!!!!!!!!!!!!'
-                coco = pycocotools.coco.COCO(self.annFile)
-                #TODO: Filter the categories to use in sequence generation
-                catIds = coco.getCatIds()
-                cats = coco.loadCats(catIds)
-                catDict = {cat['id']:cat['name'] for cat in cats}
-                imgIds = coco.getImgIds(catIds=catIds)
-                objData = coco.loadImgs(imgIds)
-                objAnnIds = coco.getAnnIds(imgIds=[obj['id'] for obj in objData], catIds=catIds, iscrowd=False)
-                objAnns = coco.loadAnns(objAnnIds)
-                objFileNames = {obj['id']:obj['file_name'] for obj in objData}
-                cocoDict = [
-                    {
-                        k:obj.get(k, objFileNames[obj['image_id']] if k == 'file_name' else None)
-                        for k in ['category_id', 'image_id', 'segmentation', 'file_name']
-                    }
-                    for obj in objAnns
-                ]
-                print 'Number of categories {} and corresponding images {}'.format(len(catIds), len(imgIds))
-                print 'Category names: {}'.format(', '.join(catDict.values()))
-                self.summary = {self.SUMMARY_KEY: cocoDict, self.CATEGORY_KEY: catDict}
-                summaryFile = open(summaryPath, 'w')
-                pickle.dump(self.summary, summaryFile)
-                summaryFile.close()
-                #Free memory
-                del coco, catIds, cats, catDict, imgIds, objData, objAnnIds, objAnns
-            except ImportError as e:
-                print 'No support for pycoco'
-                raise e
-        else:
-            print 'Loading summary from file {}'.format(summaryPath)
-            summaryFile = open(summaryPath, 'r')
-            self.summary = pickle.load(summaryFile)
-            summaryFile.close()
+        self.scenePathTemplate = scenePathTemplate
+        self.objectPathTemplate = objectPathTemplate
+        print 'Loading summary from file {}'.format(summaryPath)
+        summaryFile = open(summaryPath, 'r')
+        self.summary = pickle.load(summaryFile)
+        summaryFile.close()
         modelFile = open(trajectoryModelPath, 'r')
         self.trajectoryModel = pickle.load(modelFile)
         modelFile.close()
 
-        
     def createInstance(self, *args, **kwargs):
+        '''Generates TrajectorySimulator instances with a random scene from the scene template and a random object from the object template'''
         self.randGen = startRandGen()
         #Select a random image for the scene
-        scenePath = self.imagePathTemplate % (self.dataDir, self.dataType, self.randGen.choice(os.listdir(os.path.join(self.dataDir, 'images', self.dataType))))
+        scenePath = os.path.join(self.dataDir, self.scenePathTemplate, self.randGen.choice(os.listdir(os.path.join(self.dataDir, self.scenePathTemplate))))
 
-        #Select a random image for the object, restricted to annotation categories
-        objData = self.randGen.choice(self.summary[self.SUMMARY_KEY])
-        objPath = self.imagePathTemplate%(self.dataDir, self.dataType, objData['file_name'])
+        #Select a random image for the object
+        objData = self.randGen.choice(self.summary[SUMMARY_KEY])
+        objPath = os.path.join(self.dataDir, self.objectPathTemplate, objData['file_name'].strip())
 
         #Select a random object in the scene and read the segmentation polygon
-        print 'Segmenting object from category {}'.format(self.summary[self.CATEGORY_KEY][objData['category_id']])
+        print 'Segmenting object from category {}'.format(self.summary[CATEGORY_KEY][int(objData['category_id'])])
         polygon = self.randGen.choice(objData['segmentation'])
 
-        simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, trajectoryModel=self.trajectoryModel, *args, **kwargs)
+        simulator = TrajectorySimulator(scenePath, objPath, polygon=polygon, trajectoryModel=self.trajectoryModel, *args, **kwargs)
         
-        return simulator
-
-    def create(self, sceneFullPath, objectFullPath, axes=False):
-        #TODO: make really definite
-        sceneDict = [data for data in self.coco.loadImgs(self.fullImgIds) if str(data['file_name']) == os.path.basename(sceneFullPath)][0]
-        objectDict = [data for data in self.coco.loadImgs(self.imgIds) if str(data['file_name']) == os.path.basename(objectFullPath)][0]
-        scenePath = self.imagePathTemplate%(self.dataDir, self.dataType, sceneDict['file_name'])
-        objPath = self.imagePathTemplate%(self.dataDir, self.dataType, objectDict['file_name'])
-        objAnnIds = self.coco.getAnnIds(imgIds=objectDict['id'], catIds=self.catIds, iscrowd=None)
-        objAnns = self.coco.loadAnns(objAnnIds)
-        objectAnnotations = objAnns[self.randGen.randint(0, len(objAnns))]
-        print 'Segmenting object from category {}'.format(self.coco.loadCats(objectAnnotations['category_id'])[0]['name'])
-        polygon = objectAnnotations['segmentation'][self.randGen.randint(0, len(objectAnnotations['segmentation']))]
-        scene = Image.open(scenePath)
-        camSize = map(int, (scene.size[0]*0.5, scene.size[1]*0.5))
-        scene.close()
-
-        simulator = TrajectorySimulator(scenePath, objPath, [], polygon=polygon, camSize=camSize, axes=axes)
-
         return simulator
 
 class TrajectoryModel():
@@ -551,14 +587,27 @@ class TrajectoryModel():
         self.maxSize = maxSize
 
     def sample(self, sceneSize, base=10.0):
+        '''Generates a sample trajectory from the model by taking the average of a random sample of clusters'''
         self.randGen = startRandGen()
         nComponents = self.model.n_components
         clusterIds = np.array([self.randGen.randrange(nComponents) for i in np.arange(self.randGen.randrange(1, self.maxSize))])
+        #Take the mean of the sampled clusters and reshape them using the length attribute and split into parameters
         trajectory = np.mean(self.model.means_[clusterIds], axis=0)
         trajectory = trajectory.reshape(int(trajectory.shape[0]/self.length), self.length)
         tx, ty, sx, sy = trajectory
-        tx = tx*sceneSize[0]
-        ty = ty*sceneSize[1]
+        #Integrate if model generates relative parameters
+        if self.model.relative:
+            tx0, ty0 = (self.randGen.random()*sceneSize[0], self.randGen.random()*sceneSize[1])
+            tx = np.cumsum(tx)
+            ty = np.cumsum(ty)
+            sx = np.cumsum(sx)
+            sy = np.cumsum(sy)
+        else:
+            tx0, ty0 = (0,0)
+        #Revert normalization
+        #TODO: improve denormalization by extracting de/normalization to a class
+        tx = tx*sceneSize[0]+tx0
+        ty = ty*sceneSize[1]+ty0
         sx = base**sx
         sy = base**sy
         transforms = [
