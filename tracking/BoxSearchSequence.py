@@ -10,7 +10,7 @@ import TrackerState as bs
 box = [0, 100, 0, 100]
 polygon = [50, 0, 100, 50, 50, 100, 0, 50]
 
-imgSize = 64
+imgSize = 224
 channels = 3
 totalFrames = 60
 cam = False
@@ -26,6 +26,7 @@ def normalize(img, box=None):
     view.load()
   else:
     view = img.copy()
+  view = view.convert('RGB')
   view = view.resize((imgSize,imgSize),Image.ANTIALIAS)
   view = (np.array(view) - 128)/128
   view = np.swapaxes(np.swapaxes(view, 0, 2), 1, 2)
@@ -41,10 +42,12 @@ class SearchSequenceGenerator(object):
     self.save = save
 
   def generateSequence(self, pairView, targetBox):
+    self.views.append( pairView )            # Add the target object to the sequence
+    self.actions.append( bs.TARGET )         # Mark object as target
     searcher = bs.TrackerState(self.image,target=targetBox)
-    a = searcher.sampleBestAction() # Given the full scene, take the best action
+    a = searcher.sampleBestAction()          # Given the full scene, take the best action
     self.moveOneStep(searcher.box, pairView) # Record the first view
-    self.actions.append( a ) # Record the movement given the view
+    self.actions.append( a )                 # Record the movement given the view
     while a != bs.PLACE_LANDMARK and a != bs.ABORT:
       box = searcher.performAction(a)  # Move the box according to the previous decision
       a = searcher.sampleBestAction()  # Given the current view, take the best action
@@ -58,9 +61,13 @@ class SearchSequenceGenerator(object):
     return self.views, self.actions
 
   def moveOneStep(self, box, pair):
-    data = np.zeros( (2,pair.shape[0],pair.shape[1],pair.shape[2]) )
-    data[0,:,:,:] = pair
-    data[1,:,:,:] = normalize(self.image, box)
+    # Duplicated reference view
+    #data = np.zeros( (2,pair.shape[0],pair.shape[1],pair.shape[2]) )
+    #data[0,:,:,:] = pair
+    #data[1,:,:,:] = normalize(self.image, box)
+    # No duplicated reference view
+    data = np.zeros( (pair.shape[0],pair.shape[1],pair.shape[2]) )
+    data[:,:,:] = normalize(self.image, box)
     self.views.append( data )
     self.time += 1
 

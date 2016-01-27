@@ -6,9 +6,9 @@ import TrajectorySimulator as ts
 import os,sys
 from multiprocessing import Process, JoinableQueue, Queue
 
-GEN = 6 # Number of generator objects
-SIM = 3 # Simulations per generator
-SEQUENCE_LENGTH = 50
+GEN = 4 # Number of generator objects
+SIM = 1 # Simulations per generator
+SEQUENCE_LENGTH = 60
 
 # FUNCTION
 # Distribute work in multiple cores
@@ -61,18 +61,21 @@ def simulate(seq):
   seq.prepareSequence(loadSequence='list')
   # Store in a numpy array
   # Sequence structure: steps, views, channels, height, width
-  simFrames = np.zeros((SEQUENCE_LENGTH,2,bss.channels,bss.imgSize,bss.imgSize))
+  #simFrames = np.zeros((SEQUENCE_LENGTH,2,bss.channels,bss.imgSize,bss.imgSize))
+  # Sequence structure: steps, NO duplicated views, channels, height, width
+  simFrames = np.zeros((SEQUENCE_LENGTH,bss.channels,bss.imgSize,bss.imgSize))
   simTargets = np.zeros((SEQUENCE_LENGTH,1))
   frame = 0
   step = 0
-  skip = np.random.randint(0,30)
+  skip = 0 #np.random.randint(0,30)
   while seq.nextStep():
     if frame > skip:
       views = seq.getFrame()
       actions = seq.getMove()
       k = 0
       while step < SEQUENCE_LENGTH and k < len(views):
-        simFrames[step,:,:,:,:] = views[k]
+        # simFrames[step,:,:,:,:] = views[k] ## Duplicated views
+        simFrames[step,:,:,:] = views[k] # NO duplicated views
         simTargets[step,:] = actions[k]
         step += 1
         k += 1

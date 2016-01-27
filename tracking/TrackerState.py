@@ -7,16 +7,18 @@ import random
 import os
 
 # ACTIONS
-X_1_UP         = 0
-Y_1_UP         = 1
-X_2_UP         = 2
-Y_2_UP         = 3
-X_1_DOWN       = 4
-Y_1_DOWN       = 5
-X_2_DOWN       = 6
-Y_2_DOWN       = 7
-PLACE_LANDMARK = 8
-ABORT = -1
+ABORT          = 0
+X_1_UP         = 1
+Y_1_UP         = 2
+X_2_UP         = 3
+Y_2_UP         = 4
+X_1_DOWN       = 5
+Y_1_DOWN       = 6
+X_2_DOWN       = 7
+Y_2_DOWN       = 8
+PLACE_LANDMARK = 9
+TARGET         = 10
+
 
 # BOX LIMITS
 MIN_BOX_SIDE     = 10
