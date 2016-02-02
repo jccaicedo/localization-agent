@@ -70,7 +70,7 @@ def tensor5(name=None, dtype=None):
 
 ### Recurrent step
 # img: of shape (batch_size, nr_channels, img_rows, img_cols)
-def _step(act1, prev_bbox, state):
+def _step(act1, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2):
 	# of (batch_size, nr_filters, some_rows, some_cols)
 	flat1 = TT.reshape(act1, (batch_size, conv_output_dim))
 	gru_in = TT.concatenate([flat1, prev_bbox], axis=1)
@@ -139,9 +139,10 @@ def build():
     starts = TT.matrix()
 
     Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = init_params()
+    params = [Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2]
 
     # Move the time axis to the top
-    sc, _ = T.scan(_step, sequences=[imgs.dimshuffle(1, 0, 2, 3, 4)], outputs_info=[starts, TT.zeros((batch_size, gru_dim))])
+    sc, _ = T.scan(_step, sequences=[imgs.dimshuffle(1, 0, 2, 3, 4)], outputs_info=[starts, TT.zeros((batch_size, gru_dim))], non_sequences=params, strict=True)
 
     bbox_seq = sc[0].dimshuffle(1, 0, 2)
 
@@ -155,7 +156,6 @@ def build():
 
     ### RMSprop end
 
-    params = [Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2]
     train = T.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], updates=rmsprop(cost, params) if not test else None, allow_input_downcast=True)
     tester = T.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], allow_input_downcast=True)
     
