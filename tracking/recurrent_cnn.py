@@ -248,7 +248,7 @@ if __name__ == '__main__':
                             # from the memory with certain probability. The rest of the time new sequences are simulated. This could save some processing time.
 
                 st = time.time()
-                out, activations = forward(net, transform, data.reshape(-1, data.shape[-3], data.shape[-2], data.shape[-1]).transpose((0,2,3,1)))
+                out, activations = forward(net, transform, data.reshape(-1, data.shape[-3], data.shape[-2], data.shape[-1]))
                 activations = activations.reshape(batch_size, seq_len, activations.shape[-3], activations.shape[-2], activations.shape[-1])
                 clock('Activations', st)
 
