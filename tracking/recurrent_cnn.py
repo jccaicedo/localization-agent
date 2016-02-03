@@ -70,7 +70,7 @@ def tensor5(name=None, dtype=None):
 
 ### Recurrent step
 # img: of shape (batch_size, nr_channels, img_rows, img_cols)
-def _step(act1, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2):
+def _step(act1, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2, batch_size, conv_output_dim):
 	# of (batch_size, nr_filters, some_rows, some_cols)
 	flat1 = TT.reshape(act1, (batch_size, conv_output_dim))
 	gru_in = TT.concatenate([flat1, prev_bbox], axis=1)
@@ -96,11 +96,12 @@ def rmsprop(cost, params, lr=0.0005, rho=0.9, epsilon=1e-6):
 		updates[p] = new_p
 
 	return updates
+### RMSprop end
 
-def setup(batch_size, seq_len, img_row, img_col, caffe_root='/opt/caffe/'):
+def setup(batch_size, seq_len, img_row, img_col, deployPath='/home/fmpaezri/models/bvlc_googlenet/deploy.prototxt', modelPath='/home/fmpaezri/models/bvlc_googlenet/bvlc_googlenet.caffemodel', caffe_root='/opt/caffe/'):
     print 'Creating Net object'
     caffe.set_mode_gpu()
-    net = caffe.Net('/home/fmpaezri/models/bvlc_googlenet/deploy.prototxt', '/home/fmpaezri/models/bvlc_googlenet/bvlc_googlenet.caffemodel', caffe.TEST)
+    net = caffe.Net(deployPath, modelPath, caffe.TEST)
 
     # input preprocessing: 'data' is the name of the input blob == net.inputs[0]
     print 'Creating Transformer'
@@ -131,18 +132,18 @@ def dump_params(model_name, params):
     cPickle.dump(map(lambda x: x.get_value(), params), f)
     f.close()
 
-def build():
+def build(batch_size, gru_input_dim, gru_dim, conv_output_dim, zero_tail_fc, test):
     print 'Building network'
 
     # imgs: of shape (batch_size, seq_len, nr_channels, img_rows, img_cols)
     imgs = tensor5()
     starts = TT.matrix()
 
-    Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = init_params()
+    Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = init_params(gru_input_dim, gru_dim, zero_tail_fc)
     params = [Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2]
 
     # Move the time axis to the top
-    sc, _ = T.scan(_step, sequences=[imgs.dimshuffle(1, 0, 2, 3, 4)], outputs_info=[starts, TT.zeros((batch_size, gru_dim))], non_sequences=params, strict=True)
+    sc, _ = T.scan(_step, sequences=[imgs.dimshuffle(1, 0, 2, 3, 4)], outputs_info=[starts, TT.zeros((batch_size, gru_dim))], non_sequences=params+[batch_size,conv_output_dim], strict=True)
 
     bbox_seq = sc[0].dimshuffle(1, 0, 2)
 
@@ -154,14 +155,12 @@ def build():
 
     print 'Building optimizer'
 
-    ### RMSprop end
-
     train = T.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], updates=rmsprop(cost, params) if not test else None, allow_input_downcast=True)
     tester = T.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], allow_input_downcast=True)
     
     return train, tester, params
 
-def init_params():
+def init_params(gru_input_dim, gru_dim, zero_tail_fc):
     print 'Initializing parameters'
 
     ### NETWORK PARAMETERS BEGIN
@@ -212,7 +211,7 @@ if __name__ == '__main__':
 
     net, transform = setup(batch_size, seq_len, img_row, img_col)
 
-    train, tester, params = build()
+    train, tester, params = build(batch_size, gru_input_dim, gru_dim, conv_output_dim, zero_tail_fc, test)
 
     try:
         f = open(model_name, "rb")
