@@ -4,7 +4,7 @@ import TrajectorySimulator as trsim
 import numpy as np
 import pickle
 
-COCO_DIR = '/home/jccaicedo/data/coco'
+COCO_DIR = '/home/datasets/datasets1/mscoco'
 
 import time
 import os
@@ -28,31 +28,33 @@ def simulate(simulator):
 ## CLASS
 ## Simulator with Gaussian mixture models of movement
 class GaussianGenerator(object):
-    def __init__(self, seqLength=60, imageSize=IMG_WIDTH, dataDir='.'):
+    def __init__(self, seqLength=60, imageSize=IMG_WIDTH, dataDir='.', grayscale=True):
         self.imageSize = imageSize
         self.seqLength = seqLength
         trajectoryModelPath = dataDir + '/gmmDenseAbsoluteNormalizedOOT.pkl'
         # Generates a factory to create random simulator instances
-        self.factory = trsim.SimulatorFactory(
-            COCO_DIR, 
-            trajectoryModelPath=trajectoryModelPath, 
-            summaryPath = dataDir + '/cocoTrain2014Summary.pkl', 
-            scenePathTemplate='images/train2014', objectPathTemplate='images/train2014'
-            )
+        #self.factory = trsim.SimulatorFactory(
+        #    COCO_DIR,
+        #    trajectoryModelPath=trajectoryModelPath,
+        #    summaryPath = dataDir + '/cocoTrain2014Summary.pkl',
+        #    scenePathTemplate='images/train2014', objectPathTemplate='images/train2014'
+        #    )
         modelFile = open(trajectoryModelPath, 'r')
         self.trajectoryModel = pickle.load(modelFile)
         modelFile.close()
         self.pool = None
+        self.grayscale = grayscale
 
     def getSimulator(self):
-        emptyPolygon = True
-        
-        while emptyPolygon:
-            simulator = self.factory.createInstance(drawBox=False, camera=True, drawCam=False, cameraContentTransforms=None, camSize=(self.imageSize, self.imageSize))
-            emptyPolygon = len(simulator.polygon) == 0
-            
+        if self.factory is None:
+            simulator = self.getSingleSimulator()
+        else:
+            emptyPolygon = True
+            while emptyPolygon:
+                simulator = self.factory.createInstance(drawBox=False, camera=True, drawCam=False, cameraContentTransforms=None, camSize=(self.imageSize, self.imageSize))
+                emptyPolygon = len(simulator.polygon) == 0
         return simulator
-    
+
     def getSingleSimulator(self):
         scenePath = COCO_DIR + "/images/train2014/COCO_train2014_000000011826.jpg"
         objectPath = COCO_DIR + "/images/train2014/COCO_train2014_000000250067.jpg"
@@ -62,13 +64,20 @@ class GaussianGenerator(object):
         return simulator
 
     def getBatch(self, batchSize):
-        data = np.zeros((batchSize, self.seqLength, self.imageSize, self.imageSize), dtype=np.float32)
+        if self.grayscale:
+            data = np.zeros((batchSize, self.seqLength, self.imageSize, self.imageSize), dtype=np.float32)
+        else:
+            #TODO: validate case of alpha channel
+            data = np.zeros((batchSize, self.seqLength, self.imageSize, self.imageSize, 3), dtype=np.float32)
         label = np.zeros((batchSize, self.seqLength, 4))
         for i in range(batchSize):
-            simulator = self.getSingleSimulator() 
+            simulator = self.getSingleSimulator()
             simulator.start()
             for j, frame in enumerate(simulator):
-                data[i, j, :, :] = np.asarray(frame.convert('L'))
+                if self.grayscale:
+                    data[i, j, :, :] = np.asarray(frame.convert('L'))
+                else:
+                    data[i, j, :, :, :] = np.asarray(frame.convert('RGB'))
                 label[i, j] = simulator.getBox()
                 
         return data, label
