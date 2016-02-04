@@ -118,14 +118,12 @@ def setup(batch_size, seq_len, img_row, img_col, deployPath='/home/fmpaezri/mode
 
     return net, transformer
 
-def forward(net, transformer, images):
+def forward(net, transformer, images, layerKey):
     #TODO: check equivalence with caffe.io.load_image(imagePath)
     print 'Forwarding images with shape {}'.format(images.shape)
     net.blobs['data'].data[...] = NP.array([transformer.preprocess('data', image) for image in images])
-    out = net.forward()
-    #TODO: pool5/7x7_s1?
-    feat = net.blobs['inception_5b/output'].data
-    return out, feat
+    out = net.forward(blobs=[layerKey])
+    return out[layerKey]
 
 def dump_params(model_name, params):
     f = open(model_name, "wb")
@@ -183,9 +181,7 @@ def build_parser():
     parser = ap.ArgumentParser(description='Trains a RNN tracker')
     parser.add_argument('--dataDir', help='Directory of trajectory model', type=str, default='/home/fmpaezri/repos/localization-agent/notebooks')
     parser.add_argument('--batch_size', help='Number of elements in batch', type=int, default=4)
-    parser.add_argument('--conv_nr_filters', help='Number of feature filters', type=int, default=1024)
-    parser.add_argument('--conv_filter_row', help='Rows of feature filters', type=int, default=7)
-    parser.add_argument('--conv_filter_col', help='Columns of feature filters', type=int, default=7)
+    parser.add_argument('--layer_key', help='Key string of layer name to use as features', type=str, default='inception_5b/output')
     parser.add_argument('--img_row', help='Image rows', type=int, default=224)
     parser.add_argument('--img_col', help='Image cols', type=int, default=224)
     parser.add_argument('--gru_dim', help='Dimension of GRU state', type=int, default=256)
@@ -204,12 +200,14 @@ if __name__ == '__main__':
     globals().update(vars(args))
     ### CONFIGURATION END
 
+    net, transform = setup(batch_size, seq_len, img_row, img_col)
+
     ### Computed hyperparameters begin
+    conv_nr_filters, conv_filter_row, conv_filter_col = net.blobs[layer_key].data.shape[-3:]
+    print 'Shape of layer {}: {}'.format(layer_key, (conv_nr_filters, conv_filter_row, conv_filter_col))
     conv_output_dim = conv_nr_filters*conv_filter_row*conv_filter_col
     gru_input_dim = conv_output_dim + 4
     ### Computed hyperparameters end
-
-    net, transform = setup(batch_size, seq_len, img_row, img_col)
 
     train, tester, params = build(batch_size, gru_input_dim, gru_dim, conv_output_dim, zero_tail_fc, test)
 
@@ -248,7 +246,7 @@ if __name__ == '__main__':
                             # from the memory with certain probability. The rest of the time new sequences are simulated. This could save some processing time.
 
                 st = time.time()
-                out, activations = forward(net, transform, data.reshape(-1, data.shape[-3], data.shape[-2], data.shape[-1]))
+                activations = forward(net, transform, data.reshape(-1, data.shape[-3], data.shape[-2], data.shape[-1]), layer_key)
                 activations = activations.reshape(batch_size, seq_len, activations.shape[-3], activations.shape[-2], activations.shape[-1])
                 clock('Activations', st)
 
