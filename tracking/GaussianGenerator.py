@@ -8,26 +8,11 @@ COCO_DIR = '/home/jccaicedo/data/coco'
 
 import time
 import os
-from multiprocessing import Process, JoinableQueue, Queue
 import multiprocessing
 
 SEQUENCE_LENGTH = 60
 IMG_HEIGHT = 100
 IMG_WIDTH = 100
-
-# FUNCTION
-# Distribute work in multiple cores
-def worker(inQueue, outQueue, simulations):
-  for data in iter(inQueue.get,'stop'):
-    index,sequenceGenerator = data
-    results = []
-    for i in range(simulations):
-      r = simulate(sequenceGenerator)
-      results.append(r)
-    outQueue.put(results)
-    inQueue.task_done()
-  inQueue.task_done()
-  return True
 
 # FUNCTION
 # Make simulation of a single sequence given the simulator
@@ -39,7 +24,6 @@ def simulate(simulator):
     data[j, :, :] = np.asarray(frame.convert('L'))
     label[j, :] = simulator.getBox()              
   return data, label
-
 
 ## CLASS
 ## Simulator with Gaussian mixture models of movement
@@ -58,6 +42,7 @@ class GaussianGenerator(object):
         modelFile = open(trajectoryModelPath, 'r')
         self.trajectoryModel = pickle.load(modelFile)
         modelFile.close()
+        self.pool = None
 
     def getSimulator(self):
         emptyPolygon = True
@@ -89,40 +74,22 @@ class GaussianGenerator(object):
         return data, label
 
     def getBatchInParallel(self, batchSize):
-        numProcs =  multiprocessing.cpu_count() # max number of cores
-        if batchSize % numProcs != 0:
-            print "Please use a multiple of",numProcs,"for the batch size"
-            sys.exit()
-        simulations = batchSize/numProcs
-        taskQueue = JoinableQueue()
-        resultQueue = Queue()
-        processes = []
-        # Start workers
-        for i in range(numProcs):
-            t = Process(target=worker, args=(taskQueue, resultQueue, simulations))
-            t.daemon = True
-            t.start()
-            processes.append(t)
+        # Lazy initialization
+        if self.pool is None:
+            numProcs =  multiprocessing.cpu_count() # max number of cores
+            self.pool = multiprocessing.Pool(numProcs)
 
-        # Assign tasks to workers
-        i = 0
-        for gen in [self.getSingleSimulator() for i in range(numProcs)]:
-            taskQueue.put( (i,gen) )
-            i += simulations
-        for i in range(len(processes)):
-            taskQueue.put('stop')
+        # Process simulations in parallel
+        results = self.pool.map(simulate, [self.getSingleSimulator() for i in range(batchSize)])
 
         # Collect results and put them in the output
         index = 0
         data = np.zeros((batchSize, self.seqLength, self.imageSize, self.imageSize), dtype=np.float32)
         label = np.zeros((batchSize, self.seqLength, 4))
-        for k in range(numProcs):
-            result = resultQueue.get()
-            for frames,targets in result:
-                data[index,:,:,:] = frames
-                label[index,:,:] = targets
-                index += 1
+        for frames, targets in results:
+            data[index,:,:,:] = frames
+            label[index,:,:] = targets
+            index += 1
         
         return data, label
-
 
