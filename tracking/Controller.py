@@ -1,8 +1,8 @@
 import argparse as AP
-import RecurrentTracker
 import time
 import numpy as NP
 
+from RecurrentTracker import RecurrentTracker
 from CaffeCnn import CaffeCnn
 from TheanoGruRnn import TheanoGruRnn
 from GaussianGenerator import GaussianGenerator
@@ -18,7 +18,7 @@ class Controller(object):
             et = time.time()
             for j in range(0, batches):
                 st = time.time()
-                data, label = generator.getBatch(batchSize)
+                data, label = generator.getBatchInParallel(batchSize)
         
                 if generator.grayscale:
                     data = data[:, :, NP.newaxis, :, :]
@@ -78,13 +78,15 @@ if __name__ == '__main__':
         gruInputDim = reduce(lambda a,b: a*b, cnn.outputShape()[-3:])
     else:
         cnn = gruInputDim = None
+        #Predefined shape for trained conv layer
+        imgHeight = imgWidth = 100
     rnn = TheanoGruRnn(gruInputDim, gruStateDim, batchSize, seqLength, zeroTailFc, learningRate, useCUDNN, imgHeight, pretrained)
     
     rnn.loadModel(trackerModelPath)
     
     tracker = RecurrentTracker(cnn, rnn)
     
-    generator = GaussianGenerator(dataDir=dataDir, seqLength=seqLength, imageSize=imgHeight, grayscale=False)
+    generator = GaussianGenerator(dataDir=dataDir, seqLength=seqLength, imageSize=imgHeight, grayscale=not pretrained)
     
     controller = Controller()
     M = 32000 # Constant number of example sequences per epoch

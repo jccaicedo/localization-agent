@@ -18,7 +18,7 @@ class CaffeCnn(object):
         data = data.reshape(-1, data.shape[-3], data.shape[-2], data.shape[-1])
         self.net.blobs['data'].data[...] = NP.array([self.transformer.preprocess('data', image) for image in data])
         #TODO: which method is fastest: out or direct reference of layer?
-        feats = self.net.forward(blobs=self.layerKey)[self.layerKey]
+        feats = self.net.forward(blobs=[self.layerKey])[self.layerKey]
         feats = feats.reshape(self.batchSize, self.seqLength, feats.shape[-3], feats.shape[-2], feats.shape[-1])
         
         return feats

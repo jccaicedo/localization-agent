@@ -17,7 +17,7 @@ class TheanoGruRnn(object):
     params = None
     seqLength = None
     
-    def __init__(self, inputDim, stateDim, batchSize, seqLength, zeroTailFc, learningRate, use_cudnn, imgSize=100, pretrained=False):
+    def __init__(self, inputDim, stateDim, batchSize, seqLength, zeroTailFc, learningRate, use_cudnn, imgSize, pretrained=False):
         ### Computed hyperparameters begin
         self.pretrained = pretrained
         if not self.pretrained:
@@ -32,7 +32,7 @@ class TheanoGruRnn(object):
                         self.conv_nr_filters
         self.inputDim = inputDim + 4
         self.seqLength = seqLength
-        self.fitFunc, self.forwardFunc, self.params = self.buildModel(batchSize, inputDim, stateDim, zeroTailFc, learningRate, use_cudnn)
+        self.fitFunc, self.forwardFunc, self.params = self.buildModel(batchSize, self.inputDim, stateDim, zeroTailFc, learningRate, use_cudnn)
 
     
     def fit(self, data, label):
@@ -45,10 +45,14 @@ class TheanoGruRnn(object):
     
     
     def loadModel(self, modelPath):
-        f = open(modelPath, "rb")
-        param_saved = pickle.load(f)
-        for _p, p in zip(self.params, param_saved):
-            _p.set_value(p)
+        try:
+            print 'Loading model from {}'.format(modelPath)
+            f = open(modelPath, "rb")
+            param_saved = pickle.load(f)
+            for _p, p in zip(self.params, param_saved):
+                _p.set_value(p)
+        except Exception as e:
+            print 'Exception loading model {}: {}'.format(modelPath, e)
       
     def saveModel(self, modelPath):
         with open(modelPath, 'wb') as trackerFile:
@@ -79,29 +83,35 @@ class TheanoGruRnn(object):
         params = list(self.init_params(inputDim, stateDim, zeroTailFc))
         if not self.pretrained:
             conv_filters, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
-        else:
-            Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
-            
-                
-        def step(img, prev_bbox, state):
-            # of (batch_size, nr_filters, some_rows, some_cols)
-            if not self.pretrained:
+            def step(img, prev_bbox, state):
+                # of (batch_size, nr_filters, some_rows, some_cols)
                 conv1 = conv2d(img, conv_filters, subsample=(self.conv_stride, self.conv_stride))
                 act1 = Tensor.tanh(conv1)
-            else:
+                flat1 = Tensor.reshape(act1, (batchSize, inputDim-4))
+                gru_in = Tensor.concatenate([flat1, prev_bbox], axis=1)
+                gru_z = NN.sigmoid(Tensor.dot(gru_in, Wz) + Tensor.dot(state, Uz) + bz)
+                gru_r = NN.sigmoid(Tensor.dot(gru_in, Wr) + Tensor.dot(state, Ur) + br)
+                gru_h_ = Tensor.tanh(Tensor.dot(gru_in, Wg) + Tensor.dot(gru_r * state, Ug) + bg)
+                gru_h = (1-gru_z) * state + gru_z * gru_h_
+                bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc2) + b_fc2)
+                return bbox, gru_h
+        else:
+            Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
+            def step(img, prev_bbox, state):
+                # of (batch_size, nr_filters, some_rows, some_cols)
                 act1 = img
-            flat1 = Tensor.reshape(act1, (batchSize, self.inputDim-4))
-            gru_in = Tensor.concatenate([flat1, prev_bbox], axis=1)
-            gru_z = NN.sigmoid(Tensor.dot(gru_in, Wz) + Tensor.dot(state, Uz) + bz)
-            gru_r = NN.sigmoid(Tensor.dot(gru_in, Wr) + Tensor.dot(state, Ur) + br)
-            gru_h_ = Tensor.tanh(Tensor.dot(gru_in, Wg) + Tensor.dot(gru_r * state, Ug) + bg)
-            gru_h = (1-gru_z) * state + gru_z * gru_h_
-            bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc2) + b_fc2)
-        
-            return bbox, gru_h
-    
+                flat1 = Tensor.reshape(act1, (batchSize, inputDim-4))
+                gru_in = Tensor.concatenate([flat1, prev_bbox], axis=1)
+                gru_z = NN.sigmoid(Tensor.dot(gru_in, Wz) + Tensor.dot(state, Uz) + bz)
+                gru_r = NN.sigmoid(Tensor.dot(gru_in, Wr) + Tensor.dot(state, Ur) + br)
+                gru_h_ = Tensor.tanh(Tensor.dot(gru_in, Wg) + Tensor.dot(gru_r * state, Ug) + bg)
+                gru_h = (1-gru_z) * state + gru_z * gru_h_
+                bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc2) + b_fc2)
+                return bbox, gru_h
+            
+               
         # Move the time axis to the top
-        sc, _ = Theano.scan(step, sequences=[imgs.dimshuffle(1, 0, 2, 3, 4)], outputs_info=[starts, Tensor.zeros((batchSize, stateDim))], strict=True)
+        sc, _ = Theano.scan(step, sequences=[imgs.dimshuffle(1, 0, 2, 3, 4)], outputs_info=[starts, Tensor.zeros((batchSize, stateDim))])
     
         bbox_seq = sc[0].dimshuffle(1, 0, 2)
     
