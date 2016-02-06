@@ -63,6 +63,7 @@ conv2d = NN.conv2d
 ### Utility functions end
 
 ### CONFIGURATION BEGIN
+dataDir = '/home/jccaicedo/data/simulations'
 batch_size = 32
 conv1_nr_filters = 32
 conv1_filter_row = 10
@@ -222,6 +223,9 @@ train = T.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], up
 tester = T.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], allow_input_downcast=True)
 
 import cPickle
+import time
+def clock(m, st): 
+  print m,(time.time()-st)
 
 try:
     f = open(model_name, "rb")
@@ -233,28 +237,36 @@ except IOError:
 
 print 'Generating dataset'
 
-generator = GG.GaussianGenerator()
+generator = GG.GaussianGenerator(dataDir=dataDir)
 print 'START'
 
 try:
 	for i in range(0, 50):
                 train_cost = test_cost = 0
 		for j in range(0, 2000):
-			data, label = generator.getBatch(batch_size)
+                        st = time.time()
+			data, label = generator.getBatchInParallel(batch_size)
+                        clock('Simulations',st)
+
+                        st = time.time()
 			data = data[:, :, NP.newaxis, :, :] / 255.0
 			label = label / (img_row / 2.) - 1.
+                        clock('Normalization',st)
+
+                        st = time.time()
 			cost, bbox_seq = train(seq_len, data, label[:, 0, :], label)
-			left = NP.max([bbox_seq[:, :, 0], label[:, :, 0]], axis=0)
+                        clock('Training',st)
+			'''left = NP.max([bbox_seq[:, :, 0], label[:, :, 0]], axis=0)
 			top = NP.max([bbox_seq[:, :, 1], label[:, :, 1]], axis=0)
 			right = NP.min([bbox_seq[:, :, 2], label[:, :, 2]], axis=0)
 			bottom = NP.min([bbox_seq[:, :, 3], label[:, :, 3]], axis=0)
 			intersect = (right - left) * ((right - left) > 0) * (bottom - top) * ((bottom - top) > 0)
 			label_area = (label[:, :, 2] - label[:, :, 0]) * (label[:, :, 2] - label[:, :, 0] > 0) * (label[:, :, 3] - label[:, :, 1]) * (label[:, :, 3] - label[:, :, 1] > 0)
 			predict_area = (bbox_seq[:, :, 2] - bbox_seq[:, :, 0]) * (bbox_seq[:, :, 2] - bbox_seq[:, :, 0] > 0) * (bbox_seq[:, :, 3] - bbox_seq[:, :, 1]) * (bbox_seq[:, :, 3] - bbox_seq[:, :, 1] > 0)
-			union = label_area + predict_area - intersect
+			union = label_area + predict_area - intersect'''
 			print i, j, cost
                         train_cost += cost
-			data, label = generator.getBatch(batch_size)
+			'''data, label = generator.getBatch(batch_size)
 			data = data[:, :, NP.newaxis, :, :] / 255.0
 			label = label / (img_row / 2.) - 1.
 			cost, bbox_seq = tester(seq_len, data, label[:, 0, :], label)
@@ -270,7 +282,7 @@ try:
                         test_cost += cost
 			iou = intersect / union
 			print NP.average(iou, axis=0)       # per frame
-			print NP.average(iou, axis=1)       # per batch
+			print NP.average(iou, axis=1)       # per batch'''
                 print 'Epoch average loss (train, test)', train_cost / 2000, test_cost / 2000
                 f = open(model_name + str(i), "wb")
 		cPickle.dump(map(lambda x: x.get_value(), params), f)
