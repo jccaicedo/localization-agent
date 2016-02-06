@@ -253,6 +253,10 @@ try:
 			label = label / (img_row / 2.) - 1.
                         clock('Normalization',st)
 
+                        # We can also implement a 'replay memory' here to store previous simulations and reuse them again later during training.
+                        # The basic idea is to store sequences in a tensor of a predefined capacity, and when it's full we start sampling sequences
+                        # from the memory with certain probability. The rest of the time new sequences are simulated. This could save some processing time.
+
                         st = time.time()
 			cost, bbox_seq = train(seq_len, data, label[:, 0, :], label)
                         clock('Training',st)

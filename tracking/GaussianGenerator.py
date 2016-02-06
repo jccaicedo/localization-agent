@@ -80,7 +80,11 @@ class GaussianGenerator(object):
             self.pool = multiprocessing.Pool(numProcs)
 
         # Process simulations in parallel
-        results = self.pool.map(simulate, [self.getSingleSimulator() for i in range(batchSize)])
+        try:
+            results = self.pool.map_async(simulate, [self.getSingleSimulator() for i in range(batchSize)]).get(9999)
+        except:
+            self.pool.terminate()
+            sys.exit()
 
         # Collect results and put them in the output
         index = 0
