@@ -35,17 +35,19 @@ def wrapped_simulate(params):
 ## CLASS
 ## Simulator with Gaussian mixture models of movement
 class GaussianGenerator(object):
-    def __init__(self, seqLength=60, imageSize=IMG_WIDTH, dataDir='.', grayscale=True):
+    def __init__(self, seqLength=60, imageSize=IMG_WIDTH, dataDir='.', grayscale=True, single=True):
         self.imageSize = imageSize
         self.seqLength = seqLength
         trajectoryModelPath = dataDir + '/gmmDenseAbsoluteNormalizedOOT.pkl'
-        # Generates a factory to create random simulator instances
-        #self.factory = trsim.SimulatorFactory(
-        #    COCO_DIR,
-        #    trajectoryModelPath=trajectoryModelPath,
-        #    summaryPath = dataDir + '/cocoTrain2014Summary.pkl',
-        #    scenePathTemplate='images/train2014', objectPathTemplate='images/train2014'
-        #    )
+        self.factory = None
+        if not single:
+            # Generates a factory to create random simulator instances
+            self.factory = trsim.SimulatorFactory(
+                COCO_DIR,
+                trajectoryModelPath=trajectoryModelPath,
+                summaryPath = dataDir + '/cocoTrain2014Summary.pkl',
+                scenePathTemplate='images/train2014', objectPathTemplate='images/train2014'
+                )
         modelFile = open(trajectoryModelPath, 'r')
         self.trajectoryModel = pickle.load(modelFile)
         modelFile.close()
@@ -56,10 +58,7 @@ class GaussianGenerator(object):
         if self.factory is None:
             simulator = self.getSingleSimulator()
         else:
-            emptyPolygon = True
-            while emptyPolygon:
-                simulator = self.factory.createInstance(drawBox=False, camera=True, drawCam=False, cameraContentTransforms=None, camSize=(self.imageSize, self.imageSize))
-                emptyPolygon = len(simulator.polygon) == 0
+            simulator = self.factory.createInstance(camSize=(self.imageSize, self.imageSize))
         return simulator
 
     def getSingleSimulator(self):
@@ -82,7 +81,7 @@ class GaussianGenerator(object):
     def getBatch(self, batchSize):
         data, label = self.initResults(batchSize)
         for i in range(batchSize):
-            simulator = self.getSingleSimulator()
+            simulator = self.getSimulator()
             simulator.start()
             for j, frame in enumerate(simulator):
                 if self.grayscale:
@@ -96,12 +95,13 @@ class GaussianGenerator(object):
     def getBatchInParallel(self, batchSize):
         # Lazy initialization
         if self.pool is None:
+            #TODO: make a parameter or use this by default
             numProcs =  multiprocessing.cpu_count() # max number of cores
             self.pool = multiprocessing.Pool(numProcs)
 
         # Process simulations in parallel
         try:
-            results = self.pool.map_async(wrapped_simulate, [(self.getSingleSimulator(), self.grayscale) for i in range(batchSize)]).get(9999)
+            results = self.pool.map_async(wrapped_simulate, [(self.getSimulator(), self.grayscale) for i in range(batchSize)]).get(9999)
         except Exception as e:
             print 'Exception raised during map_async: {}'.format(e)
             self.pool.terminate()
