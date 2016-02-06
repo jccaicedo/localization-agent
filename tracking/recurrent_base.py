@@ -88,7 +88,7 @@ def dump_params(model_name, params):
     cPickle.dump(map(lambda x: x.get_value(), params), f)
     f.close()
 
-def build(batch_size, gru_input_dim, gru_dim, conv_output_dim, conv_nr_filters, conv_filter_row, conv_filter_col, conv_stride, zero_tail_fc, test, use_cudnn):
+def build(batch_size, gru_input_dim, gru_dim, conv_output_dim, conv_nr_filters, conv_filter_row, conv_filter_col, conv_stride, zero_tail_fc, use_cudnn, learning_rate):
     print 'Building network'
 
     # imgs: of shape (batch_size, seq_len, nr_channels, img_rows, img_cols)
@@ -133,15 +133,14 @@ def build(batch_size, gru_input_dim, gru_dim, conv_output_dim, conv_nr_filters, 
 
     print 'Building optimizer'
 
-    train = T.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], updates=rmsprop(cost, params) if not test else None, allow_input_downcast=True)
-    tester = T.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], allow_input_downcast=True)
+    train = T.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], updates=rmsprop(cost, params, lr=learning_rate), allow_input_downcast=True)
+    #tester = T.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], allow_input_downcast=True)
     
-    return train, tester, params
+    return train, params
 
 def init_params(conv_nr_filters, conv_filter_row, conv_filter_col, gru_input_dim, gru_dim, zero_tail_fc):
     
     print 'Initializing parameters'
-
     ### NETWORK PARAMETERS BEGIN
     conv_filters = T.shared(glorot_uniform((conv_nr_filters, 1, conv_filter_row, conv_filter_col)), name='conv_filters')
     Wr = T.shared(glorot_uniform((gru_input_dim, gru_dim)), name='Wr')
@@ -161,7 +160,7 @@ def init_params(conv_nr_filters, conv_filter_row, conv_filter_col, gru_input_dim
 
 def build_parser():
     parser = ap.ArgumentParser(description='Trains a RNN tracker')
-    parser.add_argument('--dataDir', help='Directory of trajectory model', type=str, default='/home/fmpaezri/repos/localization-agent/notebooks')
+    parser.add_argument('--dataDir', help='Directory of trajectory model', type=str, default='/home/jccaicedo/localization-agent/notebooks')
     parser.add_argument('--batch_size', help='Number of elements in batch', type=int, default=32)
     parser.add_argument('--conv_nr_filters', help='Number of feature filters', type=int, default=32)
     parser.add_argument('--conv_filter_row', help='Rows of feature filters', type=int, default=10)
@@ -173,8 +172,9 @@ def build_parser():
     parser.add_argument('--seq_len', help='Lenght of sequences', type=int, default=60)
     parser.add_argument('--model_name', help='Name of model file', type=str, default='model.pkl')
     parser.add_argument('--zero_tail_fc', help='', type=bool, default=False)
-    parser.add_argument('--test', help='', type=bool, default=False)
     parser.add_argument('--use_cudnn', help='Use CUDA CONV or THEANO', type=bool, default=False)
+    parser.add_argument('--learning_rate', help='SGD learning rate', type=float, default=0.0005)
+    parser.add_argument('--epochs', help='Number of epochs with 32000 example sequences each', type=int, default=1)
     return parser
 
 ### Utility functions end
@@ -193,7 +193,7 @@ if __name__ == '__main__':
     gru_input_dim = conv_output_dim + 4
     ### Computed hyperparameters end
 
-    train, tester, params = build(batch_size, gru_input_dim, gru_dim, conv_output_dim, conv_nr_filters, conv_filter_row, conv_filter_col, conv_stride, zero_tail_fc, test, use_cudnn)
+    train, params = build(batch_size, gru_input_dim, gru_dim, conv_output_dim, conv_nr_filters, conv_filter_row, conv_filter_col, conv_stride, zero_tail_fc, use_cudnn, learning_rate)
 
     try:
         f = open(model_name, "rb")
@@ -204,66 +204,39 @@ if __name__ == '__main__':
         pass
 
     print 'Generating dataset'
-
     generator = GG.GaussianGenerator(dataDir=dataDir, seqLength=seq_len, imageSize=img_row, grayscale=True)
     print 'START'
 
+
     try:
-        for i in range(0, 50):
-            train_cost = test_cost = 0
-            for j in range(0, 2000):
+        M = 32000 # Constant number of example sequences per epoch
+        N = M/batch_size # Batches per epoch 
+        for i in range(0, epochs):
+            train_cost = 0
+            et = time.time()
+            for j in range(0, N):
                 st = time.time()
                 data, label = generator.getBatchInParallel(batch_size)
-                clock('Simulations',st)
-
-                st = time.time()
-                print 'Initial data shape:', data.shape
                 if generator.grayscale:
                     data = data[:, :, NP.newaxis, :, :]
                 else:
                     data = data.transpose((0,1,4,2,3))
                 data /= 255.0
-                print 'Final data shape:', data.shape
                 label = label / (img_row / 2.) - 1.
-                clock('Normalization',st)
+                clock('Simulations',st)
 
-                # We can also implement a 'replay memory' here to store previous simulations and reuse them again later during training.
+                # TODO: We can also implement a 'replay memory' here to store previous simulations and reuse them again later during training.
                 # The basic idea is to store sequences in a tensor of a predefined capacity, and when it's full we start sampling sequences
                 # from the memory with certain probability. The rest of the time new sequences are simulated. This could save some processing time.
 
                 st = time.time()
                 cost, bbox_seq = train(seq_len, data, label[:, 0, :], label)
                 clock('Training',st)
-                '''left = NP.max([bbox_seq[:, :, 0], label[:, :, 0]], axis=0)
-                top = NP.max([bbox_seq[:, :, 1], label[:, :, 1]], axis=0)
-                right = NP.min([bbox_seq[:, :, 2], label[:, :, 2]], axis=0)
-                bottom = NP.min([bbox_seq[:, :, 3], label[:, :, 3]], axis=0)
-                intersect = (right - left) * ((right - left) > 0) * (bottom - top) * ((bottom - top) > 0)
-                label_area = (label[:, :, 2] - label[:, :, 0]) * (label[:, :, 2] - label[:, :, 0] > 0) * (label[:, :, 3] - label[:, :, 1]) * (label[:, :, 3] - label[:, :, 1] > 0)
-                predict_area = (bbox_seq[:, :, 2] - bbox_seq[:, :, 0]) * (bbox_seq[:, :, 2] - bbox_seq[:, :, 0] > 0) * (bbox_seq[:, :, 3] - bbox_seq[:, :, 1]) * (bbox_seq[:, :, 3] - bbox_seq[:, :, 1] > 0)
-                union = label_area + predict_area - intersect'''
-                print i, j, cost
+                print 'Cost', i, j, cost
                 train_cost += cost
-                '''data, label = generator.getBatch(batch_size)
-                data = data[:, :, NP.newaxis, :, :] / 255.0
-                label = label / (img_row / 2.) - 1.
-                cost, bbox_seq = tester(seq_len, data, label[:, 0, :], label)
-                left = NP.max([bbox_seq[:, :, 0], label[:, :, 0]], axis=0)
-                top = NP.max([bbox_seq[:, :, 1], label[:, :, 1]], axis=0)
-                right = NP.min([bbox_seq[:, :, 2], label[:, :, 2]], axis=0)
-                bottom = NP.min([bbox_seq[:, :, 3], label[:, :, 3]], axis=0)
-                intersect = (right - left) * ((right - left) > 0) * (bottom - top) * ((bottom - top) > 0)
-                label_area = (label[:, :, 2] - label[:, :, 0]) * (label[:, :, 2] - label[:, :, 0] > 0) * (label[:, :, 3] - label[:, :, 1]) * (label[:, :, 3] - label[:, :, 1] > 0)
-                predict_area = (bbox_seq[:, :, 2] - bbox_seq[:, :, 0]) * (bbox_seq[:, :, 2] - bbox_seq[:, :, 0] > 0) * (bbox_seq[:, :, 3] - bbox_seq[:, :, 1]) * (bbox_seq[:, :, 3] - bbox_seq[:, :, 1] > 0)
-                union = label_area + predict_area - intersect
-                print i, j, cost
-                test_cost += cost
-                iou = intersect / union
-                print NP.average(iou, axis=0)       # per frame
-                print NP.average(iou, axis=1)       # per batch'''
-            print 'Epoch average loss (train, test)', train_cost / 2000, test_cost / 2000
+            print 'Epoch average loss (train)', train_cost / M
+            clock('Epoch time',et)
             dump_params(model_name + str(i), params)
     except KeyboardInterrupt:
-        if not test:
-            print 'Saving...'
-            dump_params(model_name, params)
+        print 'Saving...'
+        dump_params(model_name, params)
