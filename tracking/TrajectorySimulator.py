@@ -532,7 +532,7 @@ def createCOCOSummary(dataDir, dataType, summaryPath):
         cocoDict = [
             {
                 k:obj.get(k, objFileNames[obj['image_id']] if k == 'file_name' else None)
-                for k in ['category_id', 'image_id', 'segmentation', 'file_name']
+                for k in ['category_id', 'image_id', 'segmentation', 'file_name', 'area', 'bbox']
             }
             for obj in objAnns
         ]
