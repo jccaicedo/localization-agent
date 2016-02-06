@@ -229,7 +229,7 @@ if __name__ == '__main__':
             train_cost = test_cost = 0
             for j in range(0, 2000):
                 st = time.time()
-                data, label = generator.getBatch(batch_size)
+                data, label = generator.getBatchInParallel(batch_size)
                 clock('Simulations',st)
 
                 st = time.time()
