@@ -261,7 +261,11 @@ class TrajectorySimulator():
     self.maxSteps = maxSteps
     # Load images
     self.scene = Image.open(sceneFile)
+    if self.scene.mode == 'L':
+        self.scene = self.scene.convert('RGB')
     self.obj = Image.open(objectFile)
+    if self.obj.mode == 'L':
+        self.obj = self.obj.convert('RGB')
     # Use scene as camera
     if camSize is None:
         camSize = self.scene.size
