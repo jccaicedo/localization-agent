@@ -18,7 +18,7 @@ class Controller(object):
             et = time.time()
             for j in range(0, batches):
                 st = time.time()
-                data, label = generator.getBatchInParallel(batchSize)
+                data, label = generator.getBatch(batchSize)
         
                 if generator.grayscale:
                     data = data[:, :, NP.newaxis, :, :]
@@ -64,6 +64,8 @@ def build_parser():
     parser.add_argument('--useCUDNN', help='Use CUDA CONV or THEANO', type=bool, default=False)
     parser.add_argument('--pretrained', help='Use pretrained network (redundant)', default=False, action='store_true')
     parser.add_argument('--sample', help='Use single scene/object or sample', default=False, action='store_true')
+    parser.add_argument('--parallel', help='Make parallel simulations', default=False, action='store_true')
+    parser.add_argument('--numProcs', help='Number of processes for parallel simulations', type=int, default=None)
     return parser
 
 if __name__ == '__main__':
@@ -90,7 +92,7 @@ if __name__ == '__main__':
     
     tracker = RecurrentTracker(cnn, rnn)
     
-    generator = GaussianGenerator(dataDir=dataDir, seqLength=seqLength, imageSize=imgHeight, grayscale=not pretrained, single=not sample)
+    generator = GaussianGenerator(dataDir=dataDir, seqLength=seqLength, imageSize=imgHeight, grayscale=not pretrained, single=not sample, parallel=parallel, numProcs=numProcs)
     
     controller = Controller()
     M = 32000 # Constant number of example sequences per epoch
