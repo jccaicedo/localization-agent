@@ -2,6 +2,9 @@ import os,sys
 import numpy as np
 import random, time
 from PIL import Image
+from PIL import ImageFile
+#TODO: Leave False so that an Exception is generated
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 from PIL import ImageEnhance
 from PIL import ImageDraw
 import numpy.linalg
