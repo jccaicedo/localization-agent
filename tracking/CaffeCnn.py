@@ -18,7 +18,7 @@ class CaffeCnn(object):
     def forward(self, data):
         #Reshape to obtain batchSize/gpuBatchSize, gpuBatchSize, ...
         gpuBatches = data.reshape(self.batchSize/self.gpuBatchSize, self.gpuBatchSize, self.seqLength, data.shape[-3], data.shape[-2], data.shape[-1])
-        feats = NP.zeros((self.batchSize, self.seqLength) + self.outputShape()[-3:] )
+        feats = NP.zeros((self.batchSize, self.seqLength) + self.outputShape()[-3:], dtype=data.dtype)
         #Iterate over first dim
         for i, gpuBatch in enumerate(gpuBatches):
             gpuBatch = gpuBatch.reshape(-1, gpuBatch.shape[-3], gpuBatch.shape[-2], gpuBatch.shape[-1])

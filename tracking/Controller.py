@@ -63,7 +63,7 @@ def build_parser():
     parser.add_argument('--learningRate', help='SGD learning rate', type=float, default=0.0005)
     parser.add_argument('--useCUDNN', help='Use CUDA CONV or THEANO', type=bool, default=False)
     parser.add_argument('--pretrained', help='Use pretrained network (redundant)', default=False, action='store_true')
-    parser.add_argument('--single', help='Use single scene/object or sample', default=True, action='store_false')
+    parser.add_argument('--sample', help='Use single scene/object or sample', default=False, action='store_true')
     return parser
 
 if __name__ == '__main__':
@@ -90,7 +90,7 @@ if __name__ == '__main__':
     
     tracker = RecurrentTracker(cnn, rnn)
     
-    generator = GaussianGenerator(dataDir=dataDir, seqLength=seqLength, imageSize=imgHeight, grayscale=not pretrained, single=single)
+    generator = GaussianGenerator(dataDir=dataDir, seqLength=seqLength, imageSize=imgHeight, grayscale=not pretrained, single=not sample)
     
     controller = Controller()
     M = 32000 # Constant number of example sequences per epoch

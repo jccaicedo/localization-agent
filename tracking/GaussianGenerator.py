@@ -3,7 +3,7 @@ import TrajectorySimulator as trsim
 import numpy as np
 import pickle
 
-COCO_DIR = '/home/jccaicedo/data/coco'
+COCO_DIR = '/home/datasets/datasets1/mscoco'
 
 import multiprocessing
 
@@ -90,20 +90,29 @@ class GaussianGenerator(object):
         return data, label
 
     def getBatchInParallel(self, batchSize):
+        results = self.distribute(batchSize).get(9999)
+        return self.collect(batchSize, results)
+
+    def initPool(self):
         # Lazy initialization
         if self.pool is None:
             #TODO: make a parameter or use this by default
             numProcs =  multiprocessing.cpu_count() # max number of cores
             self.pool = multiprocessing.Pool(numProcs)
 
+    def distribute(self, batchSize):
+        self.initPool()
+
         # Process simulations in parallel
         try:
-            results = self.pool.map_async(wrapped_simulate, [(self.getSimulator(), self.grayscale) for i in range(batchSize)]).get(9999)
+            results = self.pool.map_async(wrapped_simulate, [(self.getSimulator(), self.grayscale) for i in range(batchSize)])
+            return results
         except Exception as e:
             print 'Exception raised during map_async: {}'.format(e)
             self.pool.terminate()
             sys.exit()
 
+    def collect(self, batchSize, results):
         # Collect results and put them in the output
         index = 0
         data, label = self.initResults(batchSize)
