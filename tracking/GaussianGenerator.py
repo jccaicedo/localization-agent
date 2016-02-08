@@ -3,7 +3,7 @@ import TrajectorySimulator as trsim
 import numpy as np
 import pickle
 
-COCO_DIR = '/home/jccaicedo/data/coco'
+COCO_DIR = '/data1/mscoco/'
 
 import multiprocessing
 
@@ -32,7 +32,7 @@ def wrapped_simulate(params):
 ## CLASS
 ## Simulator with Gaussian mixture models of movement
 class GaussianGenerator(object):
-    def __init__(self, seqLength=60, imageSize=IMG_WIDTH, dataDir='.', grayscale=True, single=True, parallel=True, numProcs=None):
+    def __init__(self, seqLength=60, imageSize=IMG_WIDTH, dataDir='.', grayscale=True, single=True, parallel=True, numProcs=None, summaryName='/cocoTrain2014Summary.pkl'):
         self.imageSize = imageSize
         self.seqLength = seqLength
         trajectoryModelPath = dataDir + '/gmmDenseAbsoluteNormalizedOOT.pkl'
@@ -48,7 +48,7 @@ class GaussianGenerator(object):
             self.factory = trsim.SimulatorFactory(
                 COCO_DIR,
                 trajectoryModelPath=trajectoryModelPath,
-                summaryPath = dataDir + '/cocoTrain2014Summary.pkl',
+                summaryPath = dataDir + summaryName,
                 scenePathTemplate='images/train2014', objectPathTemplate='images/train2014'
                 )
         modelFile = open(trajectoryModelPath, 'r')
