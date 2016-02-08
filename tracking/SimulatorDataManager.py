@@ -1,5 +1,4 @@
 import pickle
-import random, time
 import numpy as NP
 import os
 
@@ -9,60 +8,54 @@ class SimulatorDataManager(object):
     objects = []
     imagesPath = None
     randGen = None
-    SUMMARY_KEY = 'summary'
-    CATEGORY_KEY = 'categories'
+    SUMMARY_KEY = "summary"
+    CATEGORY_KEY = "categories"
     
     def __init__(self, imagesPath, summaryPath):
         self.summaryPath = summaryPath
         self.imagesPath = imagesPath
-        self.randGen = random.Random()
-        self.randGen.jumpahead(long(time.time()))
      
         
     def getRandomObject(self):
-        return self.randGen.choice(self.objects)
+        return NP.random.choice(self.objects)
     
     
     def setObjectsBySide(self, size, minSide):
-        with open(self.summaryPath, 'r') as summaryFile:
+        with open(self.summaryPath, "r") as summaryFile:
             summary = pickle.load(summaryFile)
         
         self.objects = []
-        summary = [obj for obj in summary[self.SUMMARY_KEY] if self.checkSegmentations(obj["segmentation"], minSide)]
+        summary = [obj for obj in summary[self.SUMMARY_KEY] if self.checkObjectSide(obj["bbox"], minSide)]
         
         #Select a random image for the scene
-        while len(self.objects) < size:
+        for obj in NP.random.choice(summary, size, replace=False):
             #Select a random image for the object
-            objData = self.randGen.choice(summary)
-            polygon = self.randGen.choice([seg for seg in objData['segmentation'] if self.checkObjectSide(seg, minSide)])
-            objPath = os.path.join(self.imagesPath, objData['file_name'].strip())
-            self.objects.append({"path":objPath, "polygon":polygon})
-      
-    def checkSegmentations(self, segmentations, minSide):
-        return any(self.checkObjectSide(seg, minSide) for seg in segmentations)
+            objPath = os.path.join(self.imagesPath, obj["file_name"].strip())
+            bbox = self.transformBBox(obj["bbox"])
+            self.objects.append({"path":objPath, "segmentation":obj["segmentation"], "iscrowd":obj["iscrowd"], "bbox":bbox})
             
      
-    def checkObjectSide(self, polygon, minSide):
-        bbox = self.polygonBBox(polygon)
-        heigh = bbox[0] - bbox[2]
-        width = bbox[1] - bbox[3]
+    def checkObjectSide(self, bboxCoco, minSide):
+        # bboxCoco : [x,y,width,height]
+        bbox = self.transformBBox(bboxCoco)
+        width = bbox[2] - bbox[0]
+        height = bbox[3] - bbox[1]
         
-        return heigh >= minSide or width >= minSide
+        return height >= minSide or width >= minSide
           
           
-    def polygonBBox(self, polygon):
-        '''Calculates the bounding box for the given polygon'''
-        maskCoords = NP.array(polygon).reshape(len(polygon)/2,2).T
-        bounds = map(int, (maskCoords[0].min(), maskCoords[1].min(), maskCoords[0].max(), maskCoords[1].max()))
+    def transformBBox(self, bboxCoco):
+        # bboxCoco : [x,y,width,height]
+        bbox = [bboxCoco[0], bboxCoco[1], bboxCoco[0] + bboxCoco[2], bboxCoco[1] + bboxCoco[3]]
         
-        return bounds
+        return bbox
     
     
     def saveObjects(self, outputPath):
-        with open(outputPath, 'wb') as objectsFile:
+        with open(outputPath, "wb") as objectsFile:
             pickle.dump(self.objects, objectsFile, pickle.HIGHEST_PROTOCOL)
             
             
     def loadObjects(self, objectsPath):
-        with open(objectsPath, 'r') as objectsFile:
+        with open(objectsPath, "r") as objectsFile:
             self.objects = pickle.load(objectsFile)
