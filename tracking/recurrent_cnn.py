@@ -131,12 +131,14 @@ def dump_params(model_name, params):
     cPickle.dump(map(lambda x: x.get_value(), params), f)
     f.close()
 
-def build(params):
+def build():
     print 'Building network'
 
     # imgs: of shape (batch_size, seq_len, nr_channels, img_rows, img_cols)
     imgs = tensor5()
     starts = TT.matrix()
+
+    Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = init_params()
 
     # Move the time axis to the top
     sc, _ = T.scan(_step, sequences=[imgs.dimshuffle(1, 0, 2, 3, 4)], outputs_info=[starts, TT.zeros((batch_size, gru_dim))])
@@ -153,10 +155,11 @@ def build(params):
 
     ### RMSprop end
 
+    params = [Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2]
     train = T.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], updates=rmsprop(cost, params) if not test else None, allow_input_downcast=True)
     tester = T.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], allow_input_downcast=True)
     
-    return train, tester
+    return train, tester, params
 
 def init_params():
     print 'Initializing parameters'
@@ -209,11 +212,7 @@ if __name__ == '__main__':
 
     net, transform = setup(batch_size, seq_len, img_row, img_col)
 
-    Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = init_params()
-
-    params = [Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2]
-
-    train, tester = build(params)
+    train, tester, params = build()
 
     try:
         f = open(model_name, "rb")
