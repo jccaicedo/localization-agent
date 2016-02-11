@@ -10,24 +10,21 @@ class SimulatorDataManager(object):
     
     def __init__(self, summaryPath):
         self.summaryPath = summaryPath
-     
         
-    def getRandomObject(self):
-        return NP.random.choice(self.objects)
     
-    
-    def exportObjectsBySide(self, size, minSide, outputPath):
+    def filterObjects(self, size, minSide, allowedCategories, outputPath):
         with open(self.summaryPath, "r") as summaryFile:
             summary = pickle.load(summaryFile)
         
         outputObjects = []
         outputCategories = {}
         categories = summary[self.CATEGORY_KEY]
-        summary = [obj for obj in summary[self.SUMMARY_KEY] if self.checkObjectSide(obj["bbox"], minSide)]
+        summary = [obj for obj in summary[self.SUMMARY_KEY] if self.checkObjectSide(obj["segmentation"][0], minSide) and int(obj['category_id']) in allowedCategories]
         
         #Select a random image for the scene
         for obj in NP.random.choice(summary, size, replace=False):
             categoryId = int(obj['category_id'])
+            obj["bbox"] = self.getBBox(obj["segmentation"][0])
             outputObjects.append(obj)
             outputCategories[categoryId] = categories[categoryId]
             
@@ -36,17 +33,17 @@ class SimulatorDataManager(object):
         with open(outputPath, 'w') as summaryFile:
             pickle.dump(outputSummary, summaryFile)
         
-    def checkObjectSide(self, bboxCoco, minSide):
-        # bboxCoco : [x,y,width,height]
-        bbox = self.transformBBox(bboxCoco)
+    def checkObjectSide(self, polygon, minSide):
+        # bboxCoco : [x, y, x,y, ...]
+        bbox = self.getBBox(polygon)
         width = bbox[2] - bbox[0]
         height = bbox[3] - bbox[1]
         
         return height >= minSide or width >= minSide
           
           
-    def transformBBox(self, bboxCoco):
-        # bboxCoco : [x,y,width,height]
-        bbox = [bboxCoco[0], bboxCoco[1], bboxCoco[0] + bboxCoco[2], bboxCoco[1] + bboxCoco[3]]
-        
-        return bbox
+    def getBBox(self, polygon):
+        '''Calculates the bounding box for the given polygon'''
+        maskCoords = NP.array(polygon).reshape(len(polygon)/2,2).T
+        bounds = map(int, (maskCoords[0].min(), maskCoords[1].min(), maskCoords[0].max(), maskCoords[1].max()))
+        return bounds

@@ -75,7 +75,6 @@ def build_parser():
     parser.add_argument('--learningRate', help='SGD learning rate', type=float, default=0.0005)
     parser.add_argument('--useCUDNN', help='Use CUDA CONV or THEANO', type=bool, default=False)
     parser.add_argument('--pretrained', help='Use pretrained network (redundant)', default=False, action='store_true')
-    parser.add_argument('--sample', help='Use single scene/object or sample', default=False, action='store_true')
     parser.add_argument('--sequential', help='Make sequential simulations', default=False, action='store_true')
     parser.add_argument('--numProcs', help='Number of processes for parallel simulations', type=int, default=None)
     #TODO: Evaluate specifying the level instead if more than debug is needed   
@@ -119,7 +118,7 @@ if __name__ == '__main__':
     
     tracker = RecurrentTracker(cnn, rnn)
     
-    generator = GaussianGenerator(imageDir, summaryPath, trajectoryModelPath, seqLength=seqLength, imageSize=imgHeight, grayscale=not pretrained, single=not sample, parallel=not sequential, numProcs=numProcs)
+    generator = GaussianGenerator(imageDir, summaryPath, trajectoryModelPath, seqLength=seqLength, imageSize=imgHeight, grayscale=not pretrained, parallel=not sequential, numProcs=numProcs)
     
     controller = Controller()
     M = 9600 # Constant number of example sequences per epoch

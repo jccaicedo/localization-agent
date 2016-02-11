@@ -5,8 +5,8 @@ import pickle
 import multiprocessing
 
 SEQUENCE_LENGTH = 60
+IMG_HEIGHT = 100
 IMG_WIDTH = 100
-COCO_DIR = '/home/jccaicedo/data/coco'
 
 # FUNCTION
 # Make simulation of a single sequence given the simulator
@@ -29,7 +29,7 @@ def wrapped_simulate(params):
 ## CLASS
 ## Simulator with Gaussian mixture models of movement
 class GaussianGenerator(object):
-    def __init__(self, imageDir, summaryPath, trajectoryModelPath, seqLength=60, imageSize=IMG_WIDTH, grayscale=True, single=True, parallel=True, numProcs=None, scenePathTemplate='images/train2014', objectPathTemplate='images/train2014'):
+    def __init__(self, imageDir, summaryPath, trajectoryModelPath, seqLength=60, imageSize=IMG_WIDTH, grayscale=True, parallel=True, numProcs=None, scenePathTemplate='images/train2014', objectPathTemplate='images/train2014'):
         self.imageSize = imageSize
         self.seqLength = seqLength
         self.factory = None
@@ -39,32 +39,19 @@ class GaussianGenerator(object):
             self.numProcs =  multiprocessing.cpu_count() if numProcs is None or numProcs > multiprocessing.cpu_count() or numProcs < 1 else numProcs
             self.results = None
             self.pool = None
-        if not single:
-            # Generates a factory to create random simulator instances
-            self.factory = trsim.SimulatorFactory(
-                imageDir,
-                trajectoryModelPath=trajectoryModelPath,
-                summaryPath = summaryPath,
-                scenePathTemplate=scenePathTemplate, objectPathTemplate=objectPathTemplate
-                )
+        self.factory = trsim.SimulatorFactory(
+            imageDir,
+            trajectoryModelPath=trajectoryModelPath,
+            summaryPath = summaryPath,
+            scenePathTemplate=scenePathTemplate, objectPathTemplate=objectPathTemplate
+            )
         modelFile = open(trajectoryModelPath, 'r')
         self.trajectoryModel = pickle.load(modelFile)
         modelFile.close()
         self.grayscale = grayscale
 
     def getSimulator(self):
-        if self.factory is None:
-            simulator = self.getSingleSimulator()
-        else:
-            simulator = self.factory.createInstance(camSize=(self.imageSize, self.imageSize))
-        return simulator
-
-    def getSingleSimulator(self):
-        scenePath = COCO_DIR + "/images/train2014/COCO_train2014_000000011826.jpg"
-        objectPath = COCO_DIR + "/images/train2014/COCO_train2014_000000250067.jpg"
-        polygon = [618.23, 490.13, 615.76, 488.48, 612.89, 488.48, 610.42, 491.36, 609.19, 494.65, 607.54, 498.35, 607.13, 503.29, 606.72, 510.28, 610.42, 512.33, 612.89, 513.15, 616.18, 513.98, 619.88, 513.57, 621.93, 510.28, 623.58, 506.58, 623.58, 503.7, 623.16, 500.0, 621.93, 496.71, 619.46, 493.42]
-        simulator = trsim.TrajectorySimulator(scenePath, objectPath, polygon=polygon, trajectoryModel=self.trajectoryModel, camSize=(self.imageSize, self.imageSize))
-        
+        simulator = self.factory.createInstance(camSize=(self.imageSize, self.imageSize))
         return simulator
 
     def initResults(self, batchSize):
@@ -112,6 +99,7 @@ class GaussianGenerator(object):
 
     def distribute(self, batchSize):
         self.initPool()
+
         # Process simulations in parallel
         try:
             results = self.pool.map_async(wrapped_simulate, [(self.getSimulator(), self.grayscale) for i in range(batchSize)])
