@@ -4,7 +4,7 @@ import numpy as NP
 import numpy.random as RNG
 import theano.tensor.nnet as NN
 #TODO: pickle or cPickle?
-import pickle
+import cPickle
 
 from collections import OrderedDict
 
@@ -41,6 +41,8 @@ class TheanoGruRnn(object):
       
         
     def forward(self, data, label):
+        print data.shape
+        print label.shape
         cost, output = self.forwardFunc(self.seqLength, data, label[:, 0, :], label)
         return cost, output
     
@@ -48,17 +50,19 @@ class TheanoGruRnn(object):
     def loadModel(self, modelPath):
         try:
             print 'Loading model from {}'.format(modelPath)
-            f = open(modelPath, "rb")
-            param_saved = pickle.load(f)
+            with open(modelPath, "rb") as f: 
+                param_saved = cPickle.load(f)
+            
             for _p, p in zip(self.params, param_saved):
                 _p.set_value(p)
+                
         except Exception as e:
             print 'Exception loading model {}: {}'.format(modelPath, e)
       
     def saveModel(self, modelPath):
         with open(modelPath, 'wb') as trackerFile:
             #TODO: verify the protocol allows sharing of models within users
-            pickle.dump(self.params, trackerFile, pickle.HIGHEST_PROTOCOL)
+            cPickle.dump(map(lambda x: x.get_value(), self.params), trackerFile)
         
     def getTensor(self, name, dtype, dim):
         if dtype == None:
