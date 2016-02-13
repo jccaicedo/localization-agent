@@ -98,7 +98,7 @@ def rmsprop(cost, params, lr=0.0005, rho=0.9, epsilon=1e-6):
 	return updates
 ### RMSprop end
 
-def setup(batch_size, seq_len, img_row, img_col, deployPath='/home/fmpaezri/models/bvlc_googlenet/deploy.prototxt', modelPath='/home/fmpaezri/models/bvlc_googlenet/bvlc_googlenet.caffemodel', caffe_root='/opt/caffe/'):
+def setup(batch_size, seq_len, img_row, img_col, deployPath='/home/jccaicedo/data/simulations/cnns/googlenet/deploy.prototxt', modelPath='/home/jccaicedo/data/simulations/cnns/googlenet/bvlc_googlenet.caffemodel', caffe_root='/opt/caffe/'):
     print 'Creating Net object'
     caffe.set_mode_gpu()
     net = caffe.Net(deployPath, modelPath, caffe.TEST)
@@ -181,7 +181,7 @@ def init_params(gru_input_dim, gru_dim, zero_tail_fc):
 
 def build_parser():
     parser = ap.ArgumentParser(description='Trains a RNN tracker')
-    parser.add_argument('--dataDir', help='Directory of trajectory model', type=str, default='/home/fmpaezri/repos/localization-agent/notebooks')
+    parser.add_argument('--dataDir', help='Directory of trajectory model', type=str, default='/home/jccaicedo/localization-agent/notebooks')
     parser.add_argument('--batch_size', help='Number of elements in batch', type=int, default=4)
     parser.add_argument('--conv_nr_filters', help='Number of feature filters', type=int, default=1024)
     parser.add_argument('--conv_filter_row', help='Rows of feature filters', type=int, default=7)

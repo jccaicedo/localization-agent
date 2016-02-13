@@ -88,7 +88,7 @@ def dump_params(model_name, params):
     cPickle.dump(map(lambda x: x.get_value(), params), f)
     f.close()
 
-def build(batch_size, gru_input_dim, gru_dim, conv_output_dim, conv_nr_filters, conv_filter_row, conv_filter_col, conv_stride, zero_tail_fc, test, use_cudnn):
+def build(batch_size, gru_input_dim, gru_dim, conv_output_dim, conv_nr_filters, conv_filter_row, conv_filter_col, conv_stride, zero_tail_fc, test, use_cudnn, learning_rate):
     print 'Building network'
 
     # imgs: of shape (batch_size, seq_len, nr_channels, img_rows, img_cols)
@@ -133,7 +133,7 @@ def build(batch_size, gru_input_dim, gru_dim, conv_output_dim, conv_nr_filters, 
 
     print 'Building optimizer'
 
-    train = T.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], updates=rmsprop(cost, params) if not test else None, allow_input_downcast=True)
+    train = T.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], updates=rmsprop(cost, params, lr=learning_rate) if not test else None, allow_input_downcast=True)
     tester = T.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], allow_input_downcast=True)
     
     return train, tester, params
@@ -161,7 +161,7 @@ def init_params(conv_nr_filters, conv_filter_row, conv_filter_col, gru_input_dim
 
 def build_parser():
     parser = ap.ArgumentParser(description='Trains a RNN tracker')
-    parser.add_argument('--dataDir', help='Directory of trajectory model', type=str, default='/home/fmpaezri/repos/localization-agent/notebooks')
+    parser.add_argument('--dataDir', help='Directory of trajectory model', type=str, default='/home/jccaicedo/localization-agent/notebooks')
     parser.add_argument('--batch_size', help='Number of elements in batch', type=int, default=32)
     parser.add_argument('--conv_nr_filters', help='Number of feature filters', type=int, default=32)
     parser.add_argument('--conv_filter_row', help='Rows of feature filters', type=int, default=10)
@@ -175,6 +175,8 @@ def build_parser():
     parser.add_argument('--zero_tail_fc', help='', type=bool, default=False)
     parser.add_argument('--test', help='', type=bool, default=False)
     parser.add_argument('--use_cudnn', help='Use CUDA CONV or THEANO', type=bool, default=False)
+    parser.add_argument('--learning_rate', help='SGD learning rate', type=float, default=0.0005)
+    parser.add_argument('--epochs', help='Number of epochs with 32000 example sequences each', type=int, default=1)
     return parser
 
 ### Utility functions end
@@ -193,7 +195,7 @@ if __name__ == '__main__':
     gru_input_dim = conv_output_dim + 4
     ### Computed hyperparameters end
 
-    train, tester, params = build(batch_size, gru_input_dim, gru_dim, conv_output_dim, conv_nr_filters, conv_filter_row, conv_filter_col, conv_stride, zero_tail_fc, test, use_cudnn)
+    train, tester, params = build(batch_size, gru_input_dim, gru_dim, conv_output_dim, conv_nr_filters, conv_filter_row, conv_filter_col, conv_stride, zero_tail_fc, test, use_cudnn, learning_rate)
 
     try:
         f = open(model_name, "rb")
@@ -204,14 +206,15 @@ if __name__ == '__main__':
         pass
 
     print 'Generating dataset'
-
     generator = GG.GaussianGenerator(dataDir=dataDir, seqLength=seq_len, imageSize=img_row, grayscale=True)
     print 'START'
 
+
     try:
-        for i in range(0, 50):
+        N = 32000/batch_size # Constant number of example sequences per epoch
+        for i in range(0, epochs):
             train_cost = test_cost = 0
-            for j in range(0, 2000):
+            for j in range(0, N):
                 st = time.time()
                 data, label = generator.getBatchInParallel(batch_size)
                 clock('Simulations',st)
