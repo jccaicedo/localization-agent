@@ -14,7 +14,7 @@ def getIntOverUnion(bboxTruth, bboxPred):
     union = label_area + predict_area - intersect
     iou = intersect / union
     
-    return NP.average(iou, axis=1)
+    return iou
 
 
 class Tester(object):
@@ -47,19 +47,16 @@ class Tester(object):
         if(withVideoGen):
             self.exportSequences(data * 255.0, (label + 1) * imageHeight / 2., (bboxSeqTest + 1) * imageHeight / 2., grayscale)
         
-        print label.shape
-        print bboxSeqTest.shape
-        
         iou = getIntOverUnion(label, bboxSeqTest)
         
         measures = {}
         
         measures["all"] =  iou
-        measures["Mean"] = NP.mean(iou)
-        measures["Max"] = NP.max(iou)
-        measures["Min"] = NP.min(iou)
-        measures["Median"] = NP.median(iou)
-        measures["Std of IOU"] = NP.std(iou)
+        measures["mean"] = NP.mean(iou, axis=0)
+        measures["max"] = NP.max(iou, axis=0)
+        measures["min"] = NP.min(iou, axis=0)
+        measures["median"] = NP.median(iou, axis=0)
+        measures["std"] = NP.std(iou, axis=0)
         
         return measures
         
