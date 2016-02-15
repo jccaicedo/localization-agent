@@ -98,7 +98,7 @@ def rmsprop(cost, params, lr=0.0005, rho=0.9, epsilon=1e-6):
 	return updates
 ### RMSprop end
 
-def setup(batch_size, seq_len, img_row, img_col, deployPath='/home/jccaicedo/data/simulations/cnns/googlenet/deploy.prototxt', modelPath='/home/jccaicedo/data/simulations/cnns/googlenet/bvlc_googlenet.caffemodel', caffe_root='/opt/caffe/'):
+def setup(batch_size, seq_len, img_row, img_col, deployPath='/home/jccaicedo/data/simulations/cnns/googlenet/deploy.prototxt', modelPath='/home/jccaicedo/data/simulations/cnns/googlenet/bvlc_googlenet.caffemodel', caffe_root='/home/jccaicedo/caffe/'):
     print 'Creating Net object'
     caffe.set_mode_gpu()
     net = caffe.Net(deployPath, modelPath, caffe.TEST)
