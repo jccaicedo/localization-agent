@@ -1,13 +1,10 @@
 import sys
-#sys.path.insert(0, r'/home/fhdiaze/Code/localization-agent/tracking/')
 import TrajectorySimulator as trsim
 import numpy as np
 import pickle
 
 COCO_DIR = '/home/jccaicedo/data/coco'
 
-import time
-import os
 import multiprocessing
 
 SEQUENCE_LENGTH = 60

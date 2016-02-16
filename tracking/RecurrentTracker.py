@@ -9,14 +9,14 @@ class RecurrentTracker(object):
         
         
     def fit(self, data, label):
-        out, activations = self.cnn.forward(data)
+        activations = self.cnn.forward(data) if self.cnn is not None else data
         cost, bbox_seq = self.rnn.fit(activations, label)
         
         return cost, bbox_seq
             
     
     def forward(self, data, label):
-        out, activations = self.cnn.forward(data)
+        activations = self.cnn.forward(data) if self.cnn is not None else data
         pred = self.rnn.forward(activations, label)
         
         return pred

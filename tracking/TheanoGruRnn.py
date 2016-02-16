@@ -3,6 +3,8 @@ import theano.tensor as Tensor
 import numpy as NP
 import numpy.random as RNG
 import theano.tensor.nnet as NN
+#TODO: pickle or cPickle?
+import pickle
 
 from collections import OrderedDict
 
@@ -15,11 +17,22 @@ class TheanoGruRnn(object):
     params = None
     seqLength = None
     
-    def __init__(self, inputDim, stateDim, batchSize, seqLength, zeroTailFc):
+    def __init__(self, inputDim, stateDim, batchSize, seqLength, zeroTailFc, learningRate, use_cudnn, imgSize=100, pretrained=False):
         ### Computed hyperparameters begin
+        self.pretrained = pretrained
+        if not self.pretrained:
+            #Number of feature filters
+            self.conv_nr_filters = 32
+            #Rows/cols of feature filters
+            self.conv_filter_row = self.conv_filter_col = 10
+            self.conv_stride = 5
+            #TODO: pass image dims
+            inputDim = ((imgSize - self.conv_filter_row) / self.conv_stride + 1) * \
+                        ((imgSize - self.conv_filter_col) / self.conv_stride + 1) * \
+                        self.conv_nr_filters
         self.inputDim = inputDim + 4
         self.seqLength = seqLength
-        self.fitFunc, self.forwardFunc, self.params = self.buildModel(batchSize, inputDim, stateDim, zeroTailFc)
+        self.fitFunc, self.forwardFunc, self.params = self.buildModel(batchSize, inputDim, stateDim, zeroTailFc, learningRate, use_cudnn)
 
     
     def fit(self, data, label):
@@ -33,10 +46,14 @@ class TheanoGruRnn(object):
     
     def loadModel(self, modelPath):
         f = open(modelPath, "rb")
-        param_saved = cPickle.load(f)
+        param_saved = pickle.load(f)
         for _p, p in zip(self.params, param_saved):
             _p.set_value(p)
       
+    def saveModel(self, modelPath):
+        with open(modelPath, 'wb') as trackerFile:
+            #TODO: verify the protocol allows sharing of models within users
+            pickle.dump(self.params, trackerFile, pickle.HIGHEST_PROTOCOL)
         
     def getTensor(self, name, dtype, dim):
         if dtype == None:
@@ -45,18 +62,46 @@ class TheanoGruRnn(object):
         return Tensor.TensorType(dtype, [False] * dim, name=name)()
         
     
-    def buildModel(self, batchSize, inputDim, stateDim, zeroTailFc):
+    def buildModel(self, batchSize, inputDim, stateDim, zeroTailFc, learningRate, use_cudnn):
         print 'Building network'
         
         # imgs: of shape (batchSize, seq_len, nr_channels, img_rows, img_cols)
         imgs = self.getTensor("images", Theano.config.floatX, 5)
         starts = Tensor.matrix()
-    
-        Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = self.init_params(inputDim, stateDim, zeroTailFc)
-        params = [Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2]
+        
+        conv2d = NN.conv2d
+        if use_cudnn and Theano.config.device[:3] == 'gpu':
+            import theano.sandbox.cuda.dnn as CUDNN
+            if CUDNN.dnn_available():
+                print 'Using CUDNN instead of Theano conv2d'
+                conv2d = CUDNN.dnn_conv
+
+        params = list(self.init_params(inputDim, stateDim, zeroTailFc))
+        if not self.pretrained:
+            conv_filters, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
+        else:
+            Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
+            
+                
+        def step(img, prev_bbox, state):
+            # of (batch_size, nr_filters, some_rows, some_cols)
+            if not self.pretrained:
+                conv1 = conv2d(img, conv_filters, subsample=(self.conv_stride, self.conv_stride))
+                act1 = Tensor.tanh(conv1)
+            else:
+                act1 = img
+            flat1 = Tensor.reshape(act1, (batchSize, self.inputDim-4))
+            gru_in = Tensor.concatenate([flat1, prev_bbox], axis=1)
+            gru_z = NN.sigmoid(Tensor.dot(gru_in, Wz) + Tensor.dot(state, Uz) + bz)
+            gru_r = NN.sigmoid(Tensor.dot(gru_in, Wr) + Tensor.dot(state, Ur) + br)
+            gru_h_ = Tensor.tanh(Tensor.dot(gru_in, Wg) + Tensor.dot(gru_r * state, Ug) + bg)
+            gru_h = (1-gru_z) * state + gru_z * gru_h_
+            bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc2) + b_fc2)
+        
+            return bbox, gru_h
     
         # Move the time axis to the top
-        sc, _ = Theano.scan(self.step, sequences=[imgs.dimshuffle(1, 0, 2, 3, 4)], outputs_info=[starts, Tensor.zeros((batchSize, stateDim))], non_sequences=params+[batchSize,inputDim - 4], strict=True)
+        sc, _ = Theano.scan(step, sequences=[imgs.dimshuffle(1, 0, 2, 3, 4)], outputs_info=[starts, Tensor.zeros((batchSize, stateDim))], strict=True)
     
         bbox_seq = sc[0].dimshuffle(1, 0, 2)
     
@@ -68,7 +113,7 @@ class TheanoGruRnn(object):
     
         print 'Building optimizer'
     
-        fitFunc = Theano.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], updates=self.rmsprop(cost, params), allow_input_downcast=True)
+        fitFunc = Theano.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], updates=self.rmsprop(cost, params, learningRate), allow_input_downcast=True)
         forwardFunc = Theano.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], allow_input_downcast=True)
         
         return fitFunc, forwardFunc, params
@@ -76,6 +121,8 @@ class TheanoGruRnn(object):
     
     def init_params(self, inputDim, stateDim, zeroTailFc):
         ### NETWORK PARAMETERS BEGIN
+        if not self.pretrained:
+            conv_filters = Theano.shared(self.glorot_uniform((self.conv_nr_filters, 1, self.conv_filter_row, self.conv_filter_col)), name='conv_filters')
         Wr = Theano.shared(self.glorot_uniform((inputDim, stateDim)), name='Wr')
         Ur = Theano.shared(self.orthogonal((stateDim, stateDim)), name='Ur')
         br = Theano.shared(NP.zeros((stateDim,), dtype=Theano.config.floatX), name='br')
@@ -89,7 +136,10 @@ class TheanoGruRnn(object):
         b_fc2 = Theano.shared(NP.zeros((4,), dtype=Theano.config.floatX), name='b_fc2')
         ### NETWORK PARAMETERS END
     
-        return Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2
+        if not self.pretrained:
+            return conv_filters, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2
+        else:
+            return Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2
     
     
     def rmsprop(self, cost, params, lr=0.0005, rho=0.9, epsilon=1e-6):
@@ -106,19 +156,6 @@ class TheanoGruRnn(object):
             updates[p] = new_p
     
         return updates  
-    
-    
-    def step(self, act1, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2, batch_size, conv_output_dim):
-        # of (batch_size, nr_filters, some_rows, some_cols)
-        flat1 = Tensor.reshape(act1, (batch_size, conv_output_dim))
-        gru_in = Tensor.concatenate([flat1, prev_bbox], axis=1)
-        gru_z = NN.sigmoid(Tensor.dot(gru_in, Wz) + Tensor.dot(state, Uz) + bz)
-        gru_r = NN.sigmoid(Tensor.dot(gru_in, Wr) + Tensor.dot(state, Ur) + br)
-        gru_h_ = Tensor.tanh(Tensor.dot(gru_in, Wg) + Tensor.dot(gru_r * state, Ug) + bg)
-        gru_h = (1-gru_z) * state + gru_z * gru_h_
-        bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc2) + b_fc2)
-        
-        return bbox, gru_h
     
     
     def glorot_uniform(self, shape):
