@@ -46,7 +46,8 @@ def build_parser():
     parser = AP.ArgumentParser(description='Trains a RNN tracker')
     parser.add_argument('--dataDir', help='Directory of trajectory model', type=str, default='/home/fmpaezri/repos/localization-agent/notebooks')
     parser.add_argument('--epochs', help='Number of epochs with 32000 example sequences each', type=int, default=1)
-    parser.add_argument('--batchSize', help='Number of elements in batch', type=int, default=4)
+    parser.add_argument('--batchSize', help='Number of elements in batch', type=int, default=32)
+    parser.add_argument('--gpuBatchSize', help='Number of elements in GPU batch', type=int, default=4)
     parser.add_argument('--imgHeight', help='Image Height', type=int, default=224)
     parser.add_argument('--imgWidth', help='Image width', type=int, default=224)
     parser.add_argument('--gruStateDim', help='Dimension of GRU state', type=int, default=256)
@@ -74,7 +75,9 @@ if __name__ == '__main__':
     
     #TODO: make arguments not redundant
     if pretrained:
-        cnn = CaffeCnn(imgHeight, imgWidth, deployPath, cnnModelPath, caffeRoot, batchSize, seqLength, meanImage, layerKey)
+        #Make batch size divisible by gpuBatchSize to enable reshaping
+        batchSize = int(batchSize/gpuBatchSize)*gpuBatchSize
+        cnn = CaffeCnn(imgHeight, imgWidth, deployPath, cnnModelPath, caffeRoot, batchSize, seqLength, meanImage, layerKey, gpuBatchSize)
         gruInputDim = reduce(lambda a,b: a*b, cnn.outputShape()[-3:])
     else:
         cnn = gruInputDim = None
