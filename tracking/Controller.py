@@ -7,6 +7,7 @@ import sys
 
 from RecurrentTracker import RecurrentTracker
 from Validation import Validation
+import Tester
 import TheanoGruRnn
 import GaussianGenerator
 import VisualAttention
@@ -57,7 +58,13 @@ class Controller(object):
                 
                 print 'Cost', i, j, cost
                 train_cost += cost
-            validation.validate(tracker)
+            bbox, iou = validation.validate(tracker)
+            outputVideoDir = os.path.join(os.path.dirname(trackerModelPath), 'epoch'+str(i))
+            if not os.path.exists(outputVideoDir):
+                os.makedirs(outputVideoDir)
+            logging.info('Saving validation videos for epoch %s in %s', i, outputVideoDir)
+            #TODO: check postprocessing
+            Tester.exportSequences(validation.valSet['data']*255.0, (validation.valSet['labels']+1)*validation.imgHeight/2., (bbox+1)*validation.imgHeight/2., grayscale, outputVideoDir)
             print 'Epoch average loss (train)', train_cost / (batches*batchSize)
             clock('Epoch time',et)
             TheanoGruRnn.saveModel(tracker.rnn, trackerModelPath)
