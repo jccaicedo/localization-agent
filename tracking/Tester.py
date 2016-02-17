@@ -17,6 +17,43 @@ def getIntOverUnion(bboxTruth, bboxPred):
     
     return iou
 
+def preprocessData(data, label, imageHeight, grayscale, batchSize):
+    size = data.shape[0]
+    padNum = batchSize - size % batchSize
+        
+    if grayscale:
+        data = data[:, :, NP.newaxis, :, :]
+        
+    data = NP.pad(data, ((0,padNum), (0,0), (0,0), (0,0), (0,0)), 'constant')
+    label = NP.pad(label, ((0,padNum), (0,0), (0,0)), 'constant')
+        
+    data /= 255.0
+    label = label / (imageHeight / 2.) - 1.
+        
+    return data, label
+    
+def getFrames(frames, isGrayScale):
+    fs, _, _ = frames.shape
+    
+    for i in range(fs):
+        image = Image.fromarray(frames[i, :, :])
+            
+        if(isGrayScale):
+            image = image.convert("RGB")
+        
+        yield image
+        
+def exportSequences(frames, gtBoxes, predBoxes, isGrayScale, outputVideoDir):
+    seqs, fs, _, _, _ = frames.shape
+    fps = 30
+    
+    for i in range(seqs):
+        seqFs = getFrames(frames[i, :, 0, :, :], isGrayScale)
+        sq = SQ.VideoSequence(seqFs)
+        sq.addBoxes(gtBoxes[i, :, :], "green")
+        sq.addBoxes(predBoxes[i, :, :], "red")
+        output = os.path.join(outputVideoDir, 'sequence' + str(i) + ".mp4")
+        sq.exportToVideo(fps, output)
 
 class Tester(object):
     
@@ -31,7 +68,7 @@ class Tester(object):
         iters = size / batchSize + (size % batchSize > 0)
         bboxSeqTest = NP.empty((0, seqLength, targetDim))
         
-        data, label = self.preprocessData(data, label, imageHeight, grayscale, batchSize)
+        data, label = preprocessData(data, label, imageHeight, grayscale, batchSize)
         
         for i in range(1, iters + 1):
             start = batchSize * (i-1)
@@ -46,7 +83,7 @@ class Tester(object):
         label = label[0:size, ...]
         
         if(withVideoGen):
-            self.exportSequences(data * 255.0, (label + 1) * imageHeight / 2., (bboxSeqTest + 1) * imageHeight / 2., grayscale, outputVideoDir)
+            exportSequences(data * 255.0, (label + 1) * imageHeight / 2., (bboxSeqTest + 1) * imageHeight / 2., grayscale, outputVideoDir)
         
         iou = getIntOverUnion(label, bboxSeqTest)
         
@@ -60,18 +97,6 @@ class Tester(object):
         measures["std"] = NP.std(iou, axis=0)
         
         return measures
-        
-    def exportSequences(self, frames, gtBoxes, predBoxes, isGrayScale, outputVideoDir):
-        seqs, fs, _, _, _ = frames.shape
-        fps = 30
-        
-        for i in range(seqs):
-            seqFs = self.getFrames(frames[i, :, 0, :, :], isGrayScale)
-            sq = SQ.VideoSequence(seqFs)
-            sq.addBoxes(gtBoxes[i, :, :], "red")
-            sq.addBoxes(predBoxes[i, :, :], "blue")
-            output = os.path.join(outputVideoDir, 'sequence' + str(i) + ".mp4")
-            sq.exportToVideo(fps, output)
             
     
     def getTestData(self, generator, batchSize, imageHeight):
@@ -84,29 +109,3 @@ class Tester(object):
         labelTest = labelTest / (imageHeight / 2.) - 1.
         
         return dataTest, labelTest
-
-    def preprocessData(self, data, label, imageHeight, grayscale, batchSize):
-        size = data.shape[0]
-        padNum = batchSize - size % batchSize
-        
-        if grayscale:
-            data = data[:, :, NP.newaxis, :, :]
-        
-        data = NP.pad(data, ((0,padNum), (0,0), (0,0), (0,0), (0,0)), 'constant')
-        label = NP.pad(label, ((0,padNum), (0,0), (0,0)), 'constant')
-        
-        data /= 255.0
-        label = label / (imageHeight / 2.) - 1.
-        
-        return data, label
-    
-    def getFrames(self, frames, isGrayScale):
-        fs, _, _ = frames.shape
-        
-        for i in range(fs):
-            image = Image.fromarray(frames[i, :, :])
-            
-            if(isGrayScale):
-                image = image.convert("RGB")
-            
-            yield image
