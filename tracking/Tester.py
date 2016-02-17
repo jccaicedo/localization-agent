@@ -1,5 +1,6 @@
 import numpy as NP
 import VideoSequence as SQ
+import os
 
 from PIL import Image
 
@@ -25,10 +26,10 @@ class Tester(object):
         self.tracker = tracker
         
         
-    def test(self, data, label, batchSize, imageHeight, grayscale, withVideoGen):
+    def test(self, data, label, batchSize, imageHeight, grayscale, withVideoGen, seqLength, targetDim, outputVideoDir):
         size = data.shape[0]
         iters = size / batchSize + (size % batchSize > 0)
-        bboxSeqTest = NP.empty((0, 60, 4))
+        bboxSeqTest = NP.empty((0, seqLength, targetDim))
         
         data, label = self.preprocessData(data, label, imageHeight, grayscale, batchSize)
         
@@ -45,7 +46,7 @@ class Tester(object):
         label = label[0:size, ...]
         
         if(withVideoGen):
-            self.exportSequences(data * 255.0, (label + 1) * imageHeight / 2., (bboxSeqTest + 1) * imageHeight / 2., grayscale)
+            self.exportSequences(data * 255.0, (label + 1) * imageHeight / 2., (bboxSeqTest + 1) * imageHeight / 2., grayscale, outputVideoDir)
         
         iou = getIntOverUnion(label, bboxSeqTest)
         
@@ -60,7 +61,7 @@ class Tester(object):
         
         return measures
         
-    def exportSequences(self, frames, gtBoxes, predBoxes, isGrayScale):
+    def exportSequences(self, frames, gtBoxes, predBoxes, isGrayScale, outputVideoDir):
         seqs, fs, _, _, _ = frames.shape
         fps = 30
         
@@ -69,7 +70,7 @@ class Tester(object):
             sq = SQ.VideoSequence(seqFs)
             sq.addBoxes(gtBoxes[i, :, :], "red")
             sq.addBoxes(predBoxes[i, :, :], "blue")
-            output = "/home/fhdiaze/Data/video" + str(i) + ".mp4"
+            output = os.path.join(outputVideoDir, 'sequence' + str(i) + ".mp4")
             sq.exportToVideo(fps, output)
             
     

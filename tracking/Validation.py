@@ -1,5 +1,6 @@
 import numpy as NP
 import VisualAttention
+import Tester
 
 class Validation(object):
 
@@ -37,16 +38,8 @@ class Validation(object):
             start = i*self.batchSize
             end = (i+1)*self.batchSize
             bbox[start:end,...] = tracker.forward(D[start:end,...], L[start:end,...])
-        # Compute IoU (TODO: Move this code to a reusable function in another place)
-        left = NP.max([bbox[:, :, 0], L[:, :, 0]], axis=0)
-        top = NP.max([bbox[:, :, 1], L[:, :, 1]], axis=0)
-        right = NP.min([bbox[:, :, 2], L[:, :, 2]], axis=0)
-        bottom = NP.min([bbox[:, :, 3], L[:, :, 3]], axis=0)
-        intersect = (right - left) * ((right - left) > 0) * (bottom - top) * ((bottom - top) > 0)
-        label_area = (L[:, :, 2] - L[:, :, 0]) * (L[:, :, 2] - L[:, :, 0] > 0) * (L[:, :, 3] - L[:, :, 1]) * (L[:, :, 3] - L[:, :, 1] > 0)
-        predict_area = (bbox[:, :, 2] - bbox[:, :, 0]) * (bbox[:, :, 2] - bbox[:, :, 0] > 0) * (bbox[:, :, 3] - bbox[:, :, 1]) * (bbox[:, :, 3] - bbox[:, :, 1] > 0)
-        union = label_area + predict_area - intersect
-        iou = intersect / union
+        # Compute IoU
+        iou = Tester.getIntOverUnion(L, bbox)
         # Report to the log
         print 'IoU in validation set:',NP.average(iou)
          

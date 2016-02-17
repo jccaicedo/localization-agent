@@ -89,6 +89,9 @@ class VideoSequence:
             draw.polygon(dataList, outline=outline)
         else:
             raise Exception('Unrecognized box format: {}'.format(dataList))
+        #TODO: add missing point in case of rectangle
+        for i in range(len(dataList)/2):
+            draw.text(dataList[2*i:2*i+2], str(i), fill=outline)
     
     
     """
