@@ -179,9 +179,6 @@ class TheanoGruRnn(object):
                             'conv3':{'filters':32, 'size':5, 'stride':2, 'output':(((45-5)/2+1)**2)*32 }}
                 inputDim = self.cnn['conv3']['output']
 
-
-
-
         self.targetDim = targetDim
         self.inputDim = inputDim + self.targetDim
         self.seqLength = seqLength
@@ -290,8 +287,6 @@ class TheanoGruRnn(object):
                 act3 = Tensor.nnet.relu(fmap3)
                 features = act3
                 return gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2)
-
-
                
         # Move the time axis to the top
         sc, _ = Theano.scan(step, sequences=[imgs.dimshuffle(1, 0, 2, 3, 4)], outputs_info=[starts, Tensor.zeros((batchSize, stateDim))])
@@ -306,7 +301,7 @@ class TheanoGruRnn(object):
     
         logging.info('Building optimizer')
     
-        fitFunc = Theano.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], updates=self.rmsprop(cost, params, learningRate), allow_input_downcast=True)
+        fitFunc = Theano.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], updates=rmsprop(cost, params, learningRate), allow_input_downcast=True)
         forwardFunc = Theano.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], allow_input_downcast=True)
         
         return fitFunc, forwardFunc, params
