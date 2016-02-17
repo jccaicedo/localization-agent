@@ -291,10 +291,12 @@ class TrajectorySimulator():
     if trajectoryModel is not None:
       self.trajectoryModel = TrajectoryModel(trajectoryModel, self.trajectoryModelLength)
     else:
+      logging.debug('Random object trajectory model')
       self.trajectoryModel = RandomTrajectoryModel(self.trajectoryModelLength)
     if cameraTrajectoryModel is not None:
       self.cameraTrajectoryModel = TrajectoryModel(cameraTrajectoryModel, self.trajectoryModelLength)
     else:
+      logging.debug('Random camera trajectory model')
       self.cameraTrajectoryModel = RandomTrajectoryModel(self.trajectoryModelLength, step_length_=1e-2)
     self.cameraContentTransforms = cameraContentTransforms
     self.cameraShapeTransforms = cameraShapeTransforms
