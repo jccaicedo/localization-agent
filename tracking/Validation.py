@@ -7,25 +7,26 @@ class Validation(object):
     def __init__(self, valBatches, batchSize, generator, imgHeight):
         self.valBatches = valBatches
         self.batchSize = batchSize
+        self.imgHeight = imgHeight
         # Create a fixed validation set for this training session
-        d, l = generator.getBatch(batchSize)
-        dataShape = [valBatches*d.shape[0]] + list(d.shape[1:])
-        labelShape = [valBatches*l.shape[0]] + list(l.shape[1:])
+        d, l = generator.getBatch(self.batchSize)
+        dataShape = [self.valBatches*d.shape[0]] + list(d.shape[1:])
+        labelShape = [self.valBatches*l.shape[0]] + list(l.shape[1:])
         self.valSet = {'data':NP.zeros(dataShape),'labels':NP.zeros(labelShape)}
-        self.valSet['data'][0:batchSize,...] = d
-        self.valSet['labels'][0:batchSize,...] = l
-        for i in range(1,valBatches):
-            d, l = generator.getBatch(batchSize)
+        self.valSet['data'][0:self.batchSize,...] = d
+        self.valSet['labels'][0:self.batchSize,...] = l
+        for i in range(1,self.valBatches):
+            d, l = generator.getBatch(self.batchSize)
             ffm = VisualAttention.getSquaredMasks(d[:,0,...], l[:,0,:], 4, 0.1)
             d[:,0,...] *= ffm
-            start = i*batchSize
-            end = (i+1)*batchSize
+            start = i*self.batchSize
+            end = (i+1)*self.batchSize
             self.valSet['data'][start:end,...] = d
             self.valSet['labels'][start:end,...] = l
         if generator.grayscale:
             self.valSet['data'] = self.valSet['data'][:, :, NP.newaxis, :, :]
             self.valSet['data'] /= 255.0
-        self.valSet['labels'] = self.valSet['labels'] / (imgHeight / 2) - 1
+        self.valSet['labels'] = self.valSet['labels'] / (self.imgHeight / 2) - 1
         print 'Validation set ready with examples:',  self.valSet['data'].shape
 
     
@@ -42,4 +43,4 @@ class Validation(object):
         iou = Tester.getIntOverUnion(L, bbox)
         # Report to the log
         print 'IoU in validation set:',NP.average(iou)
-         
+        return bbox, iou
