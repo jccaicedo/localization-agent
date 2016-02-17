@@ -261,7 +261,11 @@ class TrajectorySimulator():
     self.maxSteps = maxSteps
     # Load images
     self.scene = Image.open(sceneFile)
+    if self.scene.mode == 'L':
+        self.scene = self.scene.convert('RGB')
     self.obj = Image.open(objectFile)
+    if self.obj.mode == 'L':
+        self.obj = self.obj.convert('RGB')
     # Use scene as camera
     if camSize is None:
         camSize = self.scene.size
@@ -528,7 +532,7 @@ def createCOCOSummary(dataDir, dataType, summaryPath):
         cocoDict = [
             {
                 k:obj.get(k, objFileNames[obj['image_id']] if k == 'file_name' else None)
-                for k in ['category_id', 'image_id', 'segmentation', 'file_name']
+                for k in ['category_id', 'image_id', 'segmentation', 'file_name', 'area', 'bbox']
             }
             for obj in objAnns
         ]

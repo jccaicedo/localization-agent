@@ -1,13 +1,10 @@
 import sys
-#sys.path.insert(0, r'/home/fhdiaze/Code/localization-agent/tracking/')
 import TrajectorySimulator as trsim
 import numpy as np
 import pickle
 
 COCO_DIR = '/home/jccaicedo/data/coco'
 
-import time
-import os
 import multiprocessing
 
 SEQUENCE_LENGTH = 60
@@ -16,29 +13,38 @@ IMG_WIDTH = 100
 
 # FUNCTION
 # Make simulation of a single sequence given the simulator
-def simulate(simulator):
-  data = np.zeros((SEQUENCE_LENGTH, IMG_HEIGHT, IMG_WIDTH))
-  label = np.zeros((SEQUENCE_LENGTH, 4))
+def simulate(simulator, grayscale):
+  data = []
+  label = []
   simulator.start()
   for j, frame in enumerate(simulator):
-    data[j, :, :] = np.asarray(frame.convert('L'))
-    label[j, :] = simulator.getBox()              
+    if grayscale:
+      data += [np.asarray(frame.convert('L'))]
+    else:
+      data += [np.asarray(frame.convert('RGB'))]
+    label += [simulator.getBox()]
   return data, label
+
+def wrapped_simulate(params):
+    simulator, grayscale = params
+    return simulate(simulator, grayscale)
 
 ## CLASS
 ## Simulator with Gaussian mixture models of movement
 class GaussianGenerator(object):
-    def __init__(self, seqLength=60, imageSize=IMG_WIDTH, dataDir='.', grayscale=True):
+    def __init__(self, seqLength=60, imageSize=IMG_WIDTH, dataDir='.', grayscale=True, single=True):
         self.imageSize = imageSize
         self.seqLength = seqLength
         trajectoryModelPath = dataDir + '/gmmDenseAbsoluteNormalizedOOT.pkl'
-        # Generates a factory to create random simulator instances
-        #self.factory = trsim.SimulatorFactory(
-        #    COCO_DIR,
-        #    trajectoryModelPath=trajectoryModelPath,
-        #    summaryPath = dataDir + '/cocoTrain2014Summary.pkl',
-        #    scenePathTemplate='images/train2014', objectPathTemplate='images/train2014'
-        #    )
+        self.factory = None
+        if not single:
+            # Generates a factory to create random simulator instances
+            self.factory = trsim.SimulatorFactory(
+                COCO_DIR,
+                trajectoryModelPath=trajectoryModelPath,
+                summaryPath = dataDir + '/cocoTrain2014Summary.pkl',
+                scenePathTemplate='images/train2014', objectPathTemplate='images/train2014'
+                )
         modelFile = open(trajectoryModelPath, 'r')
         self.trajectoryModel = pickle.load(modelFile)
         modelFile.close()
@@ -49,10 +55,7 @@ class GaussianGenerator(object):
         if self.factory is None:
             simulator = self.getSingleSimulator()
         else:
-            emptyPolygon = True
-            while emptyPolygon:
-                simulator = self.factory.createInstance(drawBox=False, camera=True, drawCam=False, cameraContentTransforms=None, camSize=(self.imageSize, self.imageSize))
-                emptyPolygon = len(simulator.polygon) == 0
+            simulator = self.factory.createInstance(camSize=(self.imageSize, self.imageSize))
         return simulator
 
     def getSingleSimulator(self):
@@ -63,15 +66,19 @@ class GaussianGenerator(object):
         
         return simulator
 
-    def getBatch(self, batchSize):
+    def initResults(self, batchSize):
         if self.grayscale:
             data = np.zeros((batchSize, self.seqLength, self.imageSize, self.imageSize), dtype=np.float32)
         else:
             #TODO: validate case of alpha channel
             data = np.zeros((batchSize, self.seqLength, self.imageSize, self.imageSize, 3), dtype=np.float32)
         label = np.zeros((batchSize, self.seqLength, 4))
+        return data, label
+
+    def getBatch(self, batchSize):
+        data, label = self.initResults(batchSize)
         for i in range(batchSize):
-            simulator = self.getSingleSimulator()
+            simulator = self.getSimulator()
             simulator.start()
             for j, frame in enumerate(simulator):
                 if self.grayscale:
@@ -85,24 +92,27 @@ class GaussianGenerator(object):
     def getBatchInParallel(self, batchSize):
         # Lazy initialization
         if self.pool is None:
+            #TODO: make a parameter or use this by default
             numProcs =  multiprocessing.cpu_count() # max number of cores
             self.pool = multiprocessing.Pool(numProcs)
 
         # Process simulations in parallel
         try:
-            results = self.pool.map_async(simulate, [self.getSingleSimulator() for i in range(batchSize)]).get(9999)
-        except:
+            results = self.pool.map_async(wrapped_simulate, [(self.getSimulator(), self.grayscale) for i in range(batchSize)]).get(9999)
+        except Exception as e:
+            print 'Exception raised during map_async: {}'.format(e)
             self.pool.terminate()
             sys.exit()
 
         # Collect results and put them in the output
         index = 0
-        data = np.zeros((batchSize, self.seqLength, self.imageSize, self.imageSize), dtype=np.float32)
-        label = np.zeros((batchSize, self.seqLength, 4))
+        data, label = self.initResults(batchSize)
         for frames, targets in results:
-            data[index,:,:,:] = frames
+            if self.grayscale:
+                data[index,:,:,:] = frames
+            else:
+                data[index,:,:,:,:] = frames
             label[index,:,:] = targets
             index += 1
         
         return data, label
-
