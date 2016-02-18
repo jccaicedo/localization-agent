@@ -3,7 +3,7 @@ import TrajectorySimulator as trsim
 import numpy as np
 import pickle
 
-COCO_DIR = '/home/datasets/datasets1/mscoco'
+COCO_DIR = '/home/jccaicedo/data/coco'
 
 import multiprocessing
 
