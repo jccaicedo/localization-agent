@@ -1,4 +1,6 @@
 import numpy as NP
+import time
+
 # TODO: parameterize this value that sets the size of the replay memory
 MEMORY_FACTOR = 10
 
@@ -14,7 +16,9 @@ class RecurrentTracker(object):
         
         
     def fit(self, data, label, store_in_mem):
+        st = time.time()
         activations = self.cnn.forward(data) if self.cnn is not None else data
+        print 'Forwarding: {}'.format(time.time()-st)
         cost, bbox_seq = self.rnn.fit(activations, label)
         if store_in_mem:
             self.store(activations, label)
@@ -61,3 +65,4 @@ class RecurrentTracker(object):
     def getSample(self, batchSize):
         idx = NP.random.permutation( self.memory['A'].shape[0] )[0:batchSize]
         return (self.memory['A'][idx,...], self.memory['L'][idx,...])
+

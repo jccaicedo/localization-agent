@@ -3,7 +3,7 @@ import TrajectorySimulator as trsim
 import numpy as np
 import pickle
 
-COCO_DIR = '/home/jccaicedo/data/coco'
+COCO_DIR = '/home/datasets/datasets1/mscoco'
 
 import multiprocessing
 
@@ -32,11 +32,17 @@ def wrapped_simulate(params):
 ## CLASS
 ## Simulator with Gaussian mixture models of movement
 class GaussianGenerator(object):
-    def __init__(self, seqLength=60, imageSize=IMG_WIDTH, dataDir='.', grayscale=True, single=True):
+    def __init__(self, seqLength=60, imageSize=IMG_WIDTH, dataDir='.', grayscale=True, single=True, parallel=True, numProcs=None):
         self.imageSize = imageSize
         self.seqLength = seqLength
         trajectoryModelPath = dataDir + '/gmmDenseAbsoluteNormalizedOOT.pkl'
         self.factory = None
+        self.parallel = parallel
+        if self.parallel:
+            #Use maximum number of cores by default
+            self.numProcs =  multiprocessing.cpu_count() if numProcs is None or numProcs > multiprocessing.cpu_count() or numProcs < 1 else numProcs
+            self.results = None
+            self.pool = None
         if not single:
             # Generates a factory to create random simulator instances
             self.factory = trsim.SimulatorFactory(
@@ -48,7 +54,6 @@ class GaussianGenerator(object):
         modelFile = open(trajectoryModelPath, 'r')
         self.trajectoryModel = pickle.load(modelFile)
         modelFile.close()
-        self.pool = None
         self.grayscale = grayscale
 
     def getSimulator(self):
@@ -76,34 +81,52 @@ class GaussianGenerator(object):
         return data, label
 
     def getBatch(self, batchSize):
-        data, label = self.initResults(batchSize)
-        for i in range(batchSize):
-            simulator = self.getSimulator()
-            simulator.start()
-            for j, frame in enumerate(simulator):
-                if self.grayscale:
-                    data[i, j, :, :] = np.asarray(frame.convert('L'))
-                else:
-                    data[i, j, :, :, :] = np.asarray(frame.convert('RGB'))
-                label[i, j] = simulator.getBox()
-                
-        return data, label
+        if self.parallel:
+            return self.getBatchInParallel(batchSize)
+        else:
+                data, label = self.initResults(batchSize)
+                for i in range(batchSize):
+                    simulator = self.getSimulator()
+                    simulator.start()
+                    for j, frame in enumerate(simulator):
+                        if self.grayscale:
+                            data[i, j, :, :] = np.asarray(frame.convert('L'))
+                        else:
+                            data[i, j, :, :, :] = np.asarray(frame.convert('RGB'))
+                        label[i, j] = simulator.getBox()
+                        
+                return data, label
 
     def getBatchInParallel(self, batchSize):
+        #TODO: avoid this condition by distributing and init end, but batchSize is needed and not available
+        if self.results is None:
+            #Distribute work for the first time
+            self.results = self.distribute(batchSize)
+        #Wait for results and collect them
+        data, label = self.collect(batchSize, self.results.get(9999))
+        #Distribute work
+        self.results = self.distribute(batchSize)
+        #Return previous results
+        return data, label
+
+    def initPool(self):
         # Lazy initialization
         if self.pool is None:
-            #TODO: make a parameter or use this by default
-            numProcs =  multiprocessing.cpu_count() # max number of cores
-            self.pool = multiprocessing.Pool(numProcs)
+            self.pool = multiprocessing.Pool(self.numProcs)
+
+    def distribute(self, batchSize):
+        self.initPool()
 
         # Process simulations in parallel
         try:
-            results = self.pool.map_async(wrapped_simulate, [(self.getSimulator(), self.grayscale) for i in range(batchSize)]).get(9999)
+            results = self.pool.map_async(wrapped_simulate, [(self.getSimulator(), self.grayscale) for i in range(batchSize)])
+            return results
         except Exception as e:
             print 'Exception raised during map_async: {}'.format(e)
             self.pool.terminate()
             sys.exit()
 
+    def collect(self, batchSize, results):
         # Collect results and put them in the output
         index = 0
         data, label = self.initResults(batchSize)
