@@ -12,26 +12,32 @@ def clock(m, st):
 
 class Controller(object):
     
-    def train(self, tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath):
+    def train(self, tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem):
         for i in range(0, epochs):
             train_cost = 0
             et = time.time()
             for j in range(0, batches):
-                st = time.time()
-                data, label = generator.getBatchInParallel(batchSize)
+
+                # Obtain a batch of data to train on
+                if not tracker.sampleFromMem():
+                    st = time.time()
+                    data, label = generator.getBatchInParallel(batchSize)
+                    storeInMem = (True and useReplayMem)  # When this flag is false, the memory is never used
         
-                if generator.grayscale:
-                    data = data[:, :, NP.newaxis, :, :]
-                data /= 255.0
-                label = label / (imgHeight / 2.) - 1.
-                clock('Simulations',st)
-        
-                # TODO: We can also implement a 'replay memory' here to store previous simulations and reuse them again later during training.
-                # The basic idea is to store sequences in a tensor of a predefined capacity, and when it's full we start sampling sequences
-                # from the memory with certain probability. The rest of the time new sequences are simulated. This could save some processing time.
-                
+                    if generator.grayscale:
+                        data = data[:, :, NP.newaxis, :, :]
+                        data /= 255.0
+                    label = label / (imgHeight / 2.) - 1.
+                    clock('Simulations',st)
+                else:
+                    st = time.time()
+                    data, label = tracker.getSample(batchSize)
+                    storeInMem = False
+                    clock('No simulations',st)
+
+                # Update parameters of the model
                 st = time.time()                
-                cost, bbox_seq = tracker.fit(data, label)
+                cost, bbox_seq = tracker.fit(data, label, storeInMem)
                 clock('Training',st)
                 
                 print 'Cost', i, j, cost
@@ -52,6 +58,7 @@ def build_parser():
     parser.add_argument('--imgWidth', help='Image width', type=int, default=224)
     parser.add_argument('--gruStateDim', help='Dimension of GRU state', type=int, default=256)
     parser.add_argument('--seqLength', help='Length of sequences', type=int, default=60)
+    parser.add_argument('--useReplayMem', help='Use replay memory to store simulated sequences', type=bool, default=False)
     #TODO: Check default values or make required
     parser.add_argument('--trackerModelPath', help='Name of model file', type=str, default='model.pkl')
     parser.add_argument('--caffeRoot', help='Root of Caffe dir', type=str, default='/home/jccaicedo/caffe/')
@@ -96,7 +103,7 @@ if __name__ == '__main__':
     M = 32000 # Constant number of example sequences per epoch
     batches = M/batchSize
     try:
-        controller.train(tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath)
+        controller.train(tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem)
     except KeyboardInterrupt:
         rnn.saveModel(trackerModelPath)
     
