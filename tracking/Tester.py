@@ -1,9 +1,6 @@
 import numpy as NP
 import VideoSequence as SQ
-<<<<<<< HEAD
 import matplotlib.pyplot as PLT
-=======
->>>>>>> 802895e5f52baee67dd7d1a1ca81e40448c26e3c
 import os
 
 from PIL import Image
@@ -90,49 +87,9 @@ class Tester(object):
             exportSequences(data * 255.0, (label + 1) * imageHeight / 2., (bboxSeqTest + 1) * imageHeight / 2., grayscale, outputVideoDir)
         
         iou = getIntOverUnion(label, bboxSeqTest)
-        
-<<<<<<< HEAD
-        return iou
-        
-    def exportSequences(self, frames, gtBoxes, predBoxes, isGrayScale):
-        seqs, fs, _, _, _ = frames.shape
-        fps = 30
-        
-        for i in range(seqs):
-            seqFs = self.getFrames(frames[i, :, 0, :, :], isGrayScale)
-            sq = SQ.VideoSequence(seqFs)
-            sq.addBoxes(gtBoxes[i, :, :], "red")
-            sq.addBoxes(predBoxes[i, :, :], "blue")
-            output = "/home/fhdiaze/Data/video" + str(i) + ".mp4"
-            sq.exportToVideo(fps, output)
-    
 
-    def preprocessData(self, data, label, imageHeight, grayscale, batchSize):
-        size = data.shape[0]
-        padNum = batchSize - size % batchSize
-        
-        if grayscale:
-            data = data[:, :, NP.newaxis, :, :]
-        
-        data = NP.pad(data, ((0,padNum), (0,0), (0,0), (0,0), (0,0)), 'constant')
-        label = NP.pad(label, ((0,padNum), (0,0), (0,0)), 'constant')
-        
-        data /= 255.0
-        label = label / (imageHeight / 2.) - 1.
-        
-        return data, label
+        return iou
     
-    def getFrames(self, frames, isGrayScale):
-        fs, _, _ = frames.shape
-        
-        for i in range(fs):
-            image = Image.fromarray(frames[i, :, :])
-            
-            if(isGrayScale):
-                image = image.convert("RGB")
-            
-            yield image
-            
             
     def plotOverlapMeasures(self, iouMeasures, title, xLabel, yLabel, outputPath):
         for idx, iou in enumerate(iouMeasures):
@@ -167,7 +124,6 @@ class Tester(object):
             PLT.savefig(figPath)
             PLT.close(fig)
             PLT.clf()
-=======
         measures = {}
         
         measures["all"] =  iou
@@ -190,4 +146,3 @@ class Tester(object):
         labelTest = labelTest / (imageHeight / 2.) - 1.
         
         return dataTest, labelTest
->>>>>>> 802895e5f52baee67dd7d1a1ca81e40448c26e3c
