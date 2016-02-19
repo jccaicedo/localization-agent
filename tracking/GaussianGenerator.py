@@ -2,9 +2,6 @@ import sys
 import TrajectorySimulator as trsim
 import numpy as np
 import pickle
-
-COCO_DIR = '/data1/mscoco/'
-
 import multiprocessing
 
 SEQUENCE_LENGTH = 60
@@ -32,10 +29,9 @@ def wrapped_simulate(params):
 ## CLASS
 ## Simulator with Gaussian mixture models of movement
 class GaussianGenerator(object):
-    def __init__(self, seqLength=60, imageSize=IMG_WIDTH, dataDir='.', grayscale=True, single=True, parallel=True, numProcs=None, summaryName='/cocoTrain2014Summary.pkl'):
+    def __init__(self, imageDir, summaryPath, trajectoryModelPath, seqLength=60, imageSize=IMG_WIDTH, grayscale=True, single=True, parallel=True, numProcs=None, scenePathTemplate='images/train2014', objectPathTemplate='images/train2014'):
         self.imageSize = imageSize
         self.seqLength = seqLength
-        trajectoryModelPath = dataDir + '/gmmDenseAbsoluteNormalizedOOT.pkl'
         self.factory = None
         self.parallel = parallel
         if self.parallel:
@@ -46,10 +42,10 @@ class GaussianGenerator(object):
         if not single:
             # Generates a factory to create random simulator instances
             self.factory = trsim.SimulatorFactory(
-                COCO_DIR,
+                imageDir,
                 trajectoryModelPath=trajectoryModelPath,
-                summaryPath = dataDir + summaryName,
-                scenePathTemplate='images/train2014', objectPathTemplate='images/train2014'
+                summaryPath = summaryPath,
+                scenePathTemplate=scenePathTemplate, objectPathTemplate=objectPathTemplate
                 )
         modelFile = open(trajectoryModelPath, 'r')
         self.trajectoryModel = pickle.load(modelFile)

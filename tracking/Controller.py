@@ -3,7 +3,6 @@ import time
 import numpy as NP
 
 from RecurrentTracker import RecurrentTracker
-from CaffeCnn import CaffeCnn
 from TheanoGruRnn import TheanoGruRnn
 from GaussianGenerator import GaussianGenerator
 
@@ -49,7 +48,9 @@ class Controller(object):
 
 def build_parser():
     parser = AP.ArgumentParser(description='Trains a RNN tracker')
-    parser.add_argument('--dataDir', help='Directory of trajectory model', type=str, default='/home/fmpaezri/repos/localization-agent/notebooks')
+    parser.add_argument('--imageDir', help='Root directory for images', type=str, default='/home/jccaicedo/data/coco')
+    parser.add_argument('--summaryPath', help='Path of summary file', type=str, default='./cocoTrain2014Summary.pkl')
+    parser.add_argument('--trajectoryModelPath', help='Trajectory model path', type=str, default='./gmmDenseAbsoluteNormalizedOOT.pkl')
     parser.add_argument('--epochs', help='Number of epochs with 32000 example sequences each', type=int, default=1)
     parser.add_argument('--batchSize', help='Number of elements in batch', type=int, default=32)
     parser.add_argument('--gpuBatchSize', help='Number of elements in GPU batch', type=int, default=4)
@@ -72,7 +73,6 @@ def build_parser():
     parser.add_argument('--sample', help='Use single scene/object or sample', default=False, action='store_true')
     parser.add_argument('--sequential', help='Make sequential simulations', default=False, action='store_true')
     parser.add_argument('--numProcs', help='Number of processes for parallel simulations', type=int, default=None)
-    parser.add_argument('--summaryName', help='Summary name, used to generate sequences', type=str, default="/cocoSummarySideGt100Smpls10.pkl")
     
     return parser
 
@@ -88,6 +88,7 @@ if __name__ == '__main__':
     
     #TODO: make arguments not redundant
     if pretrained:
+        from CaffeCnn import CaffeCnn
         #Make batch size divisible by gpuBatchSize to enable reshaping
         batchSize = int(batchSize/gpuBatchSize)*gpuBatchSize
         cnn = CaffeCnn(imgHeight, imgWidth, deployPath, cnnModelPath, caffeRoot, batchSize, seqLength, meanImage, layerKey, gpuBatchSize)
@@ -102,7 +103,7 @@ if __name__ == '__main__':
     
     tracker = RecurrentTracker(cnn, rnn)
     
-    generator = GaussianGenerator(dataDir=dataDir, seqLength=seqLength, imageSize=imgHeight, grayscale=not pretrained, single=not sample, parallel=not sequential, numProcs=numProcs, summaryName=summaryName)
+    generator = GaussianGenerator(imageDir, summaryPath, trajectoryModelPath, seqLength=seqLength, imageSize=imgHeight, grayscale=not pretrained, single=not sample, parallel=not sequential, numProcs=numProcs)
     
     controller = Controller()
     M = 32000 # Constant number of example sequences per epoch
