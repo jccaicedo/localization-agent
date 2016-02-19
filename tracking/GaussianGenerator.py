@@ -5,8 +5,8 @@ import pickle
 import multiprocessing
 
 SEQUENCE_LENGTH = 60
-IMG_HEIGHT = 100
 IMG_WIDTH = 100
+COCO_DIR = '/home/jccaicedo/data/coco'
 
 # FUNCTION
 # Make simulation of a single sequence given the simulator
@@ -112,7 +112,6 @@ class GaussianGenerator(object):
 
     def distribute(self, batchSize):
         self.initPool()
-
         # Process simulations in parallel
         try:
             results = self.pool.map_async(wrapped_simulate, [(self.getSimulator(), self.grayscale) for i in range(batchSize)])

@@ -294,7 +294,9 @@ class TrajectorySimulator():
       self.trajectoryModel = RandomTrajectoryModel(self.trajectoryModelLength)
     self.cameraContentTransforms = cameraContentTransforms
     self.cameraShapeTransforms = cameraShapeTransforms
-    print '@TrajectorySimulator: New simulation with scene {} and object {}'.format(sceneFile, objectFile)
+    # TODO: The following message is no longer needed. It clutters the output, we do not track these messages and 
+    # we also know exactly which objects and scenes are used with the new summaries. Feel free to remove.
+    #print '@TrajectorySimulator: New simulation with scene {} and object {}'.format(sceneFile, objectFile)
 
   def start(self):
     #Segment the object using the polygon and crop to the resulting axes-aligned bounding box
