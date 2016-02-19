@@ -290,6 +290,8 @@ class TrajectorySimulator():
     self.trajectoryModelLength = trajectoryModelLength
     if trajectoryModel is not None:
       self.trajectoryModel = TrajectoryModel(trajectoryModel, self.trajectoryModelLength)
+    else:
+      self.trajectoryModel = RandomTrajectoryModel(self.trajectoryModelLength)
     self.cameraContentTransforms = cameraContentTransforms
     self.cameraShapeTransforms = cameraShapeTransforms
     print '@TrajectorySimulator: New simulation with scene {} and object {}'.format(sceneFile, objectFile)
@@ -564,9 +566,12 @@ class SimulatorFactory():
         summaryFile = open(summaryPath, 'r')
         self.summary = pickle.load(summaryFile)
         summaryFile.close()
-        modelFile = open(trajectoryModelPath, 'r')
-        self.trajectoryModel = pickle.load(modelFile)
-        modelFile.close()
+        #Default model is Random, overwrite if specified
+        self.trajectoryModel = None
+        if trajectoryModelPath is not None:
+            modelFile = open(trajectoryModelPath, 'r')
+            self.trajectoryModel = pickle.load(modelFile)
+            modelFile.close()
 
     def createInstance(self, *args, **kwargs):
         '''Generates TrajectorySimulator instances with a random scene from the scene template and a random object from the object template'''
@@ -585,6 +590,73 @@ class SimulatorFactory():
         simulator = TrajectorySimulator(scenePath, objPath, polygon=polygon, trajectoryModel=self.trajectoryModel, *args, **kwargs)
         
         return simulator
+
+class RandomTrajectoryModel(object):
+    #TODO: multiple objects
+    #TODO: different models for background and object, specifically different acc value
+
+    def __init__(self, length, step_length_=0.1, vel_scale=1, acc_scale=0.1, scale_range=0.1):
+        self.length = length
+        self.step_length_ = step_length_
+        self.vel_scale = vel_scale
+        self.acc_scale = acc_scale
+        self.scale_range = scale_range
+
+    def sample(self, sceneSize):
+        tx, ty, sx, sy = self.getRandomTrajectory(sceneSize)
+
+        transforms = [
+            Transformation(scaleX, None, None, pathFunction=lambda a,b,steps: sx),
+            Transformation(scaleY, None, None, pathFunction=lambda a,b,steps: sy),
+            Transformation(translateX, None, None, pathFunction=lambda a,b,steps: tx),
+            Transformation(translateY, None, None, pathFunction=lambda a,b,steps: ty),
+        ]
+        return transforms
+
+    def getRandomTrajectory(self, sceneSize):
+        # Initial position uniform random inside the box.
+        y = np.random.rand()
+        x = np.random.rand()
+
+        # Choose a random velocity.
+        theta = np.random.rand() * 2 * np.pi
+        start_vel = np.random.normal(0, self.vel_scale)
+        v_y = start_vel * np.sin(theta)
+        v_x = start_vel * np.cos(theta)
+
+        start_y = np.zeros((self.length,))
+        start_x = np.zeros((self.length,))
+        scales = np.zeros((self.length,))
+        for i in range(self.length):
+            scales[i] = np.exp((np.random.random_sample()-0.5)*self.scale_range)
+            # Take a step along velocity.
+            y += v_y * self.step_length_
+            x += v_x * self.step_length_
+
+            v_y += 0 if self.acc_scale == 0 else np.random.normal(0, self.acc_scale)
+            v_x += 0 if self.acc_scale == 0 else np.random.normal(0, self.acc_scale)
+
+            # Bounce off edges.
+            if x <= 0:
+                x = 0
+                v_x = -v_x
+            if x >= 1.0:
+                x = 1.0
+                v_x = -v_x
+            if y <= 0:
+                y = 0
+                v_y = -v_y
+            if y >= 1.0:
+                y = 1.0
+                v_y = -v_y
+            start_y[i] = y
+            start_x[i] = x
+
+        # Scale to the size of the canvas.
+        start_x = (sceneSize[0] * start_x).astype(np.int32)
+        start_y = (sceneSize[1] * start_y).astype(np.int32)
+        return start_x, start_y, scales, scales
+        
 
 class TrajectoryModel():
 
