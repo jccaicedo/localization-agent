@@ -2,7 +2,7 @@ import numpy as NP
 import time
 
 # TODO: parameterize this value that sets the size of the replay memory
-MEMORY_FACTOR = 10
+MEMORY_FACTOR = 20 # Number of minibatches to keep
 
 class RecurrentTracker(object):
     cnn = None

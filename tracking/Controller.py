@@ -5,13 +5,15 @@ import numpy as NP
 from RecurrentTracker import RecurrentTracker
 from TheanoGruRnn import TheanoGruRnn
 from GaussianGenerator import GaussianGenerator
+from Validation import Validation
 
 def clock(m, st): 
     print m,(time.time()-st)
 
 class Controller(object):
-    
+
     def train(self, tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem):
+        validation = Validation(5, batchSize, generator, imgHeight)
         for i in range(0, epochs):
             train_cost = 0
             et = time.time()
@@ -40,10 +42,11 @@ class Controller(object):
                 
                 print 'Cost', i, j, cost
                 train_cost += cost
-            print 'Epoch average loss (train, test)', train_cost / (batches*batchSize)
+            validation.validate(tracker)
+            print 'Epoch average loss (train)', train_cost / (batches*batchSize)
             clock('Epoch time',et)
             tracker.rnn.saveModel(trackerModelPath)
-                
+
 ### Utility functions
 
 def build_parser():
@@ -58,7 +61,7 @@ def build_parser():
     parser.add_argument('--imgWidth', help='Image width', type=int, default=224)
     parser.add_argument('--gruStateDim', help='Dimension of GRU state', type=int, default=256)
     parser.add_argument('--seqLength', help='Length of sequences', type=int, default=60)
-    parser.add_argument('--useReplayMem', help='Use replay memory to store simulated sequences', type=bool, default=False)
+    parser.add_argument('--useReplayMem', help='Use replay memory to store simulated sequences', default=False, action='store_true')
     #TODO: Check default values or make required
     parser.add_argument('--trackerModelPath', help='Name of model file', type=str, default='model.pkl')
     parser.add_argument('--caffeRoot', help='Root of Caffe dir', type=str, default='/home/jccaicedo/caffe/')
@@ -106,7 +109,7 @@ if __name__ == '__main__':
     generator = GaussianGenerator(imageDir, summaryPath, trajectoryModelPath, seqLength=seqLength, imageSize=imgHeight, grayscale=not pretrained, single=not sample, parallel=not sequential, numProcs=numProcs)
     
     controller = Controller()
-    M = 32000 # Constant number of example sequences per epoch
+    M = 9600 # Constant number of example sequences per epoch
     batches = M/batchSize
     try:
         controller.train(tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem)
