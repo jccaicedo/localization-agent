@@ -301,8 +301,8 @@ class TrajectorySimulator():
     if cameraTrajectoryModel is not None:
       self.cameraTrajectoryModel = TrajectoryModel(cameraTrajectoryModel, self.trajectoryModelLength)
     else:
-      logging.debug('Random camera trajectory model')
-      self.cameraTrajectoryModel = RandomTrajectoryModel(self.trajectoryModelLength, step_length_=1e-2)
+      logging.debug('Stretched sine  camera trajectory model')
+      self.cameraTrajectoryModel = StretchedSineTrajectoryModel(self.trajectoryModelLength)
       #self.cameraTrajectoryModel = StretchedSineTrajectoryModel(self.trajectoryModelLength)
     self.cameraContentTransforms = cameraContentTransforms
     self.cameraShapeTransforms = cameraShapeTransforms

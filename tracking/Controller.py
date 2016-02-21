@@ -9,6 +9,7 @@ from RecurrentTracker import RecurrentTracker
 from Validation import Validation
 import Tester
 import TheanoGruRnn
+#import TheanoDoubleGruRnn as TheanoGruRnn
 import GaussianGenerator
 import VisualAttention
 from VideoSequenceData import TraxClientWrapper
@@ -21,7 +22,7 @@ def clock(m, st):
 class Controller(object):
 
     def train(self, tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize, seqLength, computeFlow):
-        validation = Validation(5, batchSize, generator, imgHeight, computeFlow, seqLength)
+        validation = Validation(8, batchSize, generator, imgHeight, computeFlow, seqLength)
         for i in range(0, epochs):
             train_cost = 0
             et = time.time()
@@ -64,6 +65,9 @@ class Controller(object):
             print 'Epoch average loss (train)', train_cost / (batches*batchSize)
             clock('Epoch time',et)
             TheanoGruRnn.saveModel(tracker.rnn, trackerModelPath)
+            if i >= 10:
+                tracker.decayLearningRate()
+
     
     def test(self, tracker, libvotPath, grayscale, testType):
         if testType == 'trax':
@@ -211,7 +215,7 @@ if __name__ == '__main__':
         if not testType == 'no':
             raise Exception(e)
         logging.warn('Creating new model')
-        rnn = TheanoGruRnn.TheanoGruRnn(gruInputDim, gruStateDim, GaussianGenerator.TARGET_DIM, batchSize, seqLength, zeroTailFc, learningRate, useCUDNN, imgHeight, modelArch, getattr(TheanoGruRnn, norm), useAttention, modelPath=cnnModelPath, layerKey=layerKey, convFilters=convFilters)
+        rnn = TheanoGruRnn.TheanoGruRnn(gruInputDim, gruStateDim, GaussianGenerator.TARGET_DIM, batchSize, seqLength, zeroTailFc, learningRate, useCUDNN, imgHeight, modelArch, getattr(TheanoGruRnn, norm), useAttention, modelPath=cnnModelPath, layerKey=layerKey, convFilters=convFilters, computeFlow=computeFlow)
     
     
     tracker = RecurrentTracker(cnn, rnn)    

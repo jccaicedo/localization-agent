@@ -167,3 +167,13 @@ class Tester(object):
         labelTest = labelTest / (imageHeight / 2.) - 1.
         
         return dataTest, labelTest
+    
+    def loadImageSequence(self, sequenceDir, extension='.jpg', relativeGtPath='groundtruth.txt'):
+        framePaths = sorted([framePath for framePath in os.listdir(sequenceDir) if framePath.endswith(extension)])
+        data = (numpy.asarray(Image.open(os.path.join(sequenceDir, framePath))) for framePath in framePaths)
+        with open(os.path.join(sequenceDir, relativeGtPath), 'r') as gtFile:
+            gtLines = gtFile.readlines()
+        #TODO: better polygon handling
+        gtPolygons = numpy.array([map(float, line.strip().split(',')) for line in gtLines])
+        labels = gtPolygons[:, [0,1,4,5]]
+        return data, labels
