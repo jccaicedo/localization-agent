@@ -32,7 +32,8 @@ class TheanoGruRnn(object):
                         self.conv_nr_filters
         self.inputDim = inputDim + 4
         self.seqLength = seqLength
-        self.fitFunc, self.forwardFunc, self.params = self.buildModel(batchSize, self.inputDim, stateDim, zeroTailFc, learningRate, use_cudnn)
+        self.batchSize = batchSize
+        self.fitFunc, self.forwardFunc, self.params = self.buildModel(self.batchSize, self.inputDim, stateDim, zeroTailFc, learningRate, use_cudnn)
 
     
     def fit(self, data, label):
