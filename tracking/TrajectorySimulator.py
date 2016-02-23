@@ -294,9 +294,7 @@ class TrajectorySimulator():
       self.trajectoryModel = RandomTrajectoryModel(self.trajectoryModelLength)
     self.cameraContentTransforms = cameraContentTransforms
     self.cameraShapeTransforms = cameraShapeTransforms
-    # TODO: The following message is no longer needed. It clutters the output, we do not track these messages and 
-    # we also know exactly which objects and scenes are used with the new summaries. Feel free to remove.
-    #print '@TrajectorySimulator: New simulation with scene {} and object {}'.format(sceneFile, objectFile)
+    logging.debug('Scene: %s Object: %s', sceneFile, objectFile)
 
   def start(self):
     #Segment the object using the polygon and crop to the resulting axes-aligned bounding box
@@ -586,7 +584,7 @@ class SimulatorFactory():
         objPath = os.path.join(self.dataDir, self.objectPathTemplate, objData['file_name'].strip())
 
         #Select a random object in the scene and read the segmentation polygon
-        print 'Segmenting object from category {}'.format(self.summary[CATEGORY_KEY][int(objData['category_id'])])
+        logging.debug('Segmenting object from category %s', self.summary[CATEGORY_KEY][int(objData['category_id'])])
         polygon = self.randGen.choice(objData['segmentation'])
 
         simulator = TrajectorySimulator(scenePath, objPath, polygon=polygon, trajectoryModel=self.trajectoryModel, *args, **kwargs)
