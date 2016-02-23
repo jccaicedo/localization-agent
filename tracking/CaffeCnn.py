@@ -7,26 +7,26 @@ class CaffeCnn(object):
     transformer = None
     seqLength = None
     
-    def __init__(self, imgHeight, imgWidth, deployPath, modelPath, caffeRoot, batchSize, seqLength, meanImage, layerKey, gpuBatchSize):
+    def __init__(self, imgHeight, imgWidth, deployPath, modelPath, caffeRoot, seqLength, meanImage, layerKey, gpuBatchSize):
         self.seqLength = seqLength
-        self.batchSize = batchSize
         self.layerKey = layerKey
         self.gpuBatchSize = gpuBatchSize
         self.net, self.transformer = self.setup(imgHeight, imgWidth, deployPath, modelPath, caffeRoot, meanImage)
     
     
     def forward(self, data):
+        feats = NP.zeros((data.shape[0], self.seqLength) + self.outputShape()[-3:], dtype=data.dtype)
         #Reshape to obtain batchSize/gpuBatchSize, gpuBatchSize, ...
-        gpuBatches = data.reshape(self.batchSize/self.gpuBatchSize, self.gpuBatchSize, self.seqLength, data.shape[-3], data.shape[-2], data.shape[-1])
-        feats = NP.zeros((self.batchSize, self.seqLength) + self.outputShape()[-3:], dtype=data.dtype)
+        gpuBatchesShape = (data.shape[0]/self.gpuBatchSize, self.gpuBatchSize, self.seqLength) + data.shape[-3:]
+        gpuBatches = data.reshape(gpuBatchesShape)
         #Iterate over first dim
         for i, gpuBatch in enumerate(gpuBatches):
-            gpuBatch = gpuBatch.reshape(-1, gpuBatch.shape[-3], gpuBatch.shape[-2], gpuBatch.shape[-1])
+            gpuBatch = gpuBatch.reshape((-1,) + gpuBatch.shape[-3:])
             self.net.blobs['data'].data[...] = NP.array([self.transformer.preprocess('data', image) for image in gpuBatch])
             #TODO: which method is fastest: out or direct reference of layer?
             feat = self.net.forward(blobs=[self.layerKey])[self.layerKey]
             #Collect gpuBatches
-            feats[i*self.gpuBatchSize:(i+1)*self.gpuBatchSize,:,:,:,:] = feat.reshape(self.gpuBatchSize, self.seqLength, feat.shape[-3], feat.shape[-2], feat.shape[-1])
+            feats[i*self.gpuBatchSize:(i+1)*self.gpuBatchSize,...] = feat.reshape((self.gpuBatchSize, self.seqLength) + feat.shape[-3:])
         
         return feats
     
