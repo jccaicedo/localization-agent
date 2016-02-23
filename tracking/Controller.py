@@ -13,7 +13,7 @@ def clock(m, st):
 
 class Controller(object):
 
-    def train(self, tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem):
+    def train(self, tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize):
         validation = Validation(5, batchSize, generator, imgHeight)
         for i in range(0, epochs):
             train_cost = 0
@@ -23,7 +23,7 @@ class Controller(object):
                 # Obtain a batch of data to train on
                 if not tracker.sampleFromMem():
                     st = time.time()
-                    data, label = generator.getBatch(batchSize)
+                    data, label = generator.getBatch(generationBatchSize)
                     storeInMem = (True and useReplayMem)  # When this flag is false, the memory is never used
                     if generator.grayscale:
                         data = data[:, :, NP.newaxis, :, :]
@@ -32,7 +32,7 @@ class Controller(object):
                     clock('Simulations',st)
                 else:
                     st = time.time()
-                    data, label = tracker.getSample(batchSize)
+                    data, label = tracker.getSample(generationBatchSize)
                     storeInMem = False
                     clock('No simulations',st)
 
@@ -125,7 +125,7 @@ if __name__ == '__main__':
     M = 9600 # Constant number of example sequences per epoch
     batches = M/batchSize
     try:
-        controller.train(tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem)
+        controller.train(tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize)
     except KeyboardInterrupt:
         rnn.saveModel(trackerModelPath)
     

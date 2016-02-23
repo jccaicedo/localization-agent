@@ -1,5 +1,6 @@
 import numpy as NP
 import time
+import logging
 
 # TODO: parameterize this value that sets the size of the replay memory
 MEMORY_FACTOR = 20 # Number of minibatches to keep
@@ -14,23 +15,50 @@ class RecurrentTracker(object):
         self.cnn = cnn
         self.rnn = rnn
         
+    def activate(self, data):
+        if self.cnn is not None:
+            activations = self.cnn.forward(data)
+        else:
+            activations = data
+        return activations
         
     def fit(self, data, label, store_in_mem):
         st = time.time()
-        activations = self.cnn.forward(data) if self.cnn is not None else data
+        activations = self.activate(data)
         print 'Forwarding: {}'.format(time.time()-st)
-        cost, bbox_seq = self.rnn.fit(activations, label)
+        cost, bbox_seq = self.processMultiBatch(activations, label, self.rnn.batchSize, (label.shape[-1],), self.rnn.fit)
         if store_in_mem:
             self.store(activations, label)
         
         return cost, bbox_seq
-            
+
     
     def forward(self, data, label):
-        activations = self.cnn.forward(data) if self.cnn is not None else data
-        pred = self.rnn.forward(activations, label)
+        activations = self.activate(data)
+        cost, pred = self.processMultiBatch(activations, label, self.rnn.batchSize, (label.shape[-1],), self.rnn.forward)
         
         return pred
+
+    def processMultiBatch(self, data, label, atomicBatchSize, outputShape, processFunction):
+        '''Reshapes input to fit batchSize and applies the specified function over each atomic batch'''
+        #Initialize output variables
+        outputs = NP.zeros((data.shape[0], data.shape[1])+outputShape, dtype=data.dtype)
+        totalCost = 0
+        #Reshape inputs, adding a new dim
+        if data.shape[0] != label.shape[0]:
+            raise Exception('Data and labels first shape must match: {} != {}'.format(data.shape, label.shape))
+        newDataShape = (data.shape[0]/atomicBatchSize, atomicBatchSize) + data.shape[-4:]
+        logging.debug('Reshaping data from %s to %s', data.shape, newDataShape)
+        newLabelShape = (label.shape[0]/atomicBatchSize, atomicBatchSize) + label.shape[-2:]
+        logging.debug('Reshaping labels from %s to %s', label.shape, newLabelShape)
+        data = data.reshape(newDataShape)
+        label = label.reshape(newLabelShape)
+        #Iterate and accumulate
+        for i in NP.arange(newDataShape[0]):
+            cost, bbox_seq = processFunction(data[i], label[i])
+            totalCost += cost
+            outputs[i*atomicBatchSize:(i+1)*atomicBatchSize, ...] = bbox_seq
+        return totalCost, outputs
 
     def store(self, activations, labels):
         if self.memory is None:
