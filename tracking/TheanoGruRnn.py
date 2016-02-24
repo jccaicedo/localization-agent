@@ -42,7 +42,7 @@ class TheanoGruRnn(object):
         
     def forward(self, data, label):
         cost, output = self.forwardFunc(self.seqLength, data, label[:, 0, :], label)
-        return output
+        return cost, output
     
     
     def loadModel(self, modelPath):
