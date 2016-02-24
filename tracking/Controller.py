@@ -48,49 +48,55 @@ class Controller(object):
             clock('Epoch time',et)
             tracker.rnn.saveModel(trackerModelPath)
 
-### Utility functions
+class ControllerConfig(object):
 
-def build_parser():
-    parser = AP.ArgumentParser(description='Trains a RNN tracker')
-    parser.add_argument('--imageDir', help='Root directory for images', type=str, default='/home/jccaicedo/data/coco')
-    parser.add_argument('--summaryPath', help='Path of summary file', type=str, default='./cocoTrain2014Summary.pkl')
-    parser.add_argument('--trajectoryModelPath', help='Trajectory model path', type=str, default='./gmmDenseAbsoluteNormalizedOOT.pkl')
-    parser.add_argument('--epochs', help='Number of epochs with 32000 example sequences each', type=int, default=1)
-    parser.add_argument('--generationBatchSize', help='Number of elements in one generation step', type=int, default=32)
-    parser.add_argument('--batchSize', help='Number of elements in batch', type=int, default=32)
-    parser.add_argument('--gpuBatchSize', help='Number of elements in GPU batch', type=int, default=4)
-    parser.add_argument('--imgHeight', help='Image Height', type=int, default=224)
-    parser.add_argument('--imgWidth', help='Image width', type=int, default=224)
-    parser.add_argument('--gruStateDim', help='Dimension of GRU state', type=int, default=256)
-    parser.add_argument('--seqLength', help='Length of sequences', type=int, default=60)
-    parser.add_argument('--useReplayMem', help='Use replay memory to store simulated sequences', default=False, action='store_true')
-    #TODO: Check default values or make required
-    parser.add_argument('--trackerModelPath', help='Name of model file', type=str, default='model.pkl')
-    parser.add_argument('--caffeRoot', help='Root of Caffe dir', type=str, default='/home/jccaicedo/caffe/')
-    parser.add_argument('--cnnModelPath', help='Name of model file', type=str, default='/home/jccaicedo/data/simulations/cnns/googlenet/bvlc_googlenet.caffemodel')
-    parser.add_argument('--deployPath', help='Path to Protobuf deploy file for the network', type=str, default='/home/jccaicedo/data/simulations/cnns/googlenet/deploy.prototxt')
-    parser.add_argument('--zeroTailFc', help='', type=bool, default=False)
-    parser.add_argument('--meanImage', help='Path to mean image for ImageNet dataset relative to Caffe', default='python/caffe/imagenet/ilsvrc_2012_mean.npy')
-    parser.add_argument('--layerKey', help='Key string of layer name to use as features', type=str, default='inception_5b/output')
-    parser.add_argument('--learningRate', help='SGD learning rate', type=float, default=0.0005)
-    parser.add_argument('--useCUDNN', help='Use CUDA CONV or THEANO', type=bool, default=False)
-    parser.add_argument('--pretrained', help='Use pretrained network (redundant)', default=False, action='store_true')
-    parser.add_argument('--sequential', help='Make sequential simulations', default=False, action='store_true')
-    parser.add_argument('--numProcs', help='Number of processes for parallel simulations', type=int, default=None)
-    #TODO: Evaluate specifying the level instead if more than debug is needed   
-    parser.add_argument('--debug', help='Enable debug logging', default=False, action='store_true')
-    
-    return parser
+    def __init__(self):
+        self.parser = self.build_parser()
+        self.args = self.parser.parse_args()
 
+    def dump_args(self, configPath):
+        with open(configPath, 'w') as configFile:
+            for key, value in self.args.iteritems():
+                configFile.write('{} {}\n'.format(key, value))
 
+    def build_parser(self):
+        parser = AP.ArgumentParser(description='Trains a RNN tracker', fromfile_prefix_chars='@')
+        parser.add_argument('--imageDir', help='Root directory for images', type=str, default='/home/jccaicedo/data/coco')
+        parser.add_argument('--summaryPath', help='Path of summary file', type=str, default='./cocoTrain2014Summary.pkl')
+        parser.add_argument('--trajectoryModelPath', help='Trajectory model path', type=str, default='./gmmDenseAbsoluteNormalizedOOT.pkl')
+        parser.add_argument('--epochs', help='Number of epochs with 32000 example sequences each', type=int, default=1)
+        parser.add_argument('--generationBatchSize', help='Number of elements in one generation step', type=int, default=32)
+        parser.add_argument('--batchSize', help='Number of elements in batch', type=int, default=32)
+        parser.add_argument('--gpuBatchSize', help='Number of elements in GPU batch', type=int, default=4)
+        parser.add_argument('--imgHeight', help='Image Height', type=int, default=224)
+        parser.add_argument('--imgWidth', help='Image width', type=int, default=224)
+        parser.add_argument('--gruStateDim', help='Dimension of GRU state', type=int, default=256)
+        parser.add_argument('--seqLength', help='Length of sequences', type=int, default=60)
+        parser.add_argument('--useReplayMem', help='Use replay memory to store simulated sequences', default=False, action='store_true')
+        #TODO: Check default values or make required
+        parser.add_argument('--trackerModelPath', help='Name of model file', type=str, default='model.pkl')
+        parser.add_argument('--caffeRoot', help='Root of Caffe dir', type=str, default='/home/jccaicedo/caffe/')
+        parser.add_argument('--cnnModelPath', help='Name of model file', type=str, default='/home/jccaicedo/data/simulations/cnns/googlenet/bvlc_googlenet.caffemodel')
+        parser.add_argument('--deployPath', help='Path to Protobuf deploy file for the network', type=str, default='/home/jccaicedo/data/simulations/cnns/googlenet/deploy.prototxt')
+        parser.add_argument('--zeroTailFc', help='', type=bool, default=False)
+        parser.add_argument('--meanImage', help='Path to mean image for ImageNet dataset relative to Caffe', default='python/caffe/imagenet/ilsvrc_2012_mean.npy')
+        parser.add_argument('--layerKey', help='Key string of layer name to use as features', type=str, default='inception_5b/output')
+        parser.add_argument('--learningRate', help='SGD learning rate', type=float, default=0.0005)
+        parser.add_argument('--useCUDNN', help='Use CUDA CONV or THEANO', type=bool, default=False)
+        parser.add_argument('--pretrained', help='Use pretrained network (redundant)', default=False, action='store_true')
+        parser.add_argument('--sequential', help='Make sequential simulations', default=False, action='store_true')
+        parser.add_argument('--numProcs', help='Number of processes for parallel simulations', type=int, default=None)
+        #TODO: Evaluate specifying the level instead if more than debug is needed   
+        parser.add_argument('--debug', help='Enable debug logging', default=False, action='store_true')
+        
+        return parser
 
 if __name__ == '__main__':
     
     # Configuration
     
-    parser = build_parser()
-    args = parser.parse_args()
-    globals().update(vars(args))
+    config = ControllerConfig()
+    globals().update(vars(config.args))
     
     if debug:
         logging.BASIC_FORMAT = '%(asctime)s:%(levelname)s:%(funcName)s:%(lineno)d:%(message)s'
@@ -127,4 +133,3 @@ if __name__ == '__main__':
         controller.train(tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize)
     except KeyboardInterrupt:
         rnn.saveModel(trackerModelPath)
-    
