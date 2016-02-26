@@ -85,10 +85,29 @@ class TheanoGruRnn(object):
                 print 'Using CUDNN instead of Theano conv2d'
                 conv2d = CUDNN.dnn_conv
 
+        ## Attention mask
+        #TODO: Parameterize values in this function
+        def attention(img, box):
+            if False:
+                imgSize = 100
+                R = Tensor.arange(imgSize, dtype=Theano.config.floatX)
+                cx = (box[:, 3] + box[:, 1]) / 2.
+                cy = (box[:, 2] + box[:, 0]) / 2.
+                sx = (box[:,3] - cx)*0.75
+                sy = (box[:,2] - cy)*0.75
+                eps = 1e-8
+                FX = Tensor.exp(-(R - cx.dimshuffle(0, 'x')) ** 2 / 2. / (sx.dimshuffle(0, 'x') ** 2 + eps))
+                FY = Tensor.exp(-(R - cy.dimshuffle(0, 'x')) ** 2 / 2. / (sy.dimshuffle(0, 'x') ** 2 + eps))
+                mask = (FX.dimshuffle(0, 1, 'x') * FY.dimshuffle(0, 'x', 1))
+                return img * mask.dimshuffle(0,1,2,'x')
+            else:
+                return img
+
         params = list(self.init_params(inputDim, stateDim, zeroTailFc))
         if not self.pretrained:
             conv_filters, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
             def step(img, prev_bbox, state):
+                img = attention(img, prev_bbox)
                 # of (batch_size, nr_filters, some_rows, some_cols)
                 conv1 = conv2d(img, conv_filters, subsample=(self.conv_stride, self.conv_stride))
                 act1 = Tensor.tanh(conv1)
