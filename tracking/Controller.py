@@ -4,7 +4,7 @@ import numpy as NP
 import logging
 
 from RecurrentTracker import RecurrentTracker
-from TheanoGruRnn import TheanoGruRnn
+import TheanoGruRnn
 from GaussianGenerator import GaussianGenerator
 from Validation import Validation
 
@@ -88,6 +88,7 @@ class ControllerConfig(object):
         parser.add_argument('--numProcs', help='Number of processes for parallel simulations', type=int, default=None)
         #TODO: Evaluate specifying the level instead if more than debug is needed   
         parser.add_argument('--debug', help='Enable debug logging', default=False, action='store_true')
+        parser.add_argument('--norm', help='Norm type for cost', default=TheanoGruRnn.l2.func_name, choices=[TheanoGruRnn.smooth_l1.func_name, TheanoGruRnn.l2.func_name])
         
         return parser
 
@@ -118,7 +119,7 @@ if __name__ == '__main__':
         cnn = gruInputDim = None
         #Predefined shape for trained conv layer
         imgHeight = imgWidth = 100
-    rnn = TheanoGruRnn(gruInputDim, gruStateDim, batchSize, seqLength, zeroTailFc, learningRate, useCUDNN, imgHeight, pretrained)
+    rnn = TheanoGruRnn.TheanoGruRnn(gruInputDim, gruStateDim, batchSize, seqLength, zeroTailFc, learningRate, useCUDNN, imgHeight, pretrained, getattr(TheanoGruRnn, norm))
     
     rnn.loadModel(trackerModelPath)
     

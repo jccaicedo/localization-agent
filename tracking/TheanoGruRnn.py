@@ -8,7 +8,11 @@ import cPickle
 
 from collections import OrderedDict
 
+def smooth_l1(x):
+    return Tensor.switch(Tensor.lt(Tensor.abs_(x),1), 0.5*x**2, Tensor.abs_(x)-0.5)
 
+def l2(x):
+    return x ** 2
 
 class TheanoGruRnn(object):
     
@@ -17,7 +21,7 @@ class TheanoGruRnn(object):
     params = None
     seqLength = None
     
-    def __init__(self, inputDim, stateDim, batchSize, seqLength, zeroTailFc, learningRate, use_cudnn, imgSize, pretrained=False):
+    def __init__(self, inputDim, stateDim, batchSize, seqLength, zeroTailFc, learningRate, use_cudnn, imgSize, pretrained=False, norm=l2):
         ### Computed hyperparameters begin
         self.pretrained = pretrained
         if not self.pretrained:
@@ -33,6 +37,7 @@ class TheanoGruRnn(object):
         self.inputDim = inputDim + 4
         self.seqLength = seqLength
         self.batchSize = batchSize
+        self.norm = norm
         self.fitFunc, self.forwardFunc, self.params = self.buildModel(self.batchSize, self.inputDim, stateDim, zeroTailFc, learningRate, use_cudnn)
 
     
@@ -143,7 +148,7 @@ class TheanoGruRnn(object):
         targets = self.getTensor("targets", Theano.config.floatX, 3)
         seq_len_scalar = Tensor.scalar()
     
-        cost = ((targets - bbox_seq) ** 2).sum() / batchSize / seq_len_scalar
+        cost = self.norm(targets - bbox_seq).sum() / batchSize / seq_len_scalar
     
         print 'Building optimizer'
     
