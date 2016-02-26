@@ -308,7 +308,9 @@ class TrajectorySimulator():
     self.step = 0
     self.validStep = 0
     # Start trajectory
-    self.scaleObject()
+    self.objScaled = self.scaleObject()
+    self.objView = self.objScaled
+    self.objSize = self.objView.size
     # Calculate bounds after scaling
     self.bounds = np.array([[0,self.objSize[0],self.objSize[0],0],[0,0,self.objSize[1],self.objSize[1]]])
     self.bounds = np.vstack([self.bounds, np.ones((1,self.bounds.shape[1]))])
@@ -403,8 +405,7 @@ class TrajectorySimulator():
     else:
       h = side*ar
       w = side
-    self.objView = self.obj.resize((int(w),int(h)), Image.ANTIALIAS)
-    self.objSize = self.objView.size
+    return self.obj.resize((int(w),int(h)), Image.ANTIALIAS)
 
   def validate_bounds(self, transformedPoints, size):
     return np.all(np.logical_and(np.greater(transformedPoints[:2,:], [[0], [0]]), np.less(transformedPoints[:2,:], [[size[0]],[size[1]]])))
@@ -414,8 +415,9 @@ class TrajectorySimulator():
     return concatenateTransforms([transformations[i].transformContent(step) for i in xrange(len(transformations))])
 
   def transform(self):
-    self.objSize = self.shapeTransforms[0].transformShape(self.objSize[0], self.objSize[1], self.step)
-    self.objView = self.obj.resize(self.objSize, Image.ANTIALIAS)
+    #TODO: reenable shape transforms
+    #self.objSize = self.shapeTransforms[0].transformShape(self.objSize[0], self.objSize[1], self.step)
+    self.objView = self.objScaled
     # Concatenate transforms and apply them to obtain transformed object
     self.cameraTransform = self.transform_step(self.cameraContentTransforms, self.step)
     self.currentTransform = self.transform_step(self.contentTransforms, self.step)
@@ -423,8 +425,11 @@ class TrajectorySimulator():
 
   def render(self):
     self.sceneView = self.scene.copy()
-    # Paste the transformed object, at origin as scene is absolute reference system
-    self.sceneView.paste(self.objView, (int(0),int(0)), self.objView)
+    # Paste the transformed object, but only the axis aligned transformed crop to speed up pasting
+    objectTransform = np.dot(self.cameraTransform, self.currentTransform)
+    transformedBounds = polygon_bounds(np.dot(objectTransform, self.bounds)[:-1,:].flatten())
+    croppedObject = self.objView.crop(transformedBounds)
+    self.sceneView.paste(croppedObject, tuple(transformedBounds[:2]), croppedObject)
     self.sceneView = self.occluder.occlude(self.sceneView, self.scene)
     for i in range(len(self.cameraShapeTransforms)):
       self.sceneSize = self.cameraShapeTransforms[i].transformShape(self.scene.size[0], self.scene.size[1], self.step)
@@ -572,12 +577,13 @@ class SimulatorFactory():
             modelFile = open(trajectoryModelPath, 'r')
             self.trajectoryModel = pickle.load(modelFile)
             modelFile.close()
+        self.sceneList = os.listdir(os.path.join(self.dataDir, self.scenePathTemplate))
 
     def createInstance(self, *args, **kwargs):
         '''Generates TrajectorySimulator instances with a random scene from the scene template and a random object from the object template'''
         self.randGen = startRandGen()
         #Select a random image for the scene
-        scenePath = os.path.join(self.dataDir, self.scenePathTemplate, self.randGen.choice(os.listdir(os.path.join(self.dataDir, self.scenePathTemplate))))
+        scenePath = os.path.join(self.dataDir, self.scenePathTemplate, self.randGen.choice(self.sceneList))
 
         #Select a random image for the object
         objData = self.randGen.choice(self.summary[SUMMARY_KEY])
