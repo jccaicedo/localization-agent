@@ -9,13 +9,14 @@ run() {
     CUDA_VISIBLE_DEVICES=$2 \
     THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 \
     python Controller.py \
-         --epochs=$3 --batchSize=$4 \
+         --epochs=$3 --batchSize=$4 --generationBatchSize=32 --gpuBatchSize=4 \
          --gruStateDim=$5 --learningRate=$6 \
          --trackerModelPath=$1/model.pkl \
-         --summaryPath=$CODE_DIR/../notebooks/cocoTrain2014Summary.pkl \
+         --summaryPath=/home/jccaicedo/data/simulations/CocoSummaries/cocoSummaryCategAndSideGt100Smpls10000.pkl \
          --trajectoryModelPath=$CODE_DIR/../notebooks/gmmDenseAbsoluteNormalizedOOT.pkl \
-         --pretrained --caffeRoot=/opt/caffe/ \
          --useCUDNN=True > $1/out.log 2> $1/err.log
+
+    #     --pretrained --caffeRoot=/home/jccaicedo/caffe/ \
 
     python parseLogs.py --log_file=$1/out.log --out_file=$1/results.png \
          --batch_size=$4 --gru_dim=$5 --learning_rate=$6
@@ -26,7 +27,12 @@ run() {
 
 # Add experiments here
 # PARAMS: outputDir device epochs batchSize GRUsize learningRate
-run ~/data/experiments/exp10/ 0 20 32 256 0.0005 
+#run ~/data/experiments/debug/ 0 3 32 256 0.0010 
+
+run ~/data/experiments/exp15/ 0 10 32 256 0.0010 &
+run ~/data/experiments/exp16/ 1 10 32 256 0.0005 &
+wait
+
 
 : <<'END'
 

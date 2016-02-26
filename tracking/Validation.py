@@ -22,6 +22,7 @@ class Validation(object):
             self.valSet['data'] = self.valSet['data'][:, :, NP.newaxis, :, :]
             self.valSet['data'] /= 255.0
         self.valSet['labels'] = self.valSet['labels'] / (imgHeight / 2) - 1
+        print 'Validation set ready with examples:',  self.valSet['data'].shape
 
     
     def validate(self, tracker):

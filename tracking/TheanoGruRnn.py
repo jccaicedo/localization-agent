@@ -104,7 +104,7 @@ class TheanoGruRnn(object):
                 FX = Tensor.exp(-(R - cx.dimshuffle(0, 'x')) ** 2 / 2. / (sx.dimshuffle(0, 'x') ** 2 + eps))
                 FY = Tensor.exp(-(R - cy.dimshuffle(0, 'x')) ** 2 / 2. / (sy.dimshuffle(0, 'x') ** 2 + eps))
                 mask = (FX.dimshuffle(0, 1, 'x') * FY.dimshuffle(0, 'x', 1))
-                return img * mask.dimshuffle(0,1,2,'x')
+                return img * mask.dimshuffle(0,'x',1,2)
             else:
                 return img
 

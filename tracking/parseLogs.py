@@ -29,7 +29,7 @@ def parseAndPlot(logFile, outFile, batchSize, lrate, gruSize, seqPerEpoch):
     plt.figure(figsize=(20,10))
 
     axes = plt.gca()
-    axes.set_ylim([minCost, maxCost])
+    axes.set_ylim([0., maxCost])
 
     # Compute time info
     epochPos = (np.arange(totalEpochs)+1)*batchesPerEpoch-batchesPerEpoch/2
