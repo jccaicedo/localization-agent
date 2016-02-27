@@ -29,10 +29,10 @@ run() {
 
 # Add experiments here
 # PARAMS: outputDir device epochs batchSize GRUsize learningRate
-#run ~/data/experiments/debug/ 0 3 32 256 0.0010 smooth_l1
+run ~/data/experiments/debug/ 0 3 32 256 0.0010 smooth_l1
 
 #run ~/data/experiments/exp21/ 0 2 32 1024 0.0010 smooth_l1 &
-run ~/data/experiments/exp22/ 1 2 32 2048 0.0010 smooth_l1 &
+#run ~/data/experiments/exp22/ 1 2 32 2048 0.0010 smooth_l1 &
 #wait
 
 

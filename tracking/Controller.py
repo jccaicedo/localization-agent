@@ -5,7 +5,7 @@ import logging
 
 from RecurrentTracker import RecurrentTracker
 import TheanoGruRnn
-from GaussianGenerator import GaussianGenerator
+import GaussianGenerator
 from Validation import Validation
 
 def clock(m, st): 
@@ -89,6 +89,7 @@ class ControllerConfig(object):
         #TODO: Evaluate specifying the level instead if more than debug is needed   
         parser.add_argument('--debug', help='Enable debug logging', default=False, action='store_true')
         parser.add_argument('--norm', help='Norm type for cost', default=TheanoGruRnn.l2.func_name, choices=[TheanoGruRnn.smooth_l1.func_name, TheanoGruRnn.l2.func_name])
+        parser.add_argument('--useAttention', help='Enable attention', default=False, action='store_true')
         
         return parser
 
@@ -121,14 +122,13 @@ if __name__ == '__main__':
         cnn = gruInputDim = None
         #Predefined shape for trained conv layer
         imgHeight = imgWidth = 100
-    rnn = TheanoGruRnn.TheanoGruRnn(gruInputDim, gruStateDim, batchSize, seqLength, zeroTailFc, learningRate, useCUDNN, imgHeight, 
-                                    pretrained, getattr(TheanoGruRnn, norm), modelPath=cnnModelPath, layerKey=layerKey)
+    rnn = TheanoGruRnn.TheanoGruRnn(gruInputDim, gruStateDim, GaussianGenerator.TARGET_DIM, batchSize, seqLength, zeroTailFc, learningRate, useCUDNN, imgHeight, pretrained, getattr(TheanoGruRnn, norm), useAttention, modelPath=cnnModelPath, layerKey=layerKey)
     
     rnn.loadModel(trackerModelPath)
     
     tracker = RecurrentTracker(cnn, rnn)
     
-    generator = GaussianGenerator(imageDir, summaryPath, trajectoryModelPath, seqLength=seqLength, imageSize=imgHeight, grayscale=not pretrained, parallel=not sequential, numProcs=numProcs)
+    generator = GaussianGenerator.GaussianGenerator(imageDir, summaryPath, trajectoryModelPath, seqLength=seqLength, imageSize=imgHeight, grayscale=not pretrained, parallel=not sequential, numProcs=numProcs)
     
     controller = Controller()
     M = 9600 # Constant number of example sequences per epoch
