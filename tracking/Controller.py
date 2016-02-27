@@ -83,7 +83,7 @@ class ControllerConfig(object):
         parser.add_argument('--layerKey', help='Key string of layer name to use as features', type=str, default='inception_5b/output')
         parser.add_argument('--learningRate', help='SGD learning rate', type=float, default=0.0005)
         parser.add_argument('--useCUDNN', help='Use CUDA CONV or THEANO', type=bool, default=False)
-        parser.add_argument('--pretrained', help='Use pretrained network (redundant)', default=False, action='store_true')
+        parser.add_argument('--pretrained', help='Use pretrained network', default=False) #, action='store_true')
         parser.add_argument('--sequential', help='Make sequential simulations', default=False, action='store_true')
         parser.add_argument('--numProcs', help='Number of processes for parallel simulations', type=int, default=None)
         #TODO: Evaluate specifying the level instead if more than debug is needed   
@@ -105,7 +105,7 @@ if __name__ == '__main__':
         logger.setLevel(logging.DEBUG)
     
     #TODO: make arguments not redundant
-    if pretrained:
+    if pretrained == 'caffe':
         from CaffeCnn import CaffeCnn
         #Make batch size divisible by gpuBatchSize to enable reshaping
         batchSize = int(batchSize/gpuBatchSize)*gpuBatchSize
@@ -115,11 +115,14 @@ if __name__ == '__main__':
         logging.debug('Generation batch size: %s GPU batch size: %s', generationBatchSize, gpuBatchSize)
         cnn = CaffeCnn(imgHeight, imgWidth, deployPath, cnnModelPath, caffeRoot, seqLength, meanImage, layerKey, gpuBatchSize)
         gruInputDim = reduce(lambda a,b: a*b, cnn.outputShape()[-3:])
+    elif pretrained == 'lasagne':
+        cnn = gruInputDim = None
     else:
         cnn = gruInputDim = None
         #Predefined shape for trained conv layer
         imgHeight = imgWidth = 100
-    rnn = TheanoGruRnn.TheanoGruRnn(gruInputDim, gruStateDim, batchSize, seqLength, zeroTailFc, learningRate, useCUDNN, imgHeight, pretrained, getattr(TheanoGruRnn, norm))
+    rnn = TheanoGruRnn.TheanoGruRnn(gruInputDim, gruStateDim, batchSize, seqLength, zeroTailFc, learningRate, useCUDNN, imgHeight, 
+                                    pretrained, getattr(TheanoGruRnn, norm), modelPath=cnnModelPath, layerKey=layerKey)
     
     rnn.loadModel(trackerModelPath)
     

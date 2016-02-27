@@ -24,6 +24,7 @@ class CaffeCnn(object):
             gpuBatch = gpuBatch.reshape((-1,) + gpuBatch.shape[-3:])
             self.net.blobs['data'].data[...] = NP.array([self.transformer.preprocess('data', image) for image in gpuBatch])
             #TODO: which method is fastest: out or direct reference of layer?
+            # I think if we setup the deploy.protxt up to the desired layer, Caffe does not evaluate the rest, and this could be faster.
             feat = self.net.forward(blobs=[self.layerKey])[self.layerKey]
             #Collect gpuBatches
             feats[i*self.gpuBatchSize:(i+1)*self.gpuBatchSize,...] = feat.reshape((self.gpuBatchSize, self.seqLength) + feat.shape[-3:])

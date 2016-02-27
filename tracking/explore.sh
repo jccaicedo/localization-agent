@@ -14,6 +14,8 @@ run() {
          --trackerModelPath=$1/model.pkl \
          --summaryPath=/home/jccaicedo/data/simulations/CocoSummaries/cocoSummaryCategAndSideGt100Smpls10000.pkl \
          --trajectoryModelPath=$CODE_DIR/../notebooks/gmmDenseAbsoluteNormalizedOOT.pkl \
+         --norm=$7 \
+         --pretrained=lasagne --cnnModelPath=/home/jccaicedo/data/vgg16.pkl --layerKey=pool5 \
          --useCUDNN=True > $1/out.log 2> $1/err.log
 
     #     --pretrained --caffeRoot=/home/jccaicedo/caffe/ \
@@ -27,11 +29,11 @@ run() {
 
 # Add experiments here
 # PARAMS: outputDir device epochs batchSize GRUsize learningRate
-#run ~/data/experiments/debug/ 0 3 32 256 0.0010 
+#run ~/data/experiments/debug/ 0 3 32 256 0.0010 smooth_l1
 
-run ~/data/experiments/exp15/ 0 10 32 256 0.0010 &
-run ~/data/experiments/exp16/ 1 10 32 256 0.0005 &
-wait
+#run ~/data/experiments/exp21/ 0 2 32 1024 0.0010 smooth_l1 &
+run ~/data/experiments/exp22/ 1 2 32 2048 0.0010 smooth_l1 &
+#wait
 
 
 : <<'END'

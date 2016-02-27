@@ -5,6 +5,7 @@ import numpy.random as RNG
 import theano.tensor.nnet as NN
 #TODO: pickle or cPickle?
 import cPickle
+import lasagne
 
 from collections import OrderedDict
 
@@ -21,12 +22,12 @@ class TheanoGruRnn(object):
     params = None
     seqLength = None
     
-    def __init__(self, inputDim, stateDim, batchSize, seqLength, zeroTailFc, learningRate, use_cudnn, imgSize, pretrained=False, norm=l2):
+    def __init__(self, inputDim, stateDim, batchSize, seqLength, zeroTailFc, learningRate, use_cudnn, imgSize, pretrained=False, norm=l2, modelPath=None, layerKey=None):
         ### Computed hyperparameters begin
         self.pretrained = pretrained
         if not self.pretrained:
             #Number of feature filters
-            self.conv_nr_filters = 32
+            self.conv_nr_filters = 128
             #Rows/cols of feature filters
             self.conv_filter_row = self.conv_filter_col = 10
             self.conv_stride = 5
@@ -34,6 +35,10 @@ class TheanoGruRnn(object):
             inputDim = ((imgSize - self.conv_filter_row) / self.conv_stride + 1) * \
                         ((imgSize - self.conv_filter_col) / self.conv_stride + 1) * \
                         self.conv_nr_filters
+        elif self.pretrained == 'lasagne':
+            from LasagneVGG16 import LasagneVGG16
+            self.cnn = LasagneVGG16(modelPath, layerKey)
+            inputDim = 512 * 7 * 7
         self.inputDim = inputDim + 4
         self.seqLength = seqLength
         self.batchSize = batchSize
@@ -42,6 +47,12 @@ class TheanoGruRnn(object):
 
     
     def fit(self, data, label):
+        if self.pretrained == 'lasagne':
+            # In: (batch, time, height, width, channels). Out: (batch, time, channels, height, width)
+            data = NP.swapaxes(NP.swapaxes(data, 3, 4), 2, 3)
+            # Make BGR
+            data = data[:,:,::-1,:,:]
+            data -= self.cnn.meanImage
         return self.fitFunc(self.seqLength, data, label[:, 0, :], label)
       
         
@@ -94,7 +105,7 @@ class TheanoGruRnn(object):
         #TODO: Parameterize values in this function
         def attention(img, box):
             if False:
-                imgSize = 100
+                imgSize = 224
                 R = Tensor.arange(imgSize, dtype=Theano.config.floatX)
                 cx = (box[:, 3] + box[:, 1]) / 2.
                 cy = (box[:, 2] + box[:, 0]) / 2.
@@ -124,7 +135,7 @@ class TheanoGruRnn(object):
                 gru_h = (1-gru_z) * state + gru_z * gru_h_
                 bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc2) + b_fc2)
                 return bbox, gru_h
-        else:
+        elif self.pretrained == 'caffe':
             Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
             def step(img, prev_bbox, state):
                 # of (batch_size, nr_filters, some_rows, some_cols)
@@ -137,7 +148,20 @@ class TheanoGruRnn(object):
                 gru_h = (1-gru_z) * state + gru_z * gru_h_
                 bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc2) + b_fc2)
                 return bbox, gru_h
-            
+        elif self.pretrained == 'lasagne':
+            Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
+            def step(img, prev_bbox, state):
+                img = attention(img, prev_bbox)
+                features = lasagne.layers.get_output(self.cnn.net[self.cnn.layerKey], img)
+                flat1 = Tensor.reshape(features, (batchSize, inputDim-4))
+                gru_in = Tensor.concatenate([flat1, prev_bbox], axis=1)
+                gru_z = NN.sigmoid(Tensor.dot(gru_in, Wz) + Tensor.dot(state, Uz) + bz)
+                gru_r = NN.sigmoid(Tensor.dot(gru_in, Wr) + Tensor.dot(state, Ur) + br)
+                gru_h_ = Tensor.tanh(Tensor.dot(gru_in, Wg) + Tensor.dot(gru_r * state, Ug) + bg)
+                gru_h = (1-gru_z) * state + gru_z * gru_h_
+                bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc2) + b_fc2)
+                return bbox, gru_h
+
                
         # Move the time axis to the top
         sc, _ = Theano.scan(step, sequences=[imgs.dimshuffle(1, 0, 2, 3, 4)], outputs_info=[starts, Tensor.zeros((batchSize, stateDim))])
