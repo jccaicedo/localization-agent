@@ -3,11 +3,11 @@ import theano.tensor as Tensor
 import numpy as NP
 import numpy.random as RNG
 import theano.tensor.nnet as NN
-#TODO: pickle or cPickle?
-import cPickle
-import lasagne
+import cPickle as pickle
+import VisualAttention
 
 from collections import OrderedDict
+from LasagneVGG16 import LasagneVGG16
 
 def smooth_l1(x):
     return Tensor.switch(Tensor.lt(Tensor.abs_(x),1), 0.5*x**2, Tensor.abs_(x)-0.5)
@@ -43,7 +43,6 @@ class TheanoGruRnn(object):
                         ((imgSize - self.conv_filter_col) / self.conv_stride + 1) * \
                         self.conv_nr_filters
         elif self.pretrained == 'lasagne':
-            from LasagneVGG16 import LasagneVGG16
             self.cnn = LasagneVGG16(modelPath, layerKey)
             inputDim = 512 * 7 * 7
         self.targetDim = targetDim
@@ -59,17 +58,13 @@ class TheanoGruRnn(object):
     
     def fit(self, data, label):
         if self.pretrained == 'lasagne':
-            # In: (batch, time, height, width, channels). Out: (batch, time, channels, height, width)
-            data = NP.swapaxes(NP.swapaxes(data, 3, 4), 2, 3)
-            # Make BGR
-            data = data[:,:,::-1,:,:]
-            data -= self.cnn.meanImage
+            data = self.cnn.prepareBatch(data)
         return self.fitFunc(self.seqLength, data, label[:, 0, :], label)
       
         
     def forward(self, data, label):
-        print data.shape
-        print label.shape
+        if self.pretrained == 'lasagne':
+          data = self.cnn.prepareBatch(data)
         cost, output = self.forwardFunc(self.seqLength, data, label[:, 0, :], label)
         return cost, output
     
@@ -78,7 +73,7 @@ class TheanoGruRnn(object):
         try:
             print 'Loading model from {}'.format(modelPath)
             with open(modelPath, "rb") as f: 
-                param_saved = cPickle.load(f)
+                param_saved = pickle.load(f)
             
             for _p, p in zip(self.params, param_saved):
                 _p.set_value(p)
@@ -89,7 +84,7 @@ class TheanoGruRnn(object):
     def saveModel(self, modelPath):
         with open(modelPath, 'wb') as trackerFile:
             #TODO: verify the protocol allows sharing of models within users
-            cPickle.dump(map(lambda x: x.get_value(), self.params), trackerFile)
+            pickle.dump(map(lambda x: x.get_value(), self.params), trackerFile)
         
     def getTensor(self, name, dtype, dim):
         if dtype == None:
@@ -113,21 +108,10 @@ class TheanoGruRnn(object):
                 conv2d = CUDNN.dnn_conv
 
         ## Attention mask
-        #TODO: Parameterize values in this function
-        def attention(img, box):
-            if not pretrained and useAttention:
-                R = Tensor.arange(imgSize, dtype=Theano.config.floatX)
-                cx = (box[:, 3] + box[:, 1]) / 2.
-                cy = (box[:, 2] + box[:, 0]) / 2.
-                sx = (box[:,3] - cx)*0.75
-                sy = (box[:,2] - cy)*0.75
-                eps = 1e-8
-                FX = Tensor.exp(-(R - cx.dimshuffle(0, 'x')) ** 2 / 2. / (sx.dimshuffle(0, 'x') ** 2 + eps))
-                FY = Tensor.exp(-(R - cy.dimshuffle(0, 'x')) ** 2 / 2. / (sy.dimshuffle(0, 'x') ** 2 + eps))
-                mask = (FX.dimshuffle(0, 1, 'x') * FY.dimshuffle(0, 'x', 1))
-                return img * mask.dimshuffle(0,'x',1,2)
-            else:
-                return img
+        if useAttention:
+            attention = VisualAttention.createGaussianMask(imgSize)
+        else:
+            attention = VisualAttention.useNoMask()
 
         params = list(self.init_params(inputDim, stateDim, targetDim, zeroTailFc))
         if not pretrained:
@@ -162,7 +146,7 @@ class TheanoGruRnn(object):
             Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
             def step(img, prev_bbox, state):
                 img = attention(img, prev_bbox)
-                features = lasagne.layers.get_output(self.cnn.net[self.cnn.layerKey], img)
+                features = self.cnn.getFeatureExtractor(img)
                 flat1 = Tensor.reshape(features, (batchSize, inputDim-4))
                 gru_in = Tensor.concatenate([flat1, prev_bbox], axis=1)
                 gru_z = NN.sigmoid(Tensor.dot(gru_in, Wz) + Tensor.dot(state, Uz) + bz)

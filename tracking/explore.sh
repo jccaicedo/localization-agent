@@ -14,14 +14,14 @@ run() {
          --trackerModelPath=$1/model.pkl \
          --summaryPath=/home/jccaicedo/data/simulations/CocoSummaries/cocoSummaryCategAndSideGt100Smpls10000.pkl \
          --trajectoryModelPath=$CODE_DIR/../notebooks/gmmDenseAbsoluteNormalizedOOT.pkl \
-         --norm=$7 \
+         --norm=$7 --useAttention \
          --pretrained=lasagne --cnnModelPath=/home/jccaicedo/data/vgg16.pkl --layerKey=pool5 \
-         --useCUDNN=True > $1/out.log 2> $1/err.log
+    #     --useCUDNN=True > $1/out.log 2> $1/err.log
 
     #     --pretrained --caffeRoot=/home/jccaicedo/caffe/ \
 
-    python parseLogs.py --log_file=$1/out.log --out_file=$1/results.png \
-         --batch_size=$4 --gru_dim=$5 --learning_rate=$6
+    #python parseLogs.py --log_file=$1/out.log --out_file=$1/results.png \
+    #     --batch_size=$4 --gru_dim=$5 --learning_rate=$6
 
     #TODO: add a call to evaluation code on validation sets
 
@@ -29,7 +29,7 @@ run() {
 
 # Add experiments here
 # PARAMS: outputDir device epochs batchSize GRUsize learningRate
-run ~/data/experiments/debug/ 0 3 32 256 0.0010 smooth_l1
+run ~/data/experiments/debug1/ 0 2 32 256 0.0010 smooth_l1
 
 #run ~/data/experiments/exp21/ 0 2 32 1024 0.0010 smooth_l1 &
 #run ~/data/experiments/exp22/ 1 2 32 2048 0.0010 smooth_l1 &

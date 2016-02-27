@@ -1,9 +1,8 @@
 # Model definition for VGG-16, 16-layer model from the paper:
 # "Very Deep Convolutional Networks for Large-Scale Image Recognition"
 # Original source: https://gist.github.com/ksimonyan/211839e770f7b538e2d8
+# Download pretrained model from: https://s3.amazonaws.com/lasagne/recipes/pretrained/imagenet/vgg16.pkl
 
-# More pretrained models are available from
-# https://github.com/Lasagne/Recipes/blob/master/modelzoo/
 from lasagne.layers import InputLayer, DenseLayer, NonlinearityLayer
 from lasagne.layers.dnn import Conv2DDNNLayer as ConvLayer
 from lasagne.layers import Pool2DLayer as PoolLayer
@@ -26,23 +25,19 @@ class LasagneVGG16(object):
         self.layerKey = layerKey
         lasagne.layers.set_all_param_values(self.net['prob'], d['param values'])
         self.meanImage = d['mean value'][NP.newaxis, NP.newaxis, :, NP.newaxis, NP.newaxis]
-        #X = theano.tensor.tensor4()
-        #self.computeLayer = lasagne.layers.get_output(self.net[layerKey], X)
-        #self.extractFeatures = theano.function([X], computeLayer)
 
-    '''
-    def forward(self, data):
-        # We assume frames are already scaled to 224x224x3
-        # Organize dimensions: (batch, channels, height, width)
-        data = NP.swapaxes(NP.swapaxes(data, 2, 3), 1, 2)
+    def getFeatureExtractor(self, symbolicInput):
+        return lasagne.layers.get_output(self.net[self.layerKey], symbolicInput)
+    
+    def prepareBatch(self, data):
+        # In: (batch, time, height, width, channels). Out: (batch, time, channels, height, width)
+        data = NP.swapaxes(NP.swapaxes(data, 3, 4), 2, 3)
         # Make BGR
-        data = data[:,::-1,:,:]
+        data = data[:,:,::-1,:,:]
         # Subtract mean
         data -= self.meanImage
-        # Compute features
-        return self.extractFeatures(data)
-    '''
-    
+        return data
+
     def buildModel(self):
         net = {}
         net['input'] = InputLayer((None, 3, 224, 224))

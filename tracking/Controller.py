@@ -28,7 +28,7 @@ class Controller(object):
                     if generator.grayscale:
                         data = data[:, :, NP.newaxis, :, :]
                         data /= 255.0
-                    label = label / (imgHeight / 2.) - 1.
+                    label = label / (imgHeight / 2.) - 1. # Center labels around zero, and scale them between [-1,1]
                     clock('Simulations',st)
                 else:
                     st = time.time()
@@ -83,7 +83,7 @@ class ControllerConfig(object):
         parser.add_argument('--layerKey', help='Key string of layer name to use as features', type=str, default='inception_5b/output')
         parser.add_argument('--learningRate', help='SGD learning rate', type=float, default=0.0005)
         parser.add_argument('--useCUDNN', help='Use CUDA CONV or THEANO', type=bool, default=False)
-        parser.add_argument('--pretrained', help='Use pretrained network', default=False) #, action='store_true')
+        parser.add_argument('--pretrained', help='Use pretrained network', default=False, choices=[False, 'caffe', 'lasagne'])
         parser.add_argument('--sequential', help='Make sequential simulations', default=False, action='store_true')
         parser.add_argument('--numProcs', help='Number of processes for parallel simulations', type=int, default=None)
         #TODO: Evaluate specifying the level instead if more than debug is needed   
@@ -131,7 +131,7 @@ if __name__ == '__main__':
     generator = GaussianGenerator.GaussianGenerator(imageDir, summaryPath, trajectoryModelPath, seqLength=seqLength, imageSize=imgHeight, grayscale=not pretrained, parallel=not sequential, numProcs=numProcs)
     
     controller = Controller()
-    M = 9600 # Constant number of example sequences per epoch
+    M = 96 # Constant number of example sequences per epoch
     batches = M/batchSize
     try:
         controller.train(tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize)
