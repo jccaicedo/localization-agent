@@ -14,6 +14,13 @@ def smooth_l1(x):
 def l2(x):
     return x ** 2
 
+def box2cwh(boxTensor):
+    xc = (boxTensor[:,:,2]+boxTensor[:,:,0])/2
+    yc = (boxTensor[:,:,3]+boxTensor[:,:,1])/2
+    width = (boxTensor[:,:,2]-boxTensor[:,:,0])
+    height = (boxTensor[:,:,3]-boxTensor[:,:,1])
+    return Tensor.stacklists([xc,yc,width,height]).dimshuffle(1,2,0)
+
 class TheanoGruRnn(object):
     
     fitFunc = None
@@ -21,7 +28,7 @@ class TheanoGruRnn(object):
     params = None
     seqLength = None
     
-    def __init__(self, inputDim, stateDim, batchSize, seqLength, zeroTailFc, learningRate, use_cudnn, imgSize, pretrained=False, norm=l2):
+    def __init__(self, inputDim, stateDim, targetDim, batchSize, seqLength, zeroTailFc, learningRate, use_cudnn, imgSize, pretrained=False, norm=l2, useAttention=False):
         ### Computed hyperparameters begin
         self.pretrained = pretrained
         if not self.pretrained:
@@ -34,11 +41,15 @@ class TheanoGruRnn(object):
             inputDim = ((imgSize - self.conv_filter_row) / self.conv_stride + 1) * \
                         ((imgSize - self.conv_filter_col) / self.conv_stride + 1) * \
                         self.conv_nr_filters
-        self.inputDim = inputDim + 4
+        self.targetDim = targetDim
+        self.inputDim = inputDim + self.targetDim
         self.seqLength = seqLength
         self.batchSize = batchSize
         self.norm = norm
-        self.fitFunc, self.forwardFunc, self.params = self.buildModel(self.batchSize, self.inputDim, stateDim, zeroTailFc, learningRate, use_cudnn)
+        self.stateDim = stateDim
+        self.imgSize = imgSize
+        self.useAttention = useAttention
+        self.fitFunc, self.forwardFunc, self.params = self.buildModel(self.batchSize, self.inputDim, self.stateDim, self.targetDim, zeroTailFc, learningRate, use_cudnn, self.pretrained, self.imgSize, self.useAttention)
 
     
     def fit(self, data, label):
@@ -76,7 +87,7 @@ class TheanoGruRnn(object):
         return Tensor.TensorType(dtype, [False] * dim, name=name)()
         
     
-    def buildModel(self, batchSize, inputDim, stateDim, zeroTailFc, learningRate, use_cudnn):
+    def buildModel(self, batchSize, inputDim, stateDim, targetDim, zeroTailFc, learningRate, use_cudnn, pretrained, imgSize, useAttention):
         print 'Building network'
         
         # imgs: of shape (batchSize, seq_len, nr_channels, img_rows, img_cols)
@@ -93,8 +104,7 @@ class TheanoGruRnn(object):
         ## Attention mask
         #TODO: Parameterize values in this function
         def attention(img, box):
-            if False:
-                imgSize = 100
+            if not pretrained and useAttention:
                 R = Tensor.arange(imgSize, dtype=Theano.config.floatX)
                 cx = (box[:, 3] + box[:, 1]) / 2.
                 cy = (box[:, 2] + box[:, 0]) / 2.
@@ -108,15 +118,15 @@ class TheanoGruRnn(object):
             else:
                 return img
 
-        params = list(self.init_params(inputDim, stateDim, zeroTailFc))
-        if not self.pretrained:
+        params = list(self.init_params(inputDim, stateDim, targetDim, zeroTailFc))
+        if not pretrained:
             conv_filters, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
             def step(img, prev_bbox, state):
                 img = attention(img, prev_bbox)
                 # of (batch_size, nr_filters, some_rows, some_cols)
                 conv1 = conv2d(img, conv_filters, subsample=(self.conv_stride, self.conv_stride))
                 act1 = Tensor.tanh(conv1)
-                flat1 = Tensor.reshape(act1, (batchSize, inputDim-4))
+                flat1 = Tensor.reshape(act1, (batchSize, inputDim-targetDim))
                 gru_in = Tensor.concatenate([flat1, prev_bbox], axis=1)
                 gru_z = NN.sigmoid(Tensor.dot(gru_in, Wz) + Tensor.dot(state, Uz) + bz)
                 gru_r = NN.sigmoid(Tensor.dot(gru_in, Wr) + Tensor.dot(state, Ur) + br)
@@ -129,7 +139,7 @@ class TheanoGruRnn(object):
             def step(img, prev_bbox, state):
                 # of (batch_size, nr_filters, some_rows, some_cols)
                 act1 = img
-                flat1 = Tensor.reshape(act1, (batchSize, inputDim-4))
+                flat1 = Tensor.reshape(act1, (batchSize, inputDim-targetDim))
                 gru_in = Tensor.concatenate([flat1, prev_bbox], axis=1)
                 gru_z = NN.sigmoid(Tensor.dot(gru_in, Wz) + Tensor.dot(state, Uz) + bz)
                 gru_r = NN.sigmoid(Tensor.dot(gru_in, Wr) + Tensor.dot(state, Ur) + br)
@@ -144,7 +154,7 @@ class TheanoGruRnn(object):
     
         bbox_seq = sc[0].dimshuffle(1, 0, 2)
     
-        # targets: of shape (batch_size, seq_len, 4)
+        # targets: of shape (batch_size, seq_len, targetDim)
         targets = self.getTensor("targets", Theano.config.floatX, 3)
         seq_len_scalar = Tensor.scalar()
     
@@ -158,7 +168,7 @@ class TheanoGruRnn(object):
         return fitFunc, forwardFunc, params
     
     
-    def init_params(self, inputDim, stateDim, zeroTailFc):
+    def init_params(self, inputDim, stateDim, targetDim, zeroTailFc):
         ### NETWORK PARAMETERS BEGIN
         if not self.pretrained:
             conv_filters = Theano.shared(self.glorot_uniform((self.conv_nr_filters, 1, self.conv_filter_row, self.conv_filter_col)), name='conv_filters')
@@ -171,8 +181,8 @@ class TheanoGruRnn(object):
         Wg = Theano.shared(self.glorot_uniform((inputDim, stateDim)), name='Wg')
         Ug = Theano.shared(self.orthogonal((stateDim, stateDim)), name='Ug')
         bg = Theano.shared(NP.zeros((stateDim,), dtype=Theano.config.floatX), name='bg')
-        W_fc2 = Theano.shared(self.glorot_uniform((stateDim, 4)) if not zeroTailFc else NP.zeros((stateDim, 4), dtype=Theano.config.floatX), name='W_fc2')
-        b_fc2 = Theano.shared(NP.zeros((4,), dtype=Theano.config.floatX), name='b_fc2')
+        W_fc2 = Theano.shared(self.glorot_uniform((stateDim, targetDim)) if not zeroTailFc else NP.zeros((stateDim, targetDim), dtype=Theano.config.floatX), name='W_fc2')
+        b_fc2 = Theano.shared(NP.zeros((targetDim,), dtype=Theano.config.floatX), name='b_fc2')
         ### NETWORK PARAMETERS END
     
         if not self.pretrained:

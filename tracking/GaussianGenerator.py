@@ -7,6 +7,7 @@ import multiprocessing
 SEQUENCE_LENGTH = 60
 IMG_HEIGHT = 100
 IMG_WIDTH = 100
+TARGET_DIM = 4
 
 # FUNCTION
 # Make simulation of a single sequence given the simulator
@@ -60,7 +61,7 @@ class GaussianGenerator(object):
         else:
             #TODO: validate case of alpha channel
             data = np.zeros((batchSize, self.seqLength, self.imageSize, self.imageSize, 3), dtype=np.float32)
-        label = np.zeros((batchSize, self.seqLength, 4))
+        label = np.zeros((batchSize, self.seqLength, TARGET_DIM))
         return data, label
 
     def getBatch(self, batchSize):
