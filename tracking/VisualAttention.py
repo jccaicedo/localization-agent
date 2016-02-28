@@ -38,7 +38,6 @@ def getSquaredMasks(data, labels, context, alpha):
     l = NP.array(l, NP.int)
     # Create masks assuming (batch, width, height, channels)
     masks = alpha * NP.ones(data.shape)
-    print masks.shape, l.shape
     for i in range(masks.shape[0]):
         masks[i, l[i,1]:l[i,3], l[i,0]:l[i,2], ...] = 1
     return masks
