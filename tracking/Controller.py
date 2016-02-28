@@ -73,6 +73,7 @@ class ControllerConfig(object):
         parser.add_argument('--gruStateDim', help='Dimension of GRU state', type=int, default=256)
         parser.add_argument('--seqLength', help='Length of sequences', type=int, default=60)
         parser.add_argument('--useReplayMem', help='Use replay memory to store simulated sequences', default=False, action='store_true')
+        parser.add_argument('--convFilters', help='Number of filters to use in the convolutional layer', type=int, default=32)
         #TODO: Check default values or make required
         parser.add_argument('--trackerModelPath', help='Name of model file', type=str, default='model.pkl')
         parser.add_argument('--caffeRoot', help='Root of Caffe dir', type=str, default='/home/jccaicedo/caffe/')
@@ -122,7 +123,7 @@ if __name__ == '__main__':
         cnn = gruInputDim = None
         #Predefined shape for trained conv layer
         imgHeight = imgWidth = 100
-    rnn = TheanoGruRnn.TheanoGruRnn(gruInputDim, gruStateDim, GaussianGenerator.TARGET_DIM, batchSize, seqLength, zeroTailFc, learningRate, useCUDNN, imgHeight, pretrained, getattr(TheanoGruRnn, norm), useAttention, modelPath=cnnModelPath, layerKey=layerKey)
+    rnn = TheanoGruRnn.TheanoGruRnn(gruInputDim, gruStateDim, GaussianGenerator.TARGET_DIM, batchSize, seqLength, zeroTailFc, learningRate, useCUDNN, imgHeight, pretrained, getattr(TheanoGruRnn, norm), useAttention, modelPath=cnnModelPath, layerKey=layerKey, convFilters=convFilters)
     
     rnn.loadModel(trackerModelPath)
     
@@ -131,7 +132,7 @@ if __name__ == '__main__':
     generator = GaussianGenerator.GaussianGenerator(imageDir, summaryPath, trajectoryModelPath, seqLength=seqLength, imageSize=imgHeight, grayscale=not pretrained, parallel=not sequential, numProcs=numProcs)
     
     controller = Controller()
-    M = 96 # Constant number of example sequences per epoch
+    M = 9600 # Constant number of example sequences per epoch
     batches = M/batchSize
     try:
         controller.train(tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize)

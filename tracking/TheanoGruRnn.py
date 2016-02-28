@@ -29,12 +29,12 @@ class TheanoGruRnn(object):
     params = None
     seqLength = None
     
-    def __init__(self, inputDim, stateDim, targetDim, batchSize, seqLength, zeroTailFc, learningRate, use_cudnn, imgSize, pretrained=False, norm=l2, useAttention=False, modelPath=None, layerKey=None):
+    def __init__(self, inputDim, stateDim, targetDim, batchSize, seqLength, zeroTailFc, learningRate, use_cudnn, imgSize, pretrained=False, norm=l2, useAttention=False, modelPath=None, layerKey=None, convFilters=32):
         ### Computed hyperparameters begin
         self.pretrained = pretrained
         if not self.pretrained:
             #Number of feature filters
-            self.conv_nr_filters = 128
+            self.conv_nr_filters = convFilters
             #Rows/cols of feature filters
             self.conv_filter_row = self.conv_filter_col = 10
             self.conv_stride = 5
