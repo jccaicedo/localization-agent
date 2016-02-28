@@ -2,9 +2,10 @@ import theano as Theano
 import theano.tensor as Tensor
 import numpy as NP
 
-def createGaussianMask(imgSize):
+def createGaussianMasker(imgSize):
     R = Tensor.arange(imgSize, dtype=Theano.config.floatX)
     eps = 1e-8
+    alpha = 0.1
     def mask(img, label):
         box = (label + 1.) * (imgSize / 2.) # Uncenter and rescale labels
         cx = (box[:, 3] + box[:, 1]) / 2.
@@ -13,19 +14,27 @@ def createGaussianMask(imgSize):
         sy = (box[:,2] - cy)*0.60
         FX = Tensor.exp(-(R - cx.dimshuffle(0, 'x')) ** 2 / 2. / (sx.dimshuffle(0, 'x') ** 2 + eps))
         FY = Tensor.exp(-(R - cy.dimshuffle(0, 'x')) ** 2 / 2. / (sy.dimshuffle(0, 'x') ** 2 + eps))
-        mask = (FX.dimshuffle(0, 1, 'x') * FY.dimshuffle(0, 'x', 1))
-        mask = mask + 0.05
-        mask = mask - Tensor.gt(mask, 1.0)*(mask-1.0)
-        return img * mask.dimshuffle(0,'x',1,2)
+        m = (FX.dimshuffle(0, 1, 'x') * FY.dimshuffle(0, 'x', 1))
+        m = m + alpha
+        m = m - Tensor.gt(m, 1.0) * (m - 1.0)
+        return img * m.dimshuffle(0,'x',1,2)
     return mask
 
 def useNoMask():
     return lambda img, box: img
 
-def createSquaredMask(imgSize):
+def createSquareMasker(imgSize):
     R = Tensor.arange(imgSize, dtype=Theano.config.floatX)
     eps = 1e-8
-    return lambda img, box: img
+    alpha = 0.1
+    def mask(img, label):
+        box = (label + 1.) * (imgSize / 2.) # Uncenter and rescale labels
+        FX = Tensor.gt(R, box[:,1].dimshuffle(0,'x')) * Tensor.le(R, box[:,3].dimshuffle(0,'x'))
+        FY = Tensor.gt(R, box[:,0].dimshuffle(0,'x')) * Tensor.le(R, box[:,2].dimshuffle(0,'x'))
+        m = (FX.dimshuffle(0, 1, 'x') * FY.dimshuffle(0, 'x', 1))
+        m = m + alpha - Tensor.gt(m, 0.) * alpha
+        return img * m.dimshuffle(0,'x',1,2)
+    return mask
 
 def getSquaredMasks(data, labels, context, alpha):
     l = labels.copy()

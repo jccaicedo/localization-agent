@@ -108,8 +108,10 @@ class TheanoGruRnn(object):
                 conv2d = CUDNN.dnn_conv
 
         ## Attention mask
-        if useAttention:
-            attention = VisualAttention.createGaussianMask(imgSize)
+        if useAttention == 'gaussian':
+            attention = VisualAttention.createGaussianMasker(imgSize)
+        elif useAttention == 'square':
+            attention = VisualAttention.createSquareMasker(imgSize)
         else:
             attention = VisualAttention.useNoMask()
 

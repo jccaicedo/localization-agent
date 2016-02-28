@@ -14,7 +14,7 @@ def clock(m, st):
 
 class Controller(object):
 
-    def train(self, tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize):
+    def train(self, tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize, seqLength):
         validation = Validation(5, batchSize, generator, imgHeight)
         for i in range(0, epochs):
             train_cost = 0
@@ -25,13 +25,21 @@ class Controller(object):
                 if not tracker.sampleFromMem():
                     st = time.time()
                     data, label = generator.getBatch(generationBatchSize)
+                    # Keep max seqLength frames
+                    startFrame = NP.random.randint(0,data.shape[1]-seqLength)
+                    data = data[:,startFrame:startFrame+seqLength,...]
+                    label = label[:,startFrame:startFrame+seqLength,...]
+                    # Mask the object that has to be tracked in the first frame
                     firstFrameMasks = VisualAttention.getSquaredMasks(data[:,0,...], label[:,0,:], 4, 0.1)
                     data[:,0,...] *= firstFrameMasks
+                    # Replay memory management
                     storeInMem = (True and useReplayMem)  # When this flag is false, the memory is never used
+                    # Normalize gray scale data
                     if generator.grayscale:
                         data = data[:, :, NP.newaxis, :, :]
                         data /= 255.0
-                    label = label / (imgHeight / 2.) - 1. # Center labels around zero, and scale them between [-1,1]
+                    # Center labels around zero, and scale them between [-1,1]
+                    label = label / (imgHeight / 2.) - 1. 
                     clock('Simulations',st)
                 else:
                     st = time.time()
@@ -93,7 +101,7 @@ class ControllerConfig(object):
         #TODO: Evaluate specifying the level instead if more than debug is needed   
         parser.add_argument('--debug', help='Enable debug logging', default=False, action='store_true')
         parser.add_argument('--norm', help='Norm type for cost', default=TheanoGruRnn.l2.func_name, choices=[TheanoGruRnn.smooth_l1.func_name, TheanoGruRnn.l2.func_name])
-        parser.add_argument('--useAttention', help='Enable attention', default=False, action='store_true')
+        parser.add_argument('--useAttention', help='Enable attention', type=str, default='no', choices=['no', 'gaussian', 'square'])
         
         return parser
 
@@ -132,12 +140,12 @@ if __name__ == '__main__':
     
     tracker = RecurrentTracker(cnn, rnn)
     
-    generator = GaussianGenerator.GaussianGenerator(imageDir, summaryPath, trajectoryModelPath, seqLength=seqLength, imageSize=imgHeight, grayscale=not pretrained, parallel=not sequential, numProcs=numProcs)
+    generator = GaussianGenerator.GaussianGenerator(imageDir, summaryPath, trajectoryModelPath, seqLength=60, imageSize=imgHeight, grayscale=not pretrained, parallel=not sequential, numProcs=numProcs)
     
     controller = Controller()
     M = 9600 # Constant number of example sequences per epoch
     batches = M/batchSize
     try:
-        controller.train(tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize)
+        controller.train(tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize, seqLength)
     except KeyboardInterrupt:
         rnn.saveModel(trackerModelPath)
