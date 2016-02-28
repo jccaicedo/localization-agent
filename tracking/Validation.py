@@ -1,4 +1,5 @@
 import numpy as NP
+import VisualAttention
 
 class Validation(object):
 
@@ -14,6 +15,8 @@ class Validation(object):
         self.valSet['labels'][0:batchSize,...] = l
         for i in range(1,valBatches):
             d, l = generator.getBatch(batchSize)
+            ffm = VisualAttention.getSquaredMasks(d[:,0,...], l[:,0,:], 4, 0.1)
+            d[:,0,...] *= ffm
             start = i*batchSize
             end = (i+1)*batchSize
             self.valSet['data'][start:end,...] = d

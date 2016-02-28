@@ -4,9 +4,10 @@ import numpy as NP
 import logging
 
 from RecurrentTracker import RecurrentTracker
+from Validation import Validation
 import TheanoGruRnn
 import GaussianGenerator
-from Validation import Validation
+import VisualAttention
 
 def clock(m, st): 
     print m,(time.time()-st)
@@ -24,6 +25,8 @@ class Controller(object):
                 if not tracker.sampleFromMem():
                     st = time.time()
                     data, label = generator.getBatch(generationBatchSize)
+                    firstFrameMasks = VisualAttention.getSquaredMasks(data[:,0,...], label[:,0,:], 4, 0.1)
+                    data[:,0,...] *= firstFrameMasks
                     storeInMem = (True and useReplayMem)  # When this flag is false, the memory is never used
                     if generator.grayscale:
                         data = data[:, :, NP.newaxis, :, :]
@@ -132,7 +135,7 @@ if __name__ == '__main__':
     generator = GaussianGenerator.GaussianGenerator(imageDir, summaryPath, trajectoryModelPath, seqLength=seqLength, imageSize=imgHeight, grayscale=not pretrained, parallel=not sequential, numProcs=numProcs)
     
     controller = Controller()
-    M = 9600 # Constant number of example sequences per epoch
+    M = 96 # Constant number of example sequences per epoch
     batches = M/batchSize
     try:
         controller.train(tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize)
