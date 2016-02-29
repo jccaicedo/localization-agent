@@ -16,7 +16,7 @@ run() {
          --trajectoryModelPath=$CODE_DIR/../notebooks/gmmDenseAbsoluteNormalizedOOT.pkl \
          --convFilters=$8 \
          --norm=$7 --useAttention=$9 --seqLength=$10 \
-    #     --useCUDNN=True > $1/out.log 2> $1/err.log
+         --useCUDNN=True > $1/out.log 2> $1/err.log
 
 
     ## Three models of CNN-RNN. Put the line after --trajectoryModelPath and before --norm
@@ -27,8 +27,8 @@ run() {
     ## 3. The pretrained VGG16 model in lasagne
     #     --pretrained=lasagne --cnnModelPath=/home/jccaicedo/data/vgg16.pkl --layerKey=pool5 \
 
-    #python parseLogs.py --log_file=$1/out.log --out_file=$1/results.png \
-    #     --batch_size=$4 --gru_dim=$5 --learning_rate=$6
+    python parseLogs.py --log_file=$1/out.log --out_file=$1/results.png \
+         --batch_size=$4 --gru_dim=$5 --learning_rate=$6
 
     #TODO: add a call to evaluation code on validation sets
 
@@ -37,7 +37,10 @@ run() {
 # Add experiments here
 # PARAMS: 1.outputDir 2.device 3.epochs 4.batchSize 5.GRUsize 6.learningRate 7.norm 8.convFilters 9.visualAttention 10.sequenceLength
 
-run ~/data/experiments/debug1/ 0 3 32 256 0.001 l2 32 square 20
+run ~/data/experiments/exp21/ 0 10 32 256 0.001 l2 32 no 60
+run ~/data/experiments/exp22/ 0 10 32 256 0.001 l2 32 gaussian 60
+run ~/data/experiments/exp23/ 0 10 32 256 0.001 l2 32 square 60
+
 
 : <<'END'
 

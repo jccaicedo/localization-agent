@@ -26,9 +26,10 @@ class Controller(object):
                     st = time.time()
                     data, label = generator.getBatch(generationBatchSize)
                     # Keep max seqLength frames
-                    startFrame = NP.random.randint(0,data.shape[1]-seqLength)
-                    data = data[:,startFrame:startFrame+seqLength,...]
-                    label = label[:,startFrame:startFrame+seqLength,...]
+                    if seqLength < data.shape[1]:
+                        startFrame = NP.random.randint(0,data.shape[1]-seqLength)
+                        data = data[:,startFrame:startFrame+seqLength,...]
+                        label = label[:,startFrame:startFrame+seqLength,...]
                     # Mask the object that has to be tracked in the first frame
                     firstFrameMasks = VisualAttention.getSquaredMasks(data[:,0,...], label[:,0,:], 4, 0.1)
                     data[:,0,...] *= firstFrameMasks
