@@ -15,7 +15,7 @@ run() {
          --summaryPath=/home/jccaicedo/data/simulations/CocoSummaries/cocoSummaryCategAndSideGt100Smpls10000.pkl \
          --trajectoryModelPath=$CODE_DIR/../notebooks/gmmDenseAbsoluteNormalizedOOT.pkl \
          --convFilters=$8 \
-         --norm=$7 --useAttention=$9 --seqLength=$10 \
+         --norm=$7 --useAttention=$9 --seqLength=${10} \
          --useCUDNN=True > $1/out.log 2> $1/err.log
 
 
