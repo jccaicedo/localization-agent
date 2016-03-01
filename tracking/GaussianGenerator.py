@@ -46,9 +46,6 @@ class GaussianGenerator(object):
             summaryPath = summaryPath,
             scenePathTemplate=scenePathTemplate, objectPathTemplate=objectPathTemplate
             )
-        modelFile = open(trajectoryModelPath, 'r')
-        self.trajectoryModel = pickle.load(modelFile)
-        modelFile.close()
         self.grayscale = grayscale
 
     def getSimulator(self):

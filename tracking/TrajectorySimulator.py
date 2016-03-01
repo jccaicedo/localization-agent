@@ -256,7 +256,7 @@ class OcclussionGenerator():
 
 class TrajectorySimulator():
 
-  def __init__(self, sceneFile, objectFile, polygon, maxSegments=9, camSize=(224,224), axes=False, maxSteps=None, contentTransforms=None, shapeTransforms=None, cameraContentTransforms=None, cameraShapeTransforms=None, drawBox=False, camera=True, drawCam=False, trajectoryModel=None, trajectoryModelLength=60):
+  def __init__(self, sceneFile, objectFile, polygon, maxSegments=9, camSize=(224,224), axes=False, maxSteps=None, contentTransforms=None, shapeTransforms=None, cameraContentTransforms=None, cameraShapeTransforms=None, drawBox=False, camera=True, drawCam=False, trajectoryModel=None, cameraTrajectoryModel=None, trajectoryModelLength=60):
     self.randGen = startRandGen()
     #Number of maximum steps/frames generated
     if maxSteps is None:
@@ -292,6 +292,10 @@ class TrajectorySimulator():
       self.trajectoryModel = TrajectoryModel(trajectoryModel, self.trajectoryModelLength)
     else:
       self.trajectoryModel = RandomTrajectoryModel(self.trajectoryModelLength)
+    if cameraTrajectoryModel is not None:
+      self.cameraTrajectoryModel = TrajectoryModel(cameraTrajectoryModel, self.trajectoryModelLength)
+    else:
+      self.cameraTrajectoryModel = RandomTrajectoryModel(self.trajectoryModelLength, step_length_=1e-2)
     self.cameraContentTransforms = cameraContentTransforms
     self.cameraShapeTransforms = cameraShapeTransforms
     logging.debug('Scene: %s Object: %s', sceneFile, objectFile)
@@ -342,9 +346,9 @@ class TrajectorySimulator():
     else:
         #TODO: Check why the order (object, camera) generates different results
         #Object transform sampling and correction
-        self.contentTransforms = self.fit_trajectory(self.bounds, self.camSize)
+        self.contentTransforms = self.fit_trajectory(self.bounds, self.camSize, self.trajectoryModel)
         #Camera transform sampling and correction
-        self.cameraContentTransforms = self.fit_trajectory(self.cameraBounds, self.scene.size)
+        self.cameraContentTransforms = self.fit_trajectory(self.cameraBounds, self.scene.size, self.cameraTrajectoryModel)
     if self.cameraShapeTransforms is None:
         self.cameraShapeTransforms = [
             Transformation(identityShape, 1, 1),
@@ -352,8 +356,8 @@ class TrajectorySimulator():
     self.transform()
     self.render()
 
-  def fit_trajectory(self, refBounds, limits):
-    transformations = self.trajectoryModel.sample(limits)
+  def fit_trajectory(self, refBounds, limits, trajectoryModel):
+    transformations = trajectoryModel.sample(limits)
     scaleCorr = self.correct_scale(transformations, refBounds, limits)
     transformations += [Transformation(lambda a: scaleCorr, 0,0)]
     transCorr = self.correct_translation(transformations, refBounds, limits)
@@ -593,7 +597,7 @@ class SimulatorFactory():
         logging.debug('Segmenting object from category %s', self.summary[CATEGORY_KEY][int(objData['category_id'])])
         polygon = self.randGen.choice(objData['segmentation'])
 
-        simulator = TrajectorySimulator(scenePath, objPath, polygon=polygon, trajectoryModel=self.trajectoryModel, *args, **kwargs)
+        simulator = TrajectorySimulator(scenePath, objPath, polygon=polygon, trajectoryModel=self.trajectoryModel, cameraTrajectoryModel=self.trajectoryModel, *args, **kwargs)
         
         return simulator
 
@@ -671,7 +675,13 @@ class TrajectoryModel():
         self.length = length
         self.maxSize = maxSize
 
-    def sample(self, sceneSize, base=10.0):
+    def sample(self, sceneSize):
+        if isinstance(self.model, RandomTrajectoryModel):
+            return self.model.sample(sceneSize)
+        else:
+            return self.getAveragedTrajectory(sceneSize)
+
+    def getAveragedTrajectory(self, sceneSize, base=10.0):
         '''Generates a sample trajectory from the model by taking the average of a random sample of clusters'''
         self.randGen = startRandGen()
         nComponents = self.model.n_components
