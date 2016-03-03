@@ -6,6 +6,7 @@ Created on Oct 16, 2015
 
 import ctypes as cts
 import numpy as np
+import os
 
 class Region(cts.Structure):
     '''
@@ -48,11 +49,13 @@ class Box():
         
 class TraxClient():
     
-    def __init__(self):
+    def __init__(self, libvotPath):
         '''
         Constructor
         '''
-        self.lib = cts.cdll.LoadLibrary("/home/fhdiaze/TrackingAgent/Benchmarks/vot-toolkit/tracker/examples/native/libvot.so")
+        if not os.exists(libvotPath):
+            raise Exception('libvot does not exist at path: {}'.format(libvotPath))
+        self.lib = cts.cdll.LoadLibrary(libVotPath)
         self.getFrame = self.lib.vot_frame
         self.getFrame.restype = cts.c_char_p
         

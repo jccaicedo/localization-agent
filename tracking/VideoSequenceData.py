@@ -62,7 +62,7 @@ class VideoSequenceData(object):
           #TODO: convert box to polygon
           self.dataSource = ts.TrajectorySimulator(scene, obj, polygon, camera=cam)
         elif loadSequence == 'TraxClient':
-          self.dataSource = TraxClientWrapper()
+          self.dataSource = TraxClientWrapper('/home/fhdiaze/TrackingAgent/Benchmarks/vot-toolkit/tracker/examples/native/libvot.so')
         else:
           self.dataSource = StaticDataSource(loadSequence) 
         self.scaleW = float(imgSize)/self.dataSource.getFrame().size[0]
@@ -160,8 +160,8 @@ class StaticDataSource(object):
 class TraxClientWrapper(object):
   region = None
   
-  def __init__(self):
-    self.client = tc.TraxClient()
+  def __init__(self, libvotPath):
+    self.client = tc.TraxClient(libvotPath)
     self.region = self.client.getInitialRegion()
     self.path = self.client.nextFrame()
 

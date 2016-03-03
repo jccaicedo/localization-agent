@@ -92,7 +92,7 @@ class BoxSearchSequenceData(object):
       self.dataSource = self.sequenceList.pop()
       self.dataSource.start()
     elif loadSequence == 'TraxClient':
-      self.dataSource = TraxClientWrapper()
+      self.dataSource = TraxClientWrapper('/home/fhdiaze/TrackingAgent/Benchmarks/vot-toolkit/tracker/examples/native/libvot.so')
     else:
       self.dataSource = StaticDataSource(loadSequence) 
     self.deltaW = float(imgSize)/self.dataSource.getFrame().size[0]
@@ -184,8 +184,8 @@ class StaticDataSource(object):
 
 class TraxClientWrapper(object):
 
-  def __init__(self):
-    self.client = tc.TraxClient()
+  def __init__(self, libvotPath):
+    self.client = tc.TraxClient(libvotPath)
     self.path = self.client.nextFramePath()
     self.box = self.client.initialize()
     # TODO: Transform box from 4 coordinates to 2 coordinates
