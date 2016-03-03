@@ -29,10 +29,10 @@ class TheanoGruRnn(object):
     params = None
     seqLength = None
     
-    def __init__(self, inputDim, stateDim, targetDim, batchSize, seqLength, zeroTailFc, learningRate, use_cudnn, imgSize, pretrained=False, norm=l2, useAttention=False, modelPath=None, layerKey=None, convFilters=32):
+    def __init__(self, inputDim, stateDim, targetDim, batchSize, seqLength, zeroTailFc, learningRate, use_cudnn, imgSize, modelArch='base', norm=l2, useAttention=False, modelPath=None, layerKey=None, convFilters=32):
         ### Computed hyperparameters begin
-        self.pretrained = pretrained
-        if not self.pretrained:
+        self.modelArch = modelArch
+        if self.modelArch == 'base':
             #Number of feature filters
             self.conv_nr_filters = convFilters
             #Rows/cols of feature filters
@@ -42,9 +42,51 @@ class TheanoGruRnn(object):
             inputDim = ((imgSize - self.conv_filter_row) / self.conv_stride + 1) * \
                         ((imgSize - self.conv_filter_col) / self.conv_stride + 1) * \
                         self.conv_nr_filters
-        elif self.pretrained == 'lasagne':
+        elif self.modelArch == 'lasagne':
             self.cnn = LasagneVGG16(modelPath, layerKey)
             inputDim = 512 * 7 * 7
+        elif self.modelArch == 'twoConvLayers':
+            if convFilters == 1:
+                self.cnn = {'conv1':{'filters':16, 'size':5, 'stride':2, 'output':(((128-5)/2+1)**2)*16 },
+                            'conv2':{'filters':16, 'size':5, 'stride':2, 'output':(((62-5)/2+1)**2)*16 }}
+                inputDim = self.cnn['conv2']['output']
+            elif convFilters == 2:
+                self.cnn = {'conv1':{'filters':32, 'size':5, 'stride':2, 'output':(((128-5)/2+1)**2)*32 },
+                            'conv2':{'filters':16, 'size':5, 'stride':2, 'output':(((62-5)/2+1)**2)*16 }}
+                inputDim = self.cnn['conv2']['output']
+            elif convFilters == 3:
+                self.cnn = {'conv1':{'filters':32, 'size':5, 'stride':2, 'output':(((128-5)/2+1)**2)*32 },
+                            'conv2':{'filters':32, 'size':5, 'stride':2, 'output':(((62-5)/2+1)**2)*32 }}
+                inputDim = self.cnn['conv2']['output']
+            elif convFilters == 4:
+                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(((128-5)/2+1)**2)*64 },
+                            'conv2':{'filters':32, 'size':5, 'stride':2, 'output':(((62-5)/2+1)**2)*32 }}
+                inputDim = self.cnn['conv2']['output']
+        elif self.modelArch == 'threeConvLayers':
+            if convFilters == 1:
+                self.cnn = {'conv1':{'filters':16, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*16 },
+                            'conv2':{'filters':16, 'size':5, 'stride':2, 'output':(((94-5)/2+1)**2)*16 },
+                            'conv3':{'filters':16, 'size':5, 'stride':2, 'output':(((45-5)/2+1)**2)*16 }}
+                inputDim = self.cnn['conv3']['output']
+            if convFilters == 2:
+                self.cnn = {'conv1':{'filters':32, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*32 },
+                            'conv2':{'filters':16, 'size':5, 'stride':2, 'output':(((94-5)/2+1)**2)*16 },
+                            'conv3':{'filters':16, 'size':5, 'stride':2, 'output':(((45-5)/2+1)**2)*16 }}
+                inputDim = self.cnn['conv3']['output']
+            if convFilters == 3:
+                self.cnn = {'conv1':{'filters':32, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*32 },
+                            'conv2':{'filters':32, 'size':5, 'stride':2, 'output':(((94-5)/2+1)**2)*32 },
+                            'conv3':{'filters':16, 'size':5, 'stride':2, 'output':(((45-5)/2+1)**2)*16 }}
+                inputDim = self.cnn['conv3']['output']
+            if convFilters == 4:
+                self.cnn = {'conv1':{'filters':32, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*32 },
+                            'conv2':{'filters':32, 'size':5, 'stride':2, 'output':(((94-5)/2+1)**2)*32 },
+                            'conv3':{'filters':32, 'size':5, 'stride':2, 'output':(((45-5)/2+1)**2)*32 }}
+                inputDim = self.cnn['conv3']['output']
+
+
+
+
         self.targetDim = targetDim
         self.inputDim = inputDim + self.targetDim
         self.seqLength = seqLength
@@ -53,17 +95,17 @@ class TheanoGruRnn(object):
         self.stateDim = stateDim
         self.imgSize = imgSize
         self.useAttention = useAttention
-        self.fitFunc, self.forwardFunc, self.params = self.buildModel(self.batchSize, self.inputDim, self.stateDim, self.targetDim, zeroTailFc, learningRate, use_cudnn, self.pretrained, self.imgSize, self.useAttention)
+        self.fitFunc, self.forwardFunc, self.params = self.buildModel(self.batchSize, self.inputDim, self.stateDim, self.targetDim, zeroTailFc, learningRate, use_cudnn, self.imgSize, self.useAttention)
 
     
     def fit(self, data, label):
-        if self.pretrained == 'lasagne':
+        if self.modelArch == 'lasagne':
             data = self.cnn.prepareBatch(data)
         return self.fitFunc(self.seqLength, data, label[:, 0, :], label)
       
         
     def forward(self, data, label):
-        if self.pretrained == 'lasagne':
+        if self.modelArch == 'lasagne':
           data = self.cnn.prepareBatch(data)
         cost, output = self.forwardFunc(self.seqLength, data, label[:, 0, :], label)
         return cost, output
@@ -93,7 +135,7 @@ class TheanoGruRnn(object):
         return Tensor.TensorType(dtype, [False] * dim, name=name)()
         
     
-    def buildModel(self, batchSize, inputDim, stateDim, targetDim, zeroTailFc, learningRate, use_cudnn, pretrained, imgSize, useAttention):
+    def buildModel(self, batchSize, inputDim, stateDim, targetDim, zeroTailFc, learningRate, use_cudnn, imgSize, useAttention):
         print 'Building network'
         
         # imgs: of shape (batchSize, seq_len, nr_channels, img_rows, img_cols)
@@ -116,7 +158,7 @@ class TheanoGruRnn(object):
             attention = VisualAttention.useNoMask()
 
         params = list(self.init_params(inputDim, stateDim, targetDim, zeroTailFc))
-        if not pretrained:
+        if self.modelArch == 'base':
             conv_filters, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
             def step(img, prev_bbox, state):
                 img = attention(img, prev_bbox)
@@ -131,7 +173,7 @@ class TheanoGruRnn(object):
                 gru_h = (1-gru_z) * state + gru_z * gru_h_
                 bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc2) + b_fc2)
                 return bbox, gru_h
-        elif self.pretrained == 'caffe':
+        elif self.modelArch == 'caffe':
             Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
             def step(img, prev_bbox, state):
                 # of (batch_size, nr_filters, some_rows, some_cols)
@@ -144,7 +186,7 @@ class TheanoGruRnn(object):
                 gru_h = (1-gru_z) * state + gru_z * gru_h_
                 bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc2) + b_fc2)
                 return bbox, gru_h
-        elif self.pretrained == 'lasagne':
+        elif self.modelArch == 'lasagne':
             Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
             def step(img, prev_bbox, state):
                 img = attention(img, prev_bbox)
@@ -157,6 +199,41 @@ class TheanoGruRnn(object):
                 gru_h = (1-gru_z) * state + gru_z * gru_h_
                 bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc2) + b_fc2)
                 return bbox, gru_h
+        elif self.modelArch == 'twoConvLayers':
+            conv1, conv2, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
+            def step(img, prev_bbox, state):
+                img = attention(img, prev_bbox)
+                fmap1 = conv2d(img, conv1, subsample=(self.cnn['conv1']['stride'], self.cnn['conv1']['stride']))
+                act1 = Tensor.nnet.relu(fmap1)
+                fmap2 = conv2d(act1, conv2, subsample=(self.cnn['conv2']['stride'], self.cnn['conv2']['stride']))
+                act2 = Tensor.nnet.relu(fmap2)
+                flat1 = Tensor.reshape(act2, (batchSize, inputDim-targetDim))
+                gru_in = Tensor.concatenate([flat1, prev_bbox], axis=1)
+                gru_z = NN.sigmoid(Tensor.dot(gru_in, Wz) + Tensor.dot(state, Uz) + bz)
+                gru_r = NN.sigmoid(Tensor.dot(gru_in, Wr) + Tensor.dot(state, Ur) + br)
+                gru_h_ = Tensor.tanh(Tensor.dot(gru_in, Wg) + Tensor.dot(gru_r * state, Ug) + bg)
+                gru_h = (1-gru_z) * state + gru_z * gru_h_
+                bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc2) + b_fc2)
+                return bbox, gru_h
+        elif self.modelArch == 'threeConvLayers':
+            conv1, conv2, conv3, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
+            def step(img, prev_bbox, state):
+                img = attention(img, prev_bbox)
+                fmap1 = conv2d(img, conv1, subsample=(self.cnn['conv1']['stride'], self.cnn['conv1']['stride']))
+                act1 = Tensor.nnet.relu(fmap1)
+                fmap2 = conv2d(act1, conv2, subsample=(self.cnn['conv2']['stride'], self.cnn['conv2']['stride']))
+                act2 = Tensor.nnet.relu(fmap2)
+                fmap3 = conv2d(act2, conv3, subsample=(self.cnn['conv3']['stride'], self.cnn['conv3']['stride']))
+                act3 = Tensor.nnet.relu(fmap3)
+                flat1 = Tensor.reshape(act3, (batchSize, inputDim-targetDim))
+                gru_in = Tensor.concatenate([flat1, prev_bbox], axis=1)
+                gru_z = NN.sigmoid(Tensor.dot(gru_in, Wz) + Tensor.dot(state, Uz) + bz)
+                gru_r = NN.sigmoid(Tensor.dot(gru_in, Wr) + Tensor.dot(state, Ur) + br)
+                gru_h_ = Tensor.tanh(Tensor.dot(gru_in, Wg) + Tensor.dot(gru_r * state, Ug) + bg)
+                gru_h = (1-gru_z) * state + gru_z * gru_h_
+                bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc2) + b_fc2)
+                return bbox, gru_h
+
 
                
         # Move the time axis to the top
@@ -180,8 +257,17 @@ class TheanoGruRnn(object):
     
     def init_params(self, inputDim, stateDim, targetDim, zeroTailFc):
         ### NETWORK PARAMETERS BEGIN
-        if not self.pretrained:
+        if self.modelArch == 'base':
             conv_filters = Theano.shared(self.glorot_uniform((self.conv_nr_filters, 1, self.conv_filter_row, self.conv_filter_col)), name='conv_filters')
+        if self.modelArch == 'twoConvLayers':
+            channels = 1
+            conv1 = Theano.shared(self.glorot_uniform((self.cnn['conv1']['filters'], channels, self.cnn['conv1']['size'], self.cnn['conv1']['size'])), name='conv1')
+            conv2 = Theano.shared(self.glorot_uniform((self.cnn['conv2']['filters'], self.cnn['conv1']['filters'], self.cnn['conv2']['size'], self.cnn['conv2']['size'])), name='conv2')
+        if self.modelArch == 'threeConvLayers':
+            channels = 1
+            conv1 = Theano.shared(self.glorot_uniform((self.cnn['conv1']['filters'], channels, self.cnn['conv1']['size'], self.cnn['conv1']['size'])), name='conv1')
+            conv2 = Theano.shared(self.glorot_uniform((self.cnn['conv2']['filters'], self.cnn['conv1']['filters'], self.cnn['conv2']['size'], self.cnn['conv2']['size'])), name='conv2')
+            conv3 = Theano.shared(self.glorot_uniform((self.cnn['conv3']['filters'], self.cnn['conv2']['filters'], self.cnn['conv3']['size'], self.cnn['conv3']['size'])), name='conv3')
         Wr = Theano.shared(self.glorot_uniform((inputDim, stateDim)), name='Wr')
         Ur = Theano.shared(self.orthogonal((stateDim, stateDim)), name='Ur')
         br = Theano.shared(NP.zeros((stateDim,), dtype=Theano.config.floatX), name='br')
@@ -195,8 +281,12 @@ class TheanoGruRnn(object):
         b_fc2 = Theano.shared(NP.zeros((targetDim,), dtype=Theano.config.floatX), name='b_fc2')
         ### NETWORK PARAMETERS END
     
-        if not self.pretrained:
+        if self.modelArch == 'base':
             return conv_filters, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2
+        if self.modelArch == 'twoConvLayers':
+            return conv1, conv2, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2
+        if self.modelArch == 'threeConvLayers':
+            return conv1, conv2, conv3, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2
         else:
             return Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2
     
