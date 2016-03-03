@@ -22,6 +22,16 @@ def box2cwh(boxTensor):
     height = (boxTensor[:,:,3]-boxTensor[:,:,1])
     return Tensor.stacklists([xc,yc,width,height]).dimshuffle(1,2,0)
 
+def gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2):
+    flat1 = Tensor.reshape(features, (features.shape[0], Tensor.prod(features.shape[1:])))
+    gru_in = Tensor.concatenate([flat1, prev_bbox], axis=1)
+    gru_z = NN.sigmoid(Tensor.dot(gru_in, Wz) + Tensor.dot(state, Uz) + bz)
+    gru_r = NN.sigmoid(Tensor.dot(gru_in, Wr) + Tensor.dot(state, Ur) + br)
+    gru_h_ = Tensor.tanh(Tensor.dot(gru_in, Wg) + Tensor.dot(gru_r * state, Ug) + bg)
+    gru_h = (1-gru_z) * state + gru_z * gru_h_
+    bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc2) + b_fc2)
+    return bbox, gru_h
+
 class TheanoGruRnn(object):
     
     fitFunc = None
@@ -166,41 +176,20 @@ class TheanoGruRnn(object):
                 conv1 = conv2d(img, conv_filters, subsample=(self.conv_stride, self.conv_stride))
                 act1 = Tensor.tanh(conv1)
                 features = act1
-                flat1 = Tensor.reshape(features, (batchSize, inputDim-targetDim))
-                gru_in = Tensor.concatenate([flat1, prev_bbox], axis=1)
-                gru_z = NN.sigmoid(Tensor.dot(gru_in, Wz) + Tensor.dot(state, Uz) + bz)
-                gru_r = NN.sigmoid(Tensor.dot(gru_in, Wr) + Tensor.dot(state, Ur) + br)
-                gru_h_ = Tensor.tanh(Tensor.dot(gru_in, Wg) + Tensor.dot(gru_r * state, Ug) + bg)
-                gru_h = (1-gru_z) * state + gru_z * gru_h_
-                bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc2) + b_fc2)
-                return bbox, gru_h
+                return gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2)
         elif self.modelArch == 'caffe':
             Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
             def step(img, prev_bbox, state):
                 # of (batch_size, nr_filters, some_rows, some_cols)
                 act1 = img
                 features = act1
-                flat1 = Tensor.reshape(features, (batchSize, inputDim-targetDim))
-                gru_in = Tensor.concatenate([flat1, prev_bbox], axis=1)
-                gru_z = NN.sigmoid(Tensor.dot(gru_in, Wz) + Tensor.dot(state, Uz) + bz)
-                gru_r = NN.sigmoid(Tensor.dot(gru_in, Wr) + Tensor.dot(state, Ur) + br)
-                gru_h_ = Tensor.tanh(Tensor.dot(gru_in, Wg) + Tensor.dot(gru_r * state, Ug) + bg)
-                gru_h = (1-gru_z) * state + gru_z * gru_h_
-                bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc2) + b_fc2)
-                return bbox, gru_h
+                return gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2)
         elif self.modelArch == 'lasagne':
             Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
             def step(img, prev_bbox, state):
                 img = attention(img, prev_bbox)
                 features = self.cnn.getFeatureExtractor(img)
-                flat1 = Tensor.reshape(features, (batchSize, inputDim-targetDim))
-                gru_in = Tensor.concatenate([flat1, prev_bbox], axis=1)
-                gru_z = NN.sigmoid(Tensor.dot(gru_in, Wz) + Tensor.dot(state, Uz) + bz)
-                gru_r = NN.sigmoid(Tensor.dot(gru_in, Wr) + Tensor.dot(state, Ur) + br)
-                gru_h_ = Tensor.tanh(Tensor.dot(gru_in, Wg) + Tensor.dot(gru_r * state, Ug) + bg)
-                gru_h = (1-gru_z) * state + gru_z * gru_h_
-                bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc2) + b_fc2)
-                return bbox, gru_h
+                return gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2)
         elif self.modelArch == 'twoConvLayers':
             conv1, conv2, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
             def step(img, prev_bbox, state):
@@ -210,14 +199,7 @@ class TheanoGruRnn(object):
                 fmap2 = conv2d(act1, conv2, subsample=(self.cnn['conv2']['stride'], self.cnn['conv2']['stride']))
                 act2 = Tensor.nnet.relu(fmap2)
                 features = act2
-                flat1 = Tensor.reshape(features, (batchSize, inputDim-targetDim))
-                gru_in = Tensor.concatenate([flat1, prev_bbox], axis=1)
-                gru_z = NN.sigmoid(Tensor.dot(gru_in, Wz) + Tensor.dot(state, Uz) + bz)
-                gru_r = NN.sigmoid(Tensor.dot(gru_in, Wr) + Tensor.dot(state, Ur) + br)
-                gru_h_ = Tensor.tanh(Tensor.dot(gru_in, Wg) + Tensor.dot(gru_r * state, Ug) + bg)
-                gru_h = (1-gru_z) * state + gru_z * gru_h_
-                bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc2) + b_fc2)
-                return bbox, gru_h
+                return gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2)
         elif self.modelArch == 'threeConvLayers':
             conv1, conv2, conv3, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
             def step(img, prev_bbox, state):
@@ -229,14 +211,7 @@ class TheanoGruRnn(object):
                 fmap3 = conv2d(act2, conv3, subsample=(self.cnn['conv3']['stride'], self.cnn['conv3']['stride']))
                 act3 = Tensor.nnet.relu(fmap3)
                 features = act3
-                flat1 = Tensor.reshape(features, (batchSize, inputDim-targetDim))
-                gru_in = Tensor.concatenate([flat1, prev_bbox], axis=1)
-                gru_z = NN.sigmoid(Tensor.dot(gru_in, Wz) + Tensor.dot(state, Uz) + bz)
-                gru_r = NN.sigmoid(Tensor.dot(gru_in, Wr) + Tensor.dot(state, Ur) + br)
-                gru_h_ = Tensor.tanh(Tensor.dot(gru_in, Wg) + Tensor.dot(gru_r * state, Ug) + bg)
-                gru_h = (1-gru_z) * state + gru_z * gru_h_
-                bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc2) + b_fc2)
-                return bbox, gru_h
+                return gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2)
 
 
                
