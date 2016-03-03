@@ -37,6 +37,9 @@ class VideoSequence:
     """
     def addBoxes(self, boxes, outline):
         # add the new bounding boxes to the dictionary
+        invalidBoxIndexes = [index for index, boxLength in enumerate(map(len,boxes)) if not (boxLength == 4 or (boxLength >= 6 and boxLength % 2 == 0))]
+        if len(invalidBoxIndexes) > 0:
+            raise Exception('Invalid boxes at indexes: {}'.format(invalidBoxIndexes))
         self.boxes[outline] = boxes
 
     
@@ -79,7 +82,13 @@ class VideoSequence:
     """ 
     def plotBox(self, frame, box, outline):
         draw = ImageDraw.Draw(frame)
-        draw.rectangle(list(box), outline=outline)
+        dataList = list(box)
+        if len(dataList) == 4:
+            draw.rectangle(dataList, outline=outline)
+        elif len(dataList) >= 6 and len(dataList) % 2 == 0:
+            draw.polygon(dataList, outline=outline)
+        else:
+            raise Exception('Unrecognized box format: {}'.format(dataList))
     
     
     """
