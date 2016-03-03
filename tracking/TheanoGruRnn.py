@@ -5,6 +5,7 @@ import numpy.random as RNG
 import theano.tensor.nnet as NN
 import cPickle as pickle
 import VisualAttention
+import logging
 
 from collections import OrderedDict
 from LasagneVGG16 import LasagneVGG16
@@ -22,6 +23,7 @@ def box2cwh(boxTensor):
     height = (boxTensor[:,:,3]-boxTensor[:,:,1])
     return Tensor.stacklists([xc,yc,width,height]).dimshuffle(1,2,0)
 
+#TODO: turn into GRU class
 def gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2):
     flat1 = Tensor.reshape(features, (features.shape[0], Tensor.prod(features.shape[1:])))
     gru_in = Tensor.concatenate([flat1, prev_bbox], axis=1)
@@ -31,6 +33,88 @@ def gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b
     gru_h = (1-gru_z) * state + gru_z * gru_h_
     bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc2) + b_fc2)
     return bbox, gru_h
+    
+def initGru(inputDim, stateDim, targetDim, zeroTailFc):
+    Wr = Theano.shared(glorot_uniform((inputDim, stateDim)), name='Wr')
+    Ur = Theano.shared(orthogonal((stateDim, stateDim)), name='Ur')
+    br = Theano.shared(NP.zeros((stateDim,), dtype=Theano.config.floatX), name='br')
+    Wz = Theano.shared(glorot_uniform((inputDim, stateDim)), name='Wz')
+    Uz = Theano.shared(orthogonal((stateDim, stateDim)), name='Uz')
+    bz = Theano.shared(NP.zeros((stateDim,), dtype=Theano.config.floatX), name='bz')
+    Wg = Theano.shared(glorot_uniform((inputDim, stateDim)), name='Wg')
+    Ug = Theano.shared(orthogonal((stateDim, stateDim)), name='Ug')
+    bg = Theano.shared(NP.zeros((stateDim,), dtype=Theano.config.floatX), name='bg')
+    if not zeroTailFc:
+        W_fc2init = glorot_uniform((stateDim, targetDim))
+    else:
+        W_fc2init = NP.zeros((stateDim, targetDim), dtype=Theano.config.floatX)
+    W_fc2 = Theano.shared(W_fc2init, name='W_fc2')
+    b_fc2 = Theano.shared(NP.zeros((targetDim,), dtype=Theano.config.floatX), name='b_fc2')
+    return Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2
+
+def initializeConv2d(use_cudnn=False):
+    conv2d = NN.conv2d
+    if use_cudnn and Theano.config.device[:3] == 'gpu':
+        import theano.sandbox.cuda.dnn as CUDNN
+        if CUDNN.dnn_available():
+            logging.warning('Using CUDNN instead of Theano conv2d')
+            conv2d = CUDNN.dnn_conv
+    return conv2d
+
+def buildAttention(useAttention, imgSize):
+    if useAttention == 'gaussian':
+        attention = VisualAttention.createGaussianMasker(imgSize)
+    elif useAttention == 'square':
+        attention = VisualAttention.createSquareMasker(imgSize)
+    else:
+        attention = VisualAttention.useNoMask()
+    return attention
+
+def rmsprop(cost, params, lr=0.0005, rho=0.9, epsilon=1e-6):
+    '''
+    Borrowed from keras, no constraints, though
+    '''
+    updates = OrderedDict()
+    grads = Theano.grad(cost, params)
+    acc = [Theano.shared(NP.zeros(p.get_value().shape, dtype=Theano.config.floatX)) for p in params]
+    for p, g, a in zip(params, grads, acc):
+        new_a = rho * a + (1 - rho) * g ** 2
+        updates[a] = new_a
+        new_p = p - lr * g / Tensor.sqrt(new_a + epsilon)
+        updates[p] = new_p
+
+    return updates  
+    
+    
+def glorot_uniform(shape):
+    '''
+    Borrowed from keras
+    '''
+    fan_in, fan_out = get_fans(shape)
+    s = NP.sqrt(6. / (fan_in + fan_out))
+    return NP.cast[Theano.config.floatX](RNG.uniform(low=-s, high=s, size=shape))
+    
+    
+def get_fans(shape):
+    '''
+    Borrowed from keras
+    '''
+    fan_in = shape[0] if len(shape) == 2 else NP.prod(shape[1:])
+    fan_out = shape[1] if len(shape) == 2 else shape[0]
+    return fan_in, fan_out
+
+
+def orthogonal(shape, scale=1.1):
+    '''
+    Borrowed from keras
+    '''
+    flat_shape = (shape[0], NP.prod(shape[1:]))
+    a = RNG.normal(0, 1, flat_shape)
+    u, _, v = NP.linalg.svd(a, full_matrices=False)
+    q = u if u.shape == flat_shape else v
+    q = q.reshape(shape)
+    
+    return NP.cast[Theano.config.floatX](q)
 
 class TheanoGruRnn(object):
     
@@ -43,6 +127,7 @@ class TheanoGruRnn(object):
         ### Computed hyperparameters begin
         self.modelArch = modelArch
         if self.modelArch == 'base':
+            #TODO: change to same structure as multiple conv layers
             #Number of feature filters
             self.conv_nr_filters = convFilters
             #Rows/cols of feature filters
@@ -152,29 +237,22 @@ class TheanoGruRnn(object):
         imgs = self.getTensor("images", Theano.config.floatX, 5)
         starts = Tensor.matrix()
         
-        conv2d = NN.conv2d
-        if use_cudnn and Theano.config.device[:3] == 'gpu':
-            import theano.sandbox.cuda.dnn as CUDNN
-            if CUDNN.dnn_available():
-                print 'Using CUDNN instead of Theano conv2d'
-                conv2d = CUDNN.dnn_conv
+        #Select conv2d implementation
+        conv2d = initializeConv2d(use_cudnn)
 
         ## Attention mask
-        if useAttention == 'gaussian':
-            attention = VisualAttention.createGaussianMasker(imgSize)
-        elif useAttention == 'square':
-            attention = VisualAttention.createSquareMasker(imgSize)
-        else:
-            attention = VisualAttention.useNoMask()
+        attention = buildAttention(useAttention, imgSize)
 
         params = list(self.init_params(inputDim, stateDim, targetDim, zeroTailFc))
         if self.modelArch == 'base':
-            conv_filters, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
+            conv1, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
             def step(img, prev_bbox, state):
                 img = attention(img, prev_bbox)
                 # of (batch_size, nr_filters, some_rows, some_cols)
-                conv1 = conv2d(img, conv_filters, subsample=(self.conv_stride, self.conv_stride))
-                act1 = Tensor.tanh(conv1)
+                fmap1 = conv2d(img, conv1, subsample=(self.conv_stride, self.conv_stride))
+                #TODO: compare both functions                
+                act1 = Tensor.tanh(fmap1)
+                #act1 = Tensor.nnet.relu(fmap1)
                 features = act1
                 return gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2)
         elif self.modelArch == 'caffe':
@@ -226,7 +304,7 @@ class TheanoGruRnn(object):
     
         cost = self.norm(targets - bbox_seq).sum() / batchSize / seq_len_scalar
     
-        print 'Building optimizer'
+        logging.info('Building optimizer')
     
         fitFunc = Theano.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], updates=self.rmsprop(cost, params, learningRate), allow_input_downcast=True)
         forwardFunc = Theano.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], allow_input_downcast=True)
@@ -237,81 +315,24 @@ class TheanoGruRnn(object):
     def init_params(self, inputDim, stateDim, targetDim, zeroTailFc):
         ### NETWORK PARAMETERS BEGIN
         if self.modelArch == 'base':
-            conv_filters = Theano.shared(self.glorot_uniform((self.conv_nr_filters, 1, self.conv_filter_row, self.conv_filter_col)), name='conv_filters')
+            conv1 = Theano.shared(glorot_uniform((self.conv_nr_filters, 1, self.conv_filter_row, self.conv_filter_col)), name='conv1')
         if self.modelArch == 'twoConvLayers':
             channels = 1
-            conv1 = Theano.shared(self.glorot_uniform((self.cnn['conv1']['filters'], channels, self.cnn['conv1']['size'], self.cnn['conv1']['size'])), name='conv1')
-            conv2 = Theano.shared(self.glorot_uniform((self.cnn['conv2']['filters'], self.cnn['conv1']['filters'], self.cnn['conv2']['size'], self.cnn['conv2']['size'])), name='conv2')
+            conv1 = Theano.shared(glorot_uniform((self.cnn['conv1']['filters'], channels, self.cnn['conv1']['size'], self.cnn['conv1']['size'])), name='conv1')
+            conv2 = Theano.shared(glorot_uniform((self.cnn['conv2']['filters'], self.cnn['conv1']['filters'], self.cnn['conv2']['size'], self.cnn['conv2']['size'])), name='conv2')
         if self.modelArch == 'threeConvLayers':
             channels = 1
-            conv1 = Theano.shared(self.glorot_uniform((self.cnn['conv1']['filters'], channels, self.cnn['conv1']['size'], self.cnn['conv1']['size'])), name='conv1')
-            conv2 = Theano.shared(self.glorot_uniform((self.cnn['conv2']['filters'], self.cnn['conv1']['filters'], self.cnn['conv2']['size'], self.cnn['conv2']['size'])), name='conv2')
-            conv3 = Theano.shared(self.glorot_uniform((self.cnn['conv3']['filters'], self.cnn['conv2']['filters'], self.cnn['conv3']['size'], self.cnn['conv3']['size'])), name='conv3')
-        Wr = Theano.shared(self.glorot_uniform((inputDim, stateDim)), name='Wr')
-        Ur = Theano.shared(self.orthogonal((stateDim, stateDim)), name='Ur')
-        br = Theano.shared(NP.zeros((stateDim,), dtype=Theano.config.floatX), name='br')
-        Wz = Theano.shared(self.glorot_uniform((inputDim, stateDim)), name='Wz')
-        Uz = Theano.shared(self.orthogonal((stateDim, stateDim)), name='Uz')
-        bz = Theano.shared(NP.zeros((stateDim,), dtype=Theano.config.floatX), name='bz')
-        Wg = Theano.shared(self.glorot_uniform((inputDim, stateDim)), name='Wg')
-        Ug = Theano.shared(self.orthogonal((stateDim, stateDim)), name='Ug')
-        bg = Theano.shared(NP.zeros((stateDim,), dtype=Theano.config.floatX), name='bg')
-        W_fc2 = Theano.shared(self.glorot_uniform((stateDim, targetDim)) if not zeroTailFc else NP.zeros((stateDim, targetDim), dtype=Theano.config.floatX), name='W_fc2')
-        b_fc2 = Theano.shared(NP.zeros((targetDim,), dtype=Theano.config.floatX), name='b_fc2')
+            conv1 = Theano.shared(glorot_uniform((self.cnn['conv1']['filters'], channels, self.cnn['conv1']['size'], self.cnn['conv1']['size'])), name='conv1')
+            conv2 = Theano.shared(glorot_uniform((self.cnn['conv2']['filters'], self.cnn['conv1']['filters'], self.cnn['conv2']['size'], self.cnn['conv2']['size'])), name='conv2')
+            conv3 = Theano.shared(glorot_uniform((self.cnn['conv3']['filters'], self.cnn['conv2']['filters'], self.cnn['conv3']['size'], self.cnn['conv3']['size'])), name='conv3')
+        Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = initGru(inputDim, stateDim, targetDim, zeroTailFc)
         ### NETWORK PARAMETERS END
     
         if self.modelArch == 'base':
-            return conv_filters, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2
+            return conv1, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2
         if self.modelArch == 'twoConvLayers':
             return conv1, conv2, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2
         if self.modelArch == 'threeConvLayers':
             return conv1, conv2, conv3, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2
         else:
             return Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2
-    
-    
-    def rmsprop(self, cost, params, lr=0.0005, rho=0.9, epsilon=1e-6):
-        '''
-        Borrowed from keras, no constraints, though
-        '''
-        updates = OrderedDict()
-        grads = Theano.grad(cost, params)
-        acc = [Theano.shared(NP.zeros(p.get_value().shape, dtype=Theano.config.floatX)) for p in params]
-        for p, g, a in zip(params, grads, acc):
-            new_a = rho * a + (1 - rho) * g ** 2
-            updates[a] = new_a
-            new_p = p - lr * g / Tensor.sqrt(new_a + epsilon)
-            updates[p] = new_p
-    
-        return updates  
-    
-    
-    def glorot_uniform(self, shape):
-        '''
-        Borrowed from keras
-        '''
-        fan_in, fan_out = self.get_fans(shape)
-        s = NP.sqrt(6. / (fan_in + fan_out))
-        return NP.cast[Theano.config.floatX](RNG.uniform(low=-s, high=s, size=shape))
-    
-    
-    def get_fans(self, shape):
-        '''
-        Borrowed from keras
-        '''
-        fan_in = shape[0] if len(shape) == 2 else NP.prod(shape[1:])
-        fan_out = shape[1] if len(shape) == 2 else shape[0]
-        return fan_in, fan_out
-    
-    
-    def orthogonal(self, shape, scale=1.1):
-        '''
-        Borrowed from keras
-        '''
-        flat_shape = (shape[0], NP.prod(shape[1:]))
-        a = RNG.normal(0, 1, flat_shape)
-        u, _, v = NP.linalg.svd(a, full_matrices=False)
-        q = u if u.shape == flat_shape else v
-        q = q.reshape(shape)
-        
-        return NP.cast[Theano.config.floatX](q)
