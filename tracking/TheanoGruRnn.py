@@ -116,12 +116,36 @@ def orthogonal(shape, scale=1.1):
     
     return NP.cast[Theano.config.floatX](q)
 
+def loadModel(modelPath):
+    #TODO: silent for trax
+    print 'Loading model from {}'.format(modelPath)
+    with open(modelPath, 'rb') as modelFile: 
+        model = pickle.load(modelFile)
+    if not isinstance(model, TheanoGruRnn):
+        raise Exception('Model of type {}, expected {}'.format(type(model), TheanoGruRnn))
+    return model
+      
+def saveModel(model, modelPath):
+    #TODO: silent for trax
+    if not isinstance(model, TheanoGruRnn):
+        raise Exception('Model of type {}, expected {}'.format(type(model), TheanoGruRnn))
+    print 'Saving model to {}'.format(modelPath)
+    with open(modelPath, 'wb') as modelFile:
+        pickle.dump(model, modelFile)
+        
+def getTensor(name, dtype, dim):
+    if dtype == None:
+        dtype = Theano.config.floatX
+    
+    return Tensor.TensorType(dtype, [False] * dim, name=name)()
+
 class TheanoGruRnn(object):
     
     fitFunc = None
     forwardFunc = None
     params = None
     seqLength = None
+    stepFunc = None
     
     def __init__(self, inputDim, stateDim, targetDim, batchSize, seqLength, zeroTailFc, learningRate, use_cudnn, imgSize, modelArch='base', norm=l2, useAttention=False, modelPath=None, layerKey=None, convFilters=32):
         ### Computed hyperparameters begin
@@ -187,7 +211,7 @@ class TheanoGruRnn(object):
         self.stateDim = stateDim
         self.imgSize = imgSize
         self.useAttention = useAttention
-        self.fitFunc, self.forwardFunc, self.params = self.buildModel(self.batchSize, self.inputDim, self.stateDim, self.targetDim, zeroTailFc, learningRate, use_cudnn, self.imgSize, self.useAttention)
+        self.fitFunc, self.forwardFunc, self.params, self.stepFunc = self.buildModel(self.batchSize, self.inputDim, self.stateDim, self.targetDim, zeroTailFc, learningRate, use_cudnn, self.imgSize, self.useAttention)
 
     
     def fit(self, data, label):
@@ -208,36 +232,11 @@ class TheanoGruRnn(object):
         cost, output = self.forwardFunc(self.seqLength, data, label[:, 0, :], label)
         return cost, output
     
-    
-    def loadModel(self, modelPath):
-        try:
-            print 'Loading model from {}'.format(modelPath)
-            with open(modelPath, "rb") as f: 
-                param_saved = pickle.load(f)
-            
-            for _p, p in zip(self.params, param_saved):
-                _p.set_value(p)
-                
-        except Exception as e:
-            print 'Exception loading model {}: {}'.format(modelPath, e)
-      
-    def saveModel(self, modelPath):
-        with open(modelPath, 'wb') as trackerFile:
-            #TODO: verify the protocol allows sharing of models within users
-            pickle.dump(map(lambda x: x.get_value(), self.params), trackerFile)
-        
-    def getTensor(self, name, dtype, dim):
-        if dtype == None:
-            dtype = Theano.config.floatX
-        
-        return Tensor.TensorType(dtype, [False] * dim, name=name)()
-        
-    
     def buildModel(self, batchSize, inputDim, stateDim, targetDim, zeroTailFc, learningRate, use_cudnn, imgSize, useAttention):
         print 'Building network'
         
         # imgs: of shape (batchSize, seq_len, nr_channels, img_rows, img_cols)
-        imgs = self.getTensor("images", Theano.config.floatX, 5)
+        imgs = getTensor("images", Theano.config.floatX, 5)
         starts = Tensor.matrix()
         
         #Select conv2d implementation
@@ -294,13 +293,14 @@ class TheanoGruRnn(object):
                 features = act3
                 return gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2)
                
+        state = Tensor.zeros((batchSize, stateDim))
         # Move the time axis to the top
-        sc, _ = Theano.scan(step, sequences=[imgs.dimshuffle(1, 0, 2, 3, 4)], outputs_info=[starts, Tensor.zeros((batchSize, stateDim))])
+        sc, _ = Theano.scan(step, sequences=[imgs.dimshuffle(1, 0, 2, 3, 4)], outputs_info=[starts, state])
     
         bbox_seq = sc[0].dimshuffle(1, 0, 2)
     
         # targets: of shape (batch_size, seq_len, targetDim)
-        targets = self.getTensor("targets", Theano.config.floatX, 3)
+        targets = getTensor("targets", Theano.config.floatX, 3)
         seq_len_scalar = Tensor.scalar()
     
         cost = self.norm(targets - bbox_seq).sum() / batchSize / seq_len_scalar
@@ -309,8 +309,12 @@ class TheanoGruRnn(object):
     
         fitFunc = Theano.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], updates=rmsprop(cost, params, learningRate), allow_input_downcast=True)
         forwardFunc = Theano.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], allow_input_downcast=True)
+        imgStep = getTensor("images", Theano.config.floatX, 4)
+        startsStep = Tensor.matrix()
+        stateStep = Tensor.matrix()
+        stepFunc = Theano.function([imgStep, startsStep, stateStep], step(imgStep, startsStep, stateStep))
         
-        return fitFunc, forwardFunc, params
+        return fitFunc, forwardFunc, params, stepFunc
     
     
     def init_params(self, inputDim, stateDim, targetDim, zeroTailFc):

@@ -2,9 +2,12 @@ import argparse as AP
 import time
 import numpy as NP
 import logging
+import os
+import sys
 
 from RecurrentTracker import RecurrentTracker
 from Validation import Validation
+import Tester
 import TheanoGruRnn
 import GaussianGenerator
 import VisualAttention
@@ -55,10 +58,16 @@ class Controller(object):
                 
                 print 'Cost', i, j, cost
                 train_cost += cost
-            validation.validate(tracker, seqLength)
+            bbox, iou = validation.validate(tracker)
+            outputVideoDir = os.path.join(os.path.dirname(trackerModelPath), 'epoch'+str(i))
+            if not os.path.exists(outputVideoDir):
+                os.makedirs(outputVideoDir)
+            logging.info('Saving validation videos for epoch %s in %s', i, outputVideoDir)
+            #TODO: check postprocessing
+            Tester.exportSequences(validation.valSet['data']*255.0, (validation.valSet['labels']+1)*validation.imgHeight/2., (bbox+1)*validation.imgHeight/2., grayscale, outputVideoDir)
             print 'Epoch average loss (train)', train_cost / (batches*batchSize)
             clock('Epoch time',et)
-            tracker.rnn.saveModel(trackerModelPath)
+            TheanoGruRnn.saveModel(tracker.rnn, trackerModelPath)
 
 class ControllerConfig(object):
 
@@ -113,10 +122,12 @@ if __name__ == '__main__':
     config = ControllerConfig()
     globals().update(vars(config.args))
     
+    logging.BASIC_FORMAT = '%(asctime)s:%(levelname)s:%(funcName)s:%(lineno)d:%(message)s'
+    logger = logging.getLogger()
     if debug:
-        logging.BASIC_FORMAT = '%(asctime)s:%(levelname)s:%(funcName)s:%(lineno)d:%(message)s'
-        logger = logging.getLogger()
         logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
     
     #TODO: make arguments not redundant
     if modelArch == 'caffe':
@@ -146,10 +157,17 @@ if __name__ == '__main__':
         imgHeight = imgWidth = 192
         grayscale = False
 
-
-    rnn = TheanoGruRnn.TheanoGruRnn(gruInputDim, gruStateDim, GaussianGenerator.TARGET_DIM, batchSize, seqLength, zeroTailFc, learningRate, useCUDNN, imgHeight, modelArch, getattr(TheanoGruRnn, norm), useAttention, modelPath=cnnModelPath, layerKey=layerKey, convFilters=convFilters)
+    #Avoid maximum recursion limit exception when pickling by increasing limit from ~1000 by default
+    sys.setrecursionlimit(10000)
     
-    rnn.loadModel(trackerModelPath)
+    try:
+        rnn = TheanoGruRnn.loadModel(trackerModelPath)
+    except Exception as e:
+        #TODO: silent for trax
+        print 'Exception loading model from {}: {}'.format(trackerModelPath, e)
+        print 'Creating new model'
+        rnn = TheanoGruRnn.TheanoGruRnn(gruInputDim, gruStateDim, GaussianGenerator.TARGET_DIM, batchSize, seqLength, zeroTailFc, learningRate, useCUDNN, imgHeight, modelArch, getattr(TheanoGruRnn, norm), useAttention, modelPath=cnnModelPath, layerKey=layerKey, convFilters=convFilters)
+    
     
     tracker = RecurrentTracker(cnn, rnn)
     
@@ -160,5 +178,6 @@ if __name__ == '__main__':
     batches = M/batchSize
     try:
         controller.train(tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize, seqLength)
+    #TODO: evaluate if it is wise to save on any exception
     except KeyboardInterrupt:
-        rnn.saveModel(trackerModelPath)
+        TheanoGruRnn.saveModel(tracker.rnn, trackerModelPath)

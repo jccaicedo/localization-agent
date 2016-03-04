@@ -8,6 +8,7 @@ class Validation(object):
     def __init__(self, valBatches, batchSize, generator, imgHeight):
         self.valBatches = valBatches
         self.batchSize = batchSize
+        self.imgHeight = imgHeight
         filepath = '_valset_' + str(imgHeight) + '.h5'
         try:
             # Try loading a preexisting validation set
@@ -41,7 +42,6 @@ class Validation(object):
             lset = h5f.create_dataset("labels", data=self.valSet['labels'])
             h5f.close()
             print 'Validation file saved'
-
     
     def validate(self, tracker, seqLen=60):
         # Get predictions
@@ -56,4 +56,4 @@ class Validation(object):
         iou = Tester.getIntOverUnion(L, bbox)
         # Report to the log
         print 'IoU in validation set:',NP.average(iou)
-         
+        return bbox, iou
