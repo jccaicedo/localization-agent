@@ -20,7 +20,7 @@ run() {
 
     CUDA_VISIBLE_DEVICES=$2 \
     THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 \
-    python Controller.py \
+    stdbuf -o0 python Controller.py \
          --epochs=$4 --batchSize=$5 --generationBatchSize=32 --gpuBatchSize=4 \
          --gruStateDim=$6 --learningRate=$7 \
          --trackerModelPath=$1/model.pkl \
@@ -37,22 +37,7 @@ run() {
 # Add experiments here
 # PARAMS: 1.outputDir 2.device 3.model 4.epochs 5.batchSize 6.GRUsize 7.learningRate 8.norm 9.convFilters 10.visualAttention 11.sequenceLength
 
-run ~/data/experiments/exp54/ 0 2convl 10 32 256 0.001 l2 1 square 30 &
-run ~/data/experiments/exp55/ 1 2convl 10 32 256 0.001 l2 2 square 30 &
-wait 
-
-run ~/data/experiments/exp56/ 0 2convl 10 32 256 0.001 l2 3 square 30 &
-run ~/data/experiments/exp57/ 1 2convl 10 32 256 0.001 l2 4 square 30 &
-wait
-
-run ~/data/experiments/exp58/ 0 3convl 10 32 256 0.001 l2 1 square 30 &
-run ~/data/experiments/exp59/ 1 3convl 10 32 256 0.001 l2 2 square 30 &
-wait
-
-run ~/data/experiments/exp60/ 0 3convl 10 32 256 0.001 l2 3 square 30 &
-run ~/data/experiments/exp61/ 1 3convl 10 32 256 0.001 l2 4 square 30 &
-wait
-
+run ~/data/experiments/debug/ 1 3convl 10 32 256 0.0001 smooth_l1 2 square 2
 
 : <<'END'
 
