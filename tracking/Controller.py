@@ -96,7 +96,7 @@ class ControllerConfig(object):
         parser.add_argument('--layerKey', help='Key string of layer name to use as features', type=str, default='inception_5b/output')
         parser.add_argument('--learningRate', help='SGD learning rate', type=float, default=0.0005)
         parser.add_argument('--useCUDNN', help='Use CUDA CONV or THEANO', type=bool, default=False)
-        parser.add_argument('--modelArch', help='Network architecgture', type=str, default='base', choices=['base', 'caffe', 'lasagne', 'twoConvLayers','threeConvLayers'])
+        parser.add_argument('--modelArch', help='Network architecture', type=str, default='base', choices=['base', 'caffe', 'lasagne', 'twoConvLayers','threeConvLayers'])
         parser.add_argument('--sequential', help='Make sequential simulations', default=False, action='store_true')
         parser.add_argument('--numProcs', help='Number of processes for parallel simulations', type=int, default=None)
         #TODO: Evaluate specifying the level instead if more than debug is needed   
@@ -140,11 +140,11 @@ if __name__ == '__main__':
     elif modelArch == 'twoConvLayers':
         cnn = gruInputDim = None
         imgHeight = imgWidth = 128
-        grayscale = True
+        grayscale = False
     elif modelArch == 'threeConvLayers':
         cnn = gruInputDim = None
         imgHeight = imgWidth = 192
-        grayscale = True
+        grayscale = False
 
 
     rnn = TheanoGruRnn.TheanoGruRnn(gruInputDim, gruStateDim, GaussianGenerator.TARGET_DIM, batchSize, seqLength, zeroTailFc, learningRate, useCUDNN, imgHeight, modelArch, getattr(TheanoGruRnn, norm), useAttention, modelPath=cnnModelPath, layerKey=layerKey, convFilters=convFilters)

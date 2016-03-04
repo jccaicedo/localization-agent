@@ -47,44 +47,42 @@ class TheanoGruRnn(object):
             inputDim = 512 * 7 * 7
         elif self.modelArch == 'twoConvLayers':
             if convFilters == 1:
-                self.cnn = {'conv1':{'filters':16, 'size':5, 'stride':2, 'output':(((128-5)/2+1)**2)*16 },
-                            'conv2':{'filters':16, 'size':5, 'stride':2, 'output':(((62-5)/2+1)**2)*16 }}
+                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(((128-5)/2+1)**2)*64 },
+                            'conv2':{'filters':32, 'size':3, 'stride':2, 'output':(((62-3)/2+1)**2)*32 }}
                 inputDim = self.cnn['conv2']['output']
             elif convFilters == 2:
-                self.cnn = {'conv1':{'filters':32, 'size':5, 'stride':2, 'output':(((128-5)/2+1)**2)*32 },
-                            'conv2':{'filters':16, 'size':5, 'stride':2, 'output':(((62-5)/2+1)**2)*16 }}
+                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(((128-5)/2+1)**2)*64 },
+                            'conv2':{'filters':64, 'size':3, 'stride':2, 'output':(((62-3)/2+1)**2)*64 }}
                 inputDim = self.cnn['conv2']['output']
             elif convFilters == 3:
-                self.cnn = {'conv1':{'filters':32, 'size':5, 'stride':2, 'output':(((128-5)/2+1)**2)*32 },
-                            'conv2':{'filters':32, 'size':5, 'stride':2, 'output':(((62-5)/2+1)**2)*32 }}
+                self.cnn = {'conv1':{'filters':128, 'size':5, 'stride':2, 'output':(((128-5)/2+1)**2)*128 },
+                            'conv2':{'filters':64, 'size':3, 'stride':2, 'output':(((62-3)/2+1)**2)*64 }}
                 inputDim = self.cnn['conv2']['output']
             elif convFilters == 4:
-                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(((128-5)/2+1)**2)*64 },
-                            'conv2':{'filters':32, 'size':5, 'stride':2, 'output':(((62-5)/2+1)**2)*32 }}
+                self.cnn = {'conv1':{'filters':128, 'size':5, 'stride':2, 'output':(((128-5)/2+1)**2)*128 },
+                            'conv2':{'filters':128, 'size':3, 'stride':2, 'output':(((62-3)/2+1)**2)*128 }}
                 inputDim = self.cnn['conv2']['output']
         elif self.modelArch == 'threeConvLayers':
             if convFilters == 1:
-                self.cnn = {'conv1':{'filters':16, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*16 },
-                            'conv2':{'filters':16, 'size':5, 'stride':2, 'output':(((94-5)/2+1)**2)*16 },
-                            'conv3':{'filters':16, 'size':5, 'stride':2, 'output':(((45-5)/2+1)**2)*16 }}
+                self.cnn = {'conv1':{'filters':32, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*32 },
+                            'conv2':{'filters':32, 'size':3, 'stride':2, 'output':(((94-3)/2+1)**2)*32 },
+                            'conv3':{'filters':16, 'size':3, 'stride':2, 'output':(((46-3)/2+1)**2)*16 }}
                 inputDim = self.cnn['conv3']['output']
             if convFilters == 2:
                 self.cnn = {'conv1':{'filters':32, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*32 },
-                            'conv2':{'filters':16, 'size':5, 'stride':2, 'output':(((94-5)/2+1)**2)*16 },
-                            'conv3':{'filters':16, 'size':5, 'stride':2, 'output':(((45-5)/2+1)**2)*16 }}
+                            'conv2':{'filters':32, 'size':3, 'stride':2, 'output':(((94-3)/2+1)**2)*32 },
+                            'conv3':{'filters':32, 'size':3, 'stride':2, 'output':(((46-3)/2+1)**2)*32 }}
                 inputDim = self.cnn['conv3']['output']
             if convFilters == 3:
-                self.cnn = {'conv1':{'filters':32, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*32 },
-                            'conv2':{'filters':32, 'size':5, 'stride':2, 'output':(((94-5)/2+1)**2)*32 },
-                            'conv3':{'filters':16, 'size':5, 'stride':2, 'output':(((45-5)/2+1)**2)*16 }}
+                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*64 },
+                            'conv2':{'filters':32, 'size':3, 'stride':2, 'output':(((94-3)/2+1)**2)*32 },
+                            'conv3':{'filters':32, 'size':3, 'stride':2, 'output':(((46-3)/2+1)**2)*32 }}
                 inputDim = self.cnn['conv3']['output']
             if convFilters == 4:
-                self.cnn = {'conv1':{'filters':32, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*32 },
-                            'conv2':{'filters':32, 'size':5, 'stride':2, 'output':(((94-5)/2+1)**2)*32 },
-                            'conv3':{'filters':32, 'size':5, 'stride':2, 'output':(((45-5)/2+1)**2)*32 }}
+                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*64 },
+                            'conv2':{'filters':64, 'size':3, 'stride':2, 'output':(((94-3)/2+1)**2)*64 },
+                            'conv3':{'filters':32, 'size':3, 'stride':2, 'output':(((46-3)/2+1)**2)*64 }}
                 inputDim = self.cnn['conv3']['output']
-
-
 
 
         self.targetDim = targetDim
@@ -101,12 +99,18 @@ class TheanoGruRnn(object):
     def fit(self, data, label):
         if self.modelArch == 'lasagne':
             data = self.cnn.prepareBatch(data)
+        elif self.modelArch.endswith('ConvLayers'):
+            data = NP.swapaxes(NP.swapaxes(data, 3, 4), 2, 3)
+            data = (data - 127.)/127.
         return self.fitFunc(self.seqLength, data, label[:, 0, :], label)
       
         
     def forward(self, data, label):
         if self.modelArch == 'lasagne':
           data = self.cnn.prepareBatch(data)
+        elif self.modelArch.endswith('ConvLayers'):
+            data = NP.swapaxes(NP.swapaxes(data, 3, 4), 2, 3)
+            data = (data - 127.)/127.
         cost, output = self.forwardFunc(self.seqLength, data, label[:, 0, :], label)
         return cost, output
     
@@ -260,11 +264,11 @@ class TheanoGruRnn(object):
         if self.modelArch == 'base':
             conv_filters = Theano.shared(self.glorot_uniform((self.conv_nr_filters, 1, self.conv_filter_row, self.conv_filter_col)), name='conv_filters')
         if self.modelArch == 'twoConvLayers':
-            channels = 1
+            channels = 3
             conv1 = Theano.shared(self.glorot_uniform((self.cnn['conv1']['filters'], channels, self.cnn['conv1']['size'], self.cnn['conv1']['size'])), name='conv1')
             conv2 = Theano.shared(self.glorot_uniform((self.cnn['conv2']['filters'], self.cnn['conv1']['filters'], self.cnn['conv2']['size'], self.cnn['conv2']['size'])), name='conv2')
         if self.modelArch == 'threeConvLayers':
-            channels = 1
+            channels = 3
             conv1 = Theano.shared(self.glorot_uniform((self.cnn['conv1']['filters'], channels, self.cnn['conv1']['size'], self.cnn['conv1']['size'])), name='conv1')
             conv2 = Theano.shared(self.glorot_uniform((self.cnn['conv2']['filters'], self.cnn['conv1']['filters'], self.cnn['conv2']['size'], self.cnn['conv2']['size'])), name='conv2')
             conv3 = Theano.shared(self.glorot_uniform((self.cnn['conv3']['filters'], self.cnn['conv2']['filters'], self.cnn['conv3']['size'], self.cnn['conv3']['size'])), name='conv3')
