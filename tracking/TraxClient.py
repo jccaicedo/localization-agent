@@ -53,9 +53,9 @@ class TraxClient():
         '''
         Constructor
         '''
-        if not os.exists(libvotPath):
+        if not os.path.exists(libvotPath):
             raise Exception('libvot does not exist at path: {}'.format(libvotPath))
-        self.lib = cts.cdll.LoadLibrary(libVotPath)
+        self.lib = cts.cdll.LoadLibrary(libvotPath)
         self.getFrame = self.lib.vot_frame
         self.getFrame.restype = cts.c_char_p
         
