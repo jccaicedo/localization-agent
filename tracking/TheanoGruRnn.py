@@ -202,6 +202,17 @@ class TheanoGruRnn(object):
                             'conv2':{'filters':64, 'size':3, 'stride':2, 'output':(((94-3)/2+1)**2)*64 },
                             'conv3':{'filters':32, 'size':3, 'stride':2, 'output':(((46-3)/2+1)**2)*32 }}
                 inputDim = self.cnn['conv3']['output']
+            if convFilters == 5:
+                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*64 },
+                            'conv2':{'filters':64, 'size':3, 'stride':2, 'output':(((94-3)/2+1)**2)*64 },
+                            'conv3':{'filters':64, 'size':3, 'stride':2, 'output':(((46-3)/2+1)**2)*64 }}
+                inputDim = self.cnn['conv3']['output']
+            if convFilters == 6:
+                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*64 },
+                            'conv2':{'filters':64, 'size':5, 'stride':2, 'output':(((94-5)/2+1)**2)*64 },
+                            'conv3':{'filters':64, 'size':5, 'stride':2, 'output':(((45-5)/2+1)**2)*64 }}
+                inputDim = self.cnn['conv3']['output']
+
 
         self.targetDim = targetDim
         self.inputDim = inputDim + self.targetDim

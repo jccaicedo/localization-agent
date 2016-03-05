@@ -19,7 +19,7 @@ def parseAndPlot(logFile, outFile, batchSize, lrate, gruSize, seqPerEpoch):
     batchesPerEpoch = totalBatches/totalEpochs 
     avgs = [ (x*seqPerEpoch)/batchesPerEpoch for x in avgEpoch]
     
-    maxCost = min(np.max(cost), 1.0)
+    maxCost = 1. #min(np.max(cost), 1.0)
     minCost = np.min(cost)
     maxIdx = np.argmax(cost)
     minIdx = np.argmin(cost)
