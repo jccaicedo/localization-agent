@@ -117,8 +117,7 @@ def orthogonal(shape, scale=1.1):
     return NP.cast[Theano.config.floatX](q)
 
 def loadModel(modelPath):
-    #TODO: silent for trax
-    print 'Loading model from {}'.format(modelPath)
+    logging.info('Loading model from %s', modelPath)
     with open(modelPath, 'rb') as modelFile: 
         model = pickle.load(modelFile)
     if not isinstance(model, TheanoGruRnn):
@@ -233,7 +232,7 @@ class TheanoGruRnn(object):
         return cost, output
     
     def buildModel(self, batchSize, inputDim, stateDim, targetDim, zeroTailFc, learningRate, use_cudnn, imgSize, useAttention):
-        print 'Building network'
+        logging.info('Building network')
         
         # imgs: of shape (batchSize, seq_len, nr_channels, img_rows, img_cols)
         imgs = getTensor("images", Theano.config.floatX, 5)

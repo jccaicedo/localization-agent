@@ -4,6 +4,7 @@ import PIL.Image as Image
 import PIL.ImageDraw as ImageDraw
 import TrajectorySimulator as ts
 import TraxClient as tc
+import logging
 try:
     import cv2
     channels = 4
@@ -163,7 +164,9 @@ class TraxClientWrapper(object):
   def __init__(self, libvotPath):
     self.client = tc.TraxClient(libvotPath)
     self.region = self.client.getInitialRegion()
+    logging.info('Initial region: %s', self.getBox())
     self.path = self.client.nextFrame()
+    logging.info('Initial path: %s', self.path)
 
   def getFrame(self):
     img = Image.open(self.path)
@@ -188,6 +191,7 @@ class TraxClientWrapper(object):
     leftBottomY = leftTopY + height
             
     coords = [leftTopX, leftTopY, rightTopX, rightTopY, rightBottomX, rightBottomY, leftBottomX, leftBottomY]
+    logging.info('Reporting box: %s', coords)
     boxT = tc.Box()
     boxT.setRegion(coords)
         
@@ -195,7 +199,9 @@ class TraxClientWrapper(object):
 
   def nextStep(self):
     self.path = self.client.nextFrame()
+    logging.info('New path: %s', self.path)
     if self.path == '':
+      logging.info('Quitting as new path is empty')
       self.client.quit()
       return False
     else:
