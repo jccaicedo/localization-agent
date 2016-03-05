@@ -19,7 +19,7 @@ def clock(m, st):
 class Controller(object):
 
     def train(self, tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize, seqLength):
-        validation = Validation(5, batchSize, generator, imgHeight)
+        validation = Validation(8, batchSize, generator, imgHeight)
         for i in range(0, epochs):
             train_cost = 0
             et = time.time()
@@ -59,13 +59,15 @@ class Controller(object):
                 
                 print 'Cost', i, j, cost
                 train_cost += cost
-            bbox, iou = validation.validate(tracker)
+            bbox, iou = validation.validate(tracker, seqLength)
+            '''
             outputVideoDir = os.path.join(os.path.dirname(trackerModelPath), 'epoch'+str(i))
             if not os.path.exists(outputVideoDir):
                 os.makedirs(outputVideoDir)
             logging.info('Saving validation videos for epoch %s in %s', i, outputVideoDir)
             #TODO: check postprocessing
             Tester.exportSequences(validation.valSet['data']*255.0, (validation.valSet['labels']+1)*validation.imgHeight/2., (bbox+1)*validation.imgHeight/2., grayscale, outputVideoDir)
+            '''
             print 'Epoch average loss (train)', train_cost / (batches*batchSize)
             clock('Epoch time',et)
             TheanoGruRnn.saveModel(tracker.rnn, trackerModelPath)
