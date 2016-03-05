@@ -4,14 +4,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 import argparse as ap
 
+def nan20(n):
+    if np.isnan(n):
+      return 0.
+    else:
+      return n
 
 def parseAndPlot(logFile, outFile, batchSize, lrate, gruSize, seqPerEpoch):
     # Open and parse log file
     log = [l for l in open(logFile, 'r')]
-    cost = [float(l.split()[-1]) for l in log if l.startswith('Cost')]
-    avgEpoch = [float(l.split()[-1]) for l in log if l.startswith('Epoch average')]
+    cost = [ nan20(float(l.split()[-1])) for l in log if l.startswith('Cost')]
+    avgEpoch = [ nan20(float(l.split()[-1])) for l in log if l.startswith('Epoch average')]
     timeEpoch = [float(l.split()[-1]) for l in log if l.startswith('Epoch time')]
-    valIoU = [float(l.split()[-1]) for l in log if l.startswith('IoU')]
+    valIoU = [ nan20(float(l.split()[-1])) for l in log if l.startswith('IoU')]
     
     # Compute basic statistics
     totalBatches = len(cost)

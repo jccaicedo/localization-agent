@@ -18,7 +18,7 @@ def clock(m, st):
 class Controller(object):
 
     def train(self, tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize, seqLength):
-        validation = Validation(8, batchSize, generator, imgHeight)
+        validation = Validation(5, batchSize, generator, imgHeight)
         for i in range(0, epochs):
             train_cost = 0
             et = time.time()

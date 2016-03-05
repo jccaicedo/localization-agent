@@ -5,7 +5,7 @@ import h5py
 
 class Validation(object):
 
-    def __init__(self, valBatches, batchSize, generator, imgHeight):
+    def __init__(self, valBatches, batchSize, generator, imgHeight, saveData=False):
         self.valBatches = valBatches
         self.batchSize = batchSize
         self.imgHeight = imgHeight
@@ -37,11 +37,12 @@ class Validation(object):
                 self.valSet['data'] /= 255.0
             self.valSet['labels'] = self.valSet['labels'] / (imgHeight / 2) - 1
             print 'Generated validation set with examples:',  self.valSet['data'].shape
-            h5f = h5py.File(filepath, "w")
-            dset = h5f.create_dataset("data", data=self.valSet['data'])
-            lset = h5f.create_dataset("labels", data=self.valSet['labels'])
-            h5f.close()
-            print 'Validation file saved'
+            if saveData:
+                h5f = h5py.File(filepath, "w")
+                dset = h5f.create_dataset("data", data=self.valSet['data'])
+                lset = h5f.create_dataset("labels", data=self.valSet['labels'])
+                h5f.close()
+                print 'Validation file saved'
     
     def validate(self, tracker, seqLen=60):
         # Get predictions
