@@ -11,6 +11,7 @@ import Tester
 import TheanoGruRnn
 import GaussianGenerator
 import VisualAttention
+from VideoSequenceData import TraxClientWrapper
 
 def clock(m, st): 
     print m,(time.time()-st)
@@ -68,6 +69,41 @@ class Controller(object):
             print 'Epoch average loss (train)', train_cost / (batches*batchSize)
             clock('Epoch time',et)
             TheanoGruRnn.saveModel(tracker.rnn, trackerModelPath)
+    
+    def test(self, tracker, libvotPath, grayscale, testType):
+        if testType == 'trax':
+            self.testTrax(tracker, libvotPath, grayscale)
+        else:
+            #TODO: test with Tester
+            raise Exception('Not implemented yet')
+    
+    #TODO: handle/test Caffe and convnets
+    def testTrax(self, tracker, libvotPath, grayscale):
+        tcw = TraxClientWrapper(libvotPath)
+        initBox = tcw.getBox()
+        initState = NP.zeros((1, tracker.rnn.stateDim))
+        hasNext = True
+        while hasNext:
+            frame = tcw.getFrame()
+            if grayscale:
+                frame = frame.convert('L')
+            originalSize = frame.size
+            sizeScales = NP.array([originalSize[0], originalSize[1], originalSize[0], originalSize[1]])
+            frame = frame.resize((tracker.rnn.imgSize, tracker.rnn.imgSize))
+            frame = NP.asarray(frame, dtype=NP.float32).copy()
+            initBox = NP.array(initBox)
+            initBox = initBox/(sizeScales/2.)-1.
+            initBox = initBox[NP.newaxis, ...]
+            if grayscale:
+                frame /= 255.0
+                frame = frame[NP.newaxis, ...]
+            frame = frame[NP.newaxis, ...]
+            newBox, newState = tracker.rnn.stepFunc(frame, initBox, initState)
+            newBox = list((newBox[0]+1.)*sizeScales/2.)
+            tcw.reportBox(newBox)
+            initBox = newBox
+            initState = newState
+            hasNext = tcw.nextStep()
 
 class ControllerConfig(object):
 
@@ -112,6 +148,8 @@ class ControllerConfig(object):
         parser.add_argument('--debug', help='Enable debug logging', default=False, action='store_true')
         parser.add_argument('--norm', help='Norm type for cost', default=TheanoGruRnn.l2.func_name, choices=[TheanoGruRnn.smooth_l1.func_name, TheanoGruRnn.l2.func_name])
         parser.add_argument('--useAttention', help='Enable attention', type=str, default='no', choices=['no', 'gaussian', 'square'])
+        parser.add_argument('--testType', help='Run test of the specified type', type=str, default='no', choices=['no', 'trax', 'tester'])
+        parser.add_argument('--libvotPath', help='Path to libvot', type=str, default='/home/fmpaezri/repos/vot-toolkit/tracker/examples/native/libvot.so')
         
         return parser
 
@@ -124,6 +162,11 @@ if __name__ == '__main__':
     
     logging.BASIC_FORMAT = '%(asctime)s:%(levelname)s:%(funcName)s:%(lineno)d:%(message)s'
     logger = logging.getLogger()
+    if testType == 'trax':
+        for handler in logger.handlers:
+            logger.removeHandler(handler)
+        fileHandler = logging.FileHandler(os.path.join(os.path.dirname(trackerModelPath), 'trax.log'))
+        logger.addHandler(fileHandler)
     if debug:
         logger.setLevel(logging.DEBUG)
     else:
@@ -164,20 +207,24 @@ if __name__ == '__main__':
         rnn = TheanoGruRnn.loadModel(trackerModelPath)
     except Exception as e:
         #TODO: silent for trax
-        print 'Exception loading model from {}: {}'.format(trackerModelPath, e)
-        print 'Creating new model'
+        logging.error('Exception loading model from %s: %s', trackerModelPath, e)
+        if not testType == 'no':
+            raise Exception(e)
+        logging.warn('Creating new model')
         rnn = TheanoGruRnn.TheanoGruRnn(gruInputDim, gruStateDim, GaussianGenerator.TARGET_DIM, batchSize, seqLength, zeroTailFc, learningRate, useCUDNN, imgHeight, modelArch, getattr(TheanoGruRnn, norm), useAttention, modelPath=cnnModelPath, layerKey=layerKey, convFilters=convFilters)
     
     
-    tracker = RecurrentTracker(cnn, rnn)
-    
-    generator = GaussianGenerator.GaussianGenerator(imageDir, summaryPath, trajectoryModelPath, seqLength=60, imageSize=imgHeight, grayscale=grayscale, parallel=not sequential, numProcs=numProcs)
+    tracker = RecurrentTracker(cnn, rnn)    
     
     controller = Controller()
-    M = 9600 # Constant number of example sequences per epoch
-    batches = M/batchSize
-    try:
-        controller.train(tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize, seqLength)
-    #TODO: evaluate if it is wise to save on any exception
-    except KeyboardInterrupt:
-        TheanoGruRnn.saveModel(tracker.rnn, trackerModelPath)
+    if not testType == 'no':
+        controller.test(tracker, libvotPath, grayscale, testType)
+    else:
+        try:
+            M = 96 # Constant number of example sequences per epoch
+            batches = M/batchSize
+            generator = GaussianGenerator.GaussianGenerator(imageDir, summaryPath, trajectoryModelPath, seqLength=60, imageSize=imgHeight, grayscale=grayscale, parallel=not sequential, numProcs=numProcs)
+            controller.train(tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize, seqLength)
+            #TODO: evaluate if it is wise to save on any exception
+        except KeyboardInterrupt:
+            TheanoGruRnn.saveModel(tracker.rnn, trackerModelPath)
