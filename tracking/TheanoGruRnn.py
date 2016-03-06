@@ -285,6 +285,7 @@ class TheanoGruRnn(object):
                             'conv4':{'filters':512, 'size':3, 'stride':2, 'output':(14**2)*512 }, # Feature map size 100,352 - Params: 3x3x256x512 = 1'179,648
                             'conv5':{'filters':512, 'size':3, 'stride':2, 'output':(7**2)*512 },  # Feature map size  25,088 - Params: 3x3x512x512 = 2'359,296
                             'pad':'half'}                                                         #        TOTALS: 1'530,364 -                     = 3'912,384
+                inputDim = self.cnn['conv5']['output']
         elif self.modelArch == 'sixXConvLayers':
             if convFilters == 1:
                 self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(112**2)*64 },  # Feature map size 802,816 - Params: 5x5x3x64    =     4,800
