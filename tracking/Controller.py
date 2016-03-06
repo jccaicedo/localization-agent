@@ -122,7 +122,7 @@ class ControllerConfig(object):
         parser = AP.ArgumentParser(description='Trains a RNN tracker', fromfile_prefix_chars='@')
         parser.add_argument('--imageDir', help='Root directory for images', type=str, default='/home/jccaicedo/data/coco')
         parser.add_argument('--summaryPath', help='Path of summary file', type=str, default='./cocoTrain2014Summary.pkl')
-        parser.add_argument('--trajectoryModelPath', help='Trajectory model path', type=str, default='./gmmDenseAbsoluteNormalizedOOT.pkl')
+        parser.add_argument('--trajectoryModelPath', help='Trajectory model path', type=str, default=None)
         parser.add_argument('--epochs', help='Number of epochs with 32000 example sequences each', type=int, default=1)
         parser.add_argument('--generationBatchSize', help='Number of elements in one generation step', type=int, default=32)
         parser.add_argument('--batchSize', help='Number of elements in batch', type=int, default=32)
@@ -143,7 +143,7 @@ class ControllerConfig(object):
         parser.add_argument('--layerKey', help='Key string of layer name to use as features', type=str, default='inception_5b/output')
         parser.add_argument('--learningRate', help='SGD learning rate', type=float, default=0.0005)
         parser.add_argument('--useCUDNN', help='Use CUDA CONV or THEANO', type=bool, default=False)
-        parser.add_argument('--modelArch', help='Network architecture', type=str, default='base', choices=['base', 'caffe', 'lasagne', 'twoConvLayers','threeConvLayers'])
+        parser.add_argument('--modelArch', help='Network architecture', type=str, default='base', choices=['base', 'caffe', 'lasagne', 'twoConvLayers','threeConvLayers','fourConvLayers','fiveConvLayers','sixConvLayers'])
         parser.add_argument('--sequential', help='Make sequential simulations', default=False, action='store_true')
         parser.add_argument('--numProcs', help='Number of processes for parallel simulations', type=int, default=None)
         #TODO: Evaluate specifying the level instead if more than debug is needed   
@@ -197,7 +197,7 @@ if __name__ == '__main__':
         cnn = gruInputDim = None
         imgHeight = imgWidth = 128
         grayscale = False
-    elif modelArch == 'threeConvLayers':
+    elif modelArch == 'threeConvLayers' or modelArch == 'fourConvLayers' or modelArch == 'fiveConvLayers' or modelArch == 'sixConvLayers':
         cnn = gruInputDim = None
         imgHeight = imgWidth = 192
         grayscale = False
@@ -223,7 +223,7 @@ if __name__ == '__main__':
         controller.test(tracker, libvotPath, grayscale, testType)
     else:
         try:
-            M = 96 # Constant number of example sequences per epoch
+            M = 9600 # Constant number of example sequences per epoch
             batches = M/batchSize
             generator = GaussianGenerator.GaussianGenerator(imageDir, summaryPath, trajectoryModelPath, seqLength=60, imageSize=imgHeight, grayscale=grayscale, parallel=not sequential, numProcs=numProcs)
             controller.train(tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize, seqLength)
