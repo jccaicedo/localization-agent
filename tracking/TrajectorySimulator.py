@@ -746,5 +746,5 @@ class TrajectoryModel(object):
 
     def sample(self, sceneSize):
         modelIndex = self.randGen.randrange(len(self.models))
-        logging.info('Sampling trajectory from model: %s', self.models[modelIndex])
+        logging.debug('Sampling trajectory from model: %s', self.models[modelIndex])
         return self.models[modelIndex].sample(sceneSize)
