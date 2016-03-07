@@ -1,11 +1,15 @@
 import theano as Theano
 import theano.tensor as Tensor
 import numpy as NP
+import cv2
+
+CONTEXT = 4
+ALPHA = 0.1
 
 def createGaussianMasker(imgSize):
     R = Tensor.arange(imgSize, dtype=Theano.config.floatX)
     eps = 1e-8
-    alpha = 0.1
+    alpha = ALPHA
     def mask(img, label):
         box = (label + 1.) * (imgSize / 2.) # Uncenter and rescale labels
         cx = (box[:, 3] + box[:, 1]) / 2.
@@ -26,7 +30,7 @@ def useNoMask():
 def createSquareMasker(imgSize):
     R = Tensor.arange(imgSize, dtype=Theano.config.floatX)
     eps = 1e-8
-    alpha = 0.1
+    alpha = ALPHA
     def mask(img, label):
         box = (label + 1.) * (imgSize / 2.) # Uncenter and rescale labels
         FX = Tensor.gt(R, box[:,1].dimshuffle(0,'x')) * Tensor.le(R, box[:,3].dimshuffle(0,'x'))
@@ -36,17 +40,86 @@ def createSquareMasker(imgSize):
         return img * m.dimshuffle(0,'x',1,2)
     return mask
 
-def getSquaredMasks(data, labels, context, alpha):
+def createSquareChannelMasker(imgSize):
+    R = Tensor.arange(imgSize, dtype=Theano.config.floatX)
+    eps = 1e-8
+    def mask(img, label):
+        box = (label + 1.) * (imgSize / 2.) # Uncenter and rescale labels
+        FX = Tensor.gt(R, box[:,1].dimshuffle(0,'x')) * Tensor.le(R, box[:,3].dimshuffle(0,'x'))
+        FY = Tensor.gt(R, box[:,0].dimshuffle(0,'x')) * Tensor.le(R, box[:,2].dimshuffle(0,'x'))
+        m = 2.*(FX.dimshuffle(0, 1, 'x') * FY.dimshuffle(0, 'x', 1)) - 1.
+        return Tensor.set_subtensor(img[:,-1,:,:], m)
+    return mask
+
+def getSquaredMasks(data, labels):
     l = labels.copy()
     # Expand boxes with context
-    l[:,0:1] -= context
-    l[:,2:3] += context
+    l[:,0:1] -= CONTEXT
+    l[:,2:3] += CONTEXT
     # Fix out of bounds boxes
     l[l < 0] = 0
     l[l > data.shape[2]] = data.shape[2]
     l = NP.array(l, NP.int)
-    # Create masks assuming (batch, width, height, channels)
-    masks = alpha * NP.ones(data.shape)
+    # Create masks assuming (batch, channels, width, height)
+    masks = ALPHA * NP.ones(data.shape)
     for i in range(masks.shape[0]):
-        masks[i, l[i,1]:l[i,3], l[i,0]:l[i,2], ...] = 1
+        masks[i, :, l[i,1]:l[i,3], l[i,0]:l[i,2]] = 1
     return masks
+
+def getSquaredMaskChannel(data, labels, threeChannels=True):
+    # Assuming input shape=(batch, channels, width, height)
+    b,c,w,h = data.shape
+    l = labels.copy()
+    # Expand boxes with context
+    l[:,0:1] -= CONTEXT
+    l[:,2:3] += CONTEXT
+    # Fix out of bounds boxes
+    l[l < 0] = 0
+    l[l > w] = w
+    l = NP.array(l, NP.int)
+    # Create masks
+    if threeChannels:
+        masks = -1 * NP.ones((b,w,h))
+    else:
+        masks = NP.zeros((b,w,h))
+    for i in range(masks.shape[0]):
+        masks[i, l[i,1]:l[i,3], l[i,0]:l[i,2]] = 1.
+    return masks
+
+def buildAttention(useAttention, imgSize):
+    if useAttention == 'gaussian':
+        attention = createGaussianMasker(imgSize)
+    elif useAttention == 'square':
+        attention = createSquareMasker(imgSize)
+    elif useAttention == 'squareChannel':
+        attention = createSquareChannelMasker(imgSize)
+    else:
+        attention = useNoMask()
+    return attention
+
+def rgb2gray(rgb):
+    return NP.dot(rgb[...,:3], [0.299, 0.587, 0.114])
+
+def framesFlow(f1, f2):
+    frame1 = rgb2gray(f1)
+    frame2 = rgb2gray(f2)
+    f = cv2.calcOpticalFlowFarneback(frame1, frame2, 0.5, 1, 3, 15, 3, 1.2, 0)
+    f /= (NP.max(f) - NP.min(f))
+    return f
+
+def computeFlowFromBatch(data):
+    # Assume tensor with (batch, frame, width, height, channel)
+    b,f,w,h,c = data.shape
+    flow = NP.zeros( (b,f,w,h,2) )
+    for i in range(b): # Each batch
+        for j in range(f-1): # Each frame
+            flow[i,j+1,...] = framesFlow(data[i,j,...], data[i,j+1,...])
+    return flow
+
+def computeFlowFromList(data):
+    f = len(data)
+    w,h,c = data[0].shape
+    flow = NP.zeros( (f,w,h,2) )
+    for i in range(f-1):
+        flow[i+1,...] = framesFlow(data[i],data[i+1])
+    return flow

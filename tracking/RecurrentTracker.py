@@ -3,7 +3,7 @@ import time
 import logging
 
 # TODO: parameterize this value that sets the size of the replay memory
-MEMORY_FACTOR = 20 # Number of minibatches to keep
+MEMORY_FACTOR = 50 # Number of minibatches to keep
 
 class RecurrentTracker(object):
     cnn = None
@@ -22,24 +22,23 @@ class RecurrentTracker(object):
             activations = data
         return activations
         
-    def fit(self, data, label, store_in_mem):
+    def fit(self, data, label, flow, store_in_mem):
         st = time.time()
         activations = self.activate(data)
-        print 'Forwarding: {}'.format(time.time()-st)
-        cost, bbox_seq = self.processMultiBatch(activations, label, self.rnn.batchSize, (label.shape[-1],), self.rnn.fit)
+        cost, bbox_seq = self.processMultiBatch(activations, label, flow, self.rnn.batchSize, (label.shape[-1],), self.rnn.fit)
         if store_in_mem:
             self.store(activations, label)
         
         return cost, bbox_seq
 
     
-    def forward(self, data, label):
+    def forward(self, data, label, flow):
         activations = self.activate(data)
-        cost, pred = self.processMultiBatch(activations, label, self.rnn.batchSize, (label.shape[-1],), self.rnn.forward)
+        cost, pred = self.processMultiBatch(activations, label, flow, self.rnn.batchSize, (label.shape[-1],), self.rnn.forward)
         
         return pred
 
-    def processMultiBatch(self, data, label, atomicBatchSize, outputShape, processFunction):
+    def processMultiBatch(self, data, label, flow, atomicBatchSize, outputShape, processFunction):
         '''Reshapes input to fit batchSize and applies the specified function over each atomic batch'''
         #Initialize output variables
         outputs = NP.zeros((data.shape[0], data.shape[1])+outputShape, dtype=data.dtype)
@@ -53,9 +52,16 @@ class RecurrentTracker(object):
         logging.debug('Reshaping labels from %s to %s', label.shape, newLabelShape)
         data = data.reshape(newDataShape)
         label = label.reshape(newLabelShape)
+        if flow is not None:
+            newFlowShape = (flow.shape[0]/atomicBatchSize, atomicBatchSize) + flow.shape[-4:]
+            logging.debug('Reshaping flow from %s to %s', flow.shape, newFlowShape)
+            flow = flow.reshape(newFlowShape)
         #Iterate and accumulate
         for i in NP.arange(newDataShape[0]):
-            cost, bbox_seq = processFunction(data[i], label[i])
+            if flow is not None:
+                cost, bbox_seq = processFunction(data[i], label[i], flow[i])
+            else:
+                cost, bbox_seq = processFunction(data[i], label[i], flow)
             totalCost += cost
             outputs[i*atomicBatchSize:(i+1)*atomicBatchSize, ...] = bbox_seq
         return totalCost, outputs

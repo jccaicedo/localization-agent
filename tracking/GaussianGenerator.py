@@ -3,6 +3,8 @@ import TrajectorySimulator as trsim
 import numpy as np
 import pickle
 import multiprocessing
+import VisualAttention
+import time
 
 SEQUENCE_LENGTH = 60
 IMG_HEIGHT = 100
@@ -11,7 +13,7 @@ TARGET_DIM = 4
 
 # FUNCTION
 # Make simulation of a single sequence given the simulator
-def simulate(simulator, grayscale):
+def simulate(simulator, grayscale, computeFlow, start, end):
   data = []
   label = []
   simulator.start()
@@ -21,16 +23,20 @@ def simulate(simulator, grayscale):
     else:
       data += [np.asarray(frame.convert('RGB'))]
     label += [simulator.getBox()]
-  return data, label
+  if computeFlow:
+      flow = VisualAttention.computeFlowFromList(data[start:end])
+  else:
+      flow = None
+  return data[start:end], label[start:end], flow
 
 def wrapped_simulate(params):
-    simulator, grayscale = params
-    return simulate(simulator, grayscale)
+    simulator, grayscale, computeFlow, start, end = params
+    return simulate(simulator, grayscale, computeFlow, start, end)
 
 ## CLASS
 ## Simulator with Gaussian mixture models of movement
 class GaussianGenerator(object):
-    def __init__(self, imageDir, summaryPath, trajectoryModelPath, seqLength=60, imageSize=IMG_WIDTH, grayscale=True, parallel=True, numProcs=None, scenePathTemplate='images/train2014', objectPathTemplate='images/train2014'):
+    def __init__(self, imageDir, summaryPath, trajectoryModelPath, seqLength=60, imageSize=IMG_WIDTH, grayscale=True, parallel=True, numProcs=None, scenePathTemplate='images/train2014', objectPathTemplate='images/train2014', computeFlow=False):
         self.imageSize = imageSize
         self.seqLength = seqLength
         self.factory = None
@@ -47,6 +53,7 @@ class GaussianGenerator(object):
             scenePathTemplate=scenePathTemplate, objectPathTemplate=objectPathTemplate
             )
         self.grayscale = grayscale
+        self.computeFlow = computeFlow
 
     def getSimulator(self):
         simulator = self.factory.createInstance(camSize=(self.imageSize, self.imageSize))
@@ -56,16 +63,20 @@ class GaussianGenerator(object):
         if self.grayscale:
             data = np.zeros((batchSize, self.seqLength, self.imageSize, self.imageSize), dtype=np.float32)
         else:
-            #TODO: validate case of alpha channel
+            #TODO: validate case of alpha channel: Not needed. When the image is read, it is forced to RGB
             data = np.zeros((batchSize, self.seqLength, self.imageSize, self.imageSize, 3), dtype=np.float32)
-        label = np.zeros((batchSize, self.seqLength, TARGET_DIM))
-        return data, label
-
-    def getBatch(self, batchSize):
-        if self.parallel:
-            return self.getBatchInParallel(batchSize)
+        if self.computeFlow:
+            flow = np.zeros((batchSize, self.seqLength, self.imageSize, self.imageSize, 2), dtype=np.float32)
         else:
-                data, label = self.initResults(batchSize)
+            flow = None
+        label = np.zeros((batchSize, self.seqLength, TARGET_DIM))
+        return data, label, flow
+
+    def getBatch(self, batchSize, start, end):
+        if self.parallel:
+            return self.getBatchInParallel(batchSize, start, end)
+        else:
+                data, label, flow = self.initResults(batchSize)
                 for i in range(batchSize):
                     simulator = self.getSimulator()
                     simulator.start()
@@ -75,48 +86,56 @@ class GaussianGenerator(object):
                         else:
                             data[i, j, :, :, :] = np.asarray(frame.convert('RGB'))
                         label[i, j] = simulator.getBox()
-                        
-                return data, label
+                data = data[:,start:end,...]
+                label = label[:,start:end,...]
+                if self.computeFlow:
+                    flow = VisualAttention.computeFlowFromBatch(data)
+                return data, label, flow
 
-    def getBatchInParallel(self, batchSize):
+    def getBatchInParallel(self, batchSize, start, end):
         #TODO: avoid this condition by distributing and init end, but batchSize is needed and not available
         if self.results is None:
             #Distribute work for the first time
-            self.results = self.distribute(batchSize)
+            self.results = self.distribute(batchSize, start, end)
         #Wait for results and collect them
-        data, label = self.collect(batchSize, self.results.get(9999))
+        data, label, flow = self.collect(batchSize, self.results.get(9999), start, end)
         #Distribute work
-        self.results = self.distribute(batchSize)
+        self.results = self.distribute(batchSize, start, end)
         #Return previous results
-        return data, label
+        return data, label, flow
 
     def initPool(self):
         # Lazy initialization
         if self.pool is None:
             self.pool = multiprocessing.Pool(self.numProcs)
 
-    def distribute(self, batchSize):
+    def distribute(self, batchSize, start, end):
         self.initPool()
 
         # Process simulations in parallel
         try:
-            results = self.pool.map_async(wrapped_simulate, [(self.getSimulator(), self.grayscale) for i in range(batchSize)])
+            results = self.pool.map_async(wrapped_simulate, [(self.getSimulator(), self.grayscale, self.computeFlow, start, end) for i in range(batchSize)])
             return results
         except Exception as e:
             print 'Exception raised during map_async: {}'.format(e)
             self.pool.terminate()
             sys.exit()
 
-    def collect(self, batchSize, results):
+    def collect(self, batchSize, results, start, end):
         # Collect results and put them in the output
         index = 0
-        data, label = self.initResults(batchSize)
-        for frames, targets in results:
+        data, label, flow = self.initResults(batchSize)
+        data = data[:,start:end,...]
+        label = label[:,start:end,...]
+        if self.computeFlow: flow = flow[:,start:end,...]
+        for frames, targets, of in results:
             if self.grayscale:
                 data[index,:,:,:] = frames
             else:
                 data[index,:,:,:,:] = frames
+            if self.computeFlow:
+                flow[index,:,:,:,:] = of
             label[index,:,:] = targets
             index += 1
         
-        return data, label
+        return data, label, flow

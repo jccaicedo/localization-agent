@@ -10,6 +10,7 @@ import logging
 from collections import OrderedDict
 from LasagneVGG16 import LasagneVGG16
 
+
 def smooth_l1(x):
     return Tensor.switch(Tensor.lt(Tensor.abs_(x),1), 0.5*x**2, Tensor.abs_(x)-0.5)
 
@@ -66,15 +67,6 @@ def initializeConv2d(use_cudnn=False):
             logging.warning('Using CUDNN instead of Theano conv2d')
             conv2d = CUDNN.dnn_conv
     return conv2d
-
-def buildAttention(useAttention, imgSize):
-    if useAttention == 'gaussian':
-        attention = VisualAttention.createGaussianMasker(imgSize)
-    elif useAttention == 'square':
-        attention = VisualAttention.createSquareMasker(imgSize)
-    else:
-        attention = VisualAttention.useNoMask()
-    return attention
 
 def rmsprop(cost, params, lr=0.0005, rho=0.9, epsilon=1e-6):
     '''
@@ -152,7 +144,7 @@ class TheanoGruRnn(object):
     seqLength = None
     stepFunc = None
     
-    def __init__(self, inputDim, stateDim, targetDim, batchSize, seqLength, zeroTailFc, learningRate, use_cudnn, imgSize, modelArch='base', norm=l2, useAttention=False, modelPath=None, layerKey=None, convFilters=32):
+    def __init__(self, inputDim, stateDim, targetDim, batchSize, seqLength, zeroTailFc, learningRate, use_cudnn, imgSize, modelArch='base', norm=l2, useAttention=False, modelPath=None, layerKey=None, convFilters=32, computeFlow=False):
         ### Computed hyperparameters begin
         self.modelArch = modelArch
         if self.modelArch == 'base':
@@ -286,17 +278,61 @@ class TheanoGruRnn(object):
                             'conv5':{'filters':512, 'size':3, 'stride':2, 'output':(7**2)*512 },  # Feature map size  25,088 - Params: 3x3x512x512 = 2'359,296
                             'pad':'half'}                                                         #        TOTALS: 1'530,364 -                     = 3'912,384
                 inputDim = self.cnn['conv5']['output']
+            if convFilters == 2:
+                self.cnn = {'conv1':{'filters':32, 'size':5, 'stride':2, 'output':(112**2)*32 },  # Feature map size 401,408 - Params: 5x5x3x32  =  2,400
+                            'conv2':{'filters':64, 'size':3, 'stride':2, 'output':(56**2)*64 },   # Feature map size 200,704 - Params: 3x3x32x64 = 18,432
+                            'conv3':{'filters':32, 'size':3, 'stride':1, 'output':(56**2)*32 },   # Feature map size 100,352 - Params: 3x3x64x32 = 18,432
+                            'conv4':{'filters':64, 'size':3, 'stride':2, 'output':(28**2)*64 },   # Feature map size  50,176 - Params: 3x3x32x64 = 18,432
+                            'conv5':{'filters':32, 'size':3, 'stride':1, 'output':(28**2)*32 },   # Feature map size  25,088 - Params: 3x3x64x32 = 18,432
+                            'pad':'half'}                                                         #        TOTALS:   777,728 -                   = 76,128
+                inputDim = self.cnn['conv5']['output']
+            if convFilters == 3:
+                self.cnn = {'conv1':{'filters':32, 'size':5, 'stride':2, 'output':(112**2)*32 },  # Feature map size 401,408 - Params: 5x5x3x32  =  2,400
+                            'conv2':{'filters':64, 'size':3, 'stride':2, 'output':(56**2)*64 },   # Feature map size 200,704 - Params: 3x3x32x64 = 18,432
+                            'conv3':{'filters':32, 'size':3, 'stride':1, 'output':(56**2)*32 },   # Feature map size 100,352 - Params: 3x3x64x32 = 18,432
+                            'conv4':{'filters':16, 'size':3, 'stride':1, 'output':(56**2)*16 },   # Feature map size  50,176 - Params: 3x3x32x16 =  4,608
+                            'conv5':{'filters': 8, 'size':3, 'stride':1, 'output':(56**2)*8  },   # Feature map size  25,088 - Params: 3x3x16x8  =  1,152
+                            'pad':'half'}                                                         #        TOTALS:   777,728 -                   = 45,024
+                inputDim = self.cnn['conv5']['output']
+
+
         elif self.modelArch == 'sixXConvLayers':
             if convFilters == 1:
                 self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(112**2)*64 },  # Feature map size 802,816 - Params: 5x5x3x64    =     4,800
                             'conv2':{'filters':128, 'size':3, 'stride':2, 'output':(56**2)*128 }, # Feature map size 401,408 - Params: 3x3x64x128  =    73,728
-                            'conv3':{'filters':256, 'size':3, 'stride':1, 'output':(28**2)*256 }, # Feature map size 207,704 - Params: 3x3x128x256 =   294,912
-                            'conv4':{'filters':256, 'size':3, 'stride':2, 'output':(28**2)*256 }, # Feature map size 207,704 - Params: 3x3x256x256 =   589,824
+                            'conv3':{'filters':256, 'size':3, 'stride':1, 'output':(28**2)*256 }, # Feature map size 200,704 - Params: 3x3x128x256 =   294,912
+                            'conv4':{'filters':256, 'size':3, 'stride':2, 'output':(28**2)*256 }, # Feature map size 200,704 - Params: 3x3x256x256 =   589,824
                             'conv5':{'filters':512, 'size':3, 'stride':2, 'output':(14**2)*512 }, # Feature map size 100,352 - Params: 3x3x256x512 = 1'179,648
-                            'conv6':{'filters':512, 'size':3, 'stride':2, 'output':(7**2)*256 },  # Feature map size  25,088 - Params: 3x3x512x512 = 2'359,296
+                            'conv6':{'filters':512, 'size':3, 'stride':2, 'output':(7**2)*512 },  # Feature map size  25,088 - Params: 3x3x512x512 = 2'359,296
                             'pad':'half'}                                                         #        TOTALS: 1'745,072 -                     = 4'502,208
                 inputDim = self.cnn['conv6']['output']
-
+            if convFilters == 2:
+                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(112**2)*64 },  # Feature map size 802,816 - Params: 5x5x3x64    =     4,800
+                            'conv2':{'filters':128, 'size':3, 'stride':2, 'output':(56**2)*128 }, # Feature map size 401,408 - Params: 3x3x64x128  =    73,728
+                            'conv3':{'filters':256, 'size':3, 'stride':2, 'output':(28**2)*256 }, # Feature map size 200,704 - Params: 3x3x128x256 =   294,912
+                            'conv4':{'filters':256, 'size':3, 'stride':2, 'output':(14**2)*256 }, # Feature map size 100,352 - Params: 3x3x256x256 =   589,824
+                            'conv5':{'filters':512, 'size':3, 'stride':2, 'output':(7**2)*512 },  # Feature map size  25,088 - Params: 3x3x256x512 = 1'179,648
+                            'conv6':{'filters':128, 'size':3, 'stride':1, 'output':(7**2)*128 },  # Feature map size   6,272 - Params: 3x3x512x128 =   589,824
+                            'pad':'half'}                                                         #        TOTALS: 1'543,640 -                     = 2'732,736
+                inputDim = self.cnn['conv6']['output']
+            if convFilters == 3:
+                self.cnn = {'conv1':{'filters':64,  'size':5, 'stride':2, 'output':(112**2)*64 }, # Feature map size 802,816 - Params: 5x5x3x64    =     4,800
+                            'conv2':{'filters':128, 'size':3, 'stride':2, 'output':(56**2)*128 }, # Feature map size 401,408 - Params: 3x3x64x128  =    73,728
+                            'conv3':{'filters':64,  'size':3, 'stride':1, 'output':(56**2)*64  }, # Feature map size 200,704 - Params: 3x3x128x64  =    73,728
+                            'conv4':{'filters':32,  'size':3, 'stride':1, 'output':(56**2)*32  }, # Feature map size 100,352 - Params: 3x3x64x32   =    18,432
+                            'conv5':{'filters':16,  'size':3, 'stride':1, 'output':(56**2)*16  }, # Feature map size  50,176 - Params: 3x3x32x16   =     4,608
+                            'conv6':{'filters': 8,  'size':3, 'stride':1, 'output':(56**2)*8   }, # Feature map size  25,088 - Params: 3x3x16x8    =     1,152
+                            'pad':'half'}                                                         #        TOTALS: 1'580,540 -                     =   176,448
+                inputDim = self.cnn['conv6']['output']
+            if convFilters == 4:
+                self.cnn = {'conv1':{'filters':96, 'size':7, 'stride':2, 'output':(112**2)*96 },  # Feature map size 1'204,224 - Params: 7x7x3x96    =    14,112
+                            'conv2':{'filters':128, 'size':5, 'stride':2, 'output':(56**2)*128 }, # Feature map size   401,408 - Params: 5x5x96x128  =   307,200
+                            'conv3':{'filters':256, 'size':3, 'stride':2, 'output':(28**2)*256 }, # Feature map size   200,704 - Params: 3x3x128x256 =   294,912
+                            'conv4':{'filters':256, 'size':3, 'stride':2, 'output':(14**2)*256 }, # Feature map size   100,352 - Params: 3x3x256x256 =   589,824
+                            'conv5':{'filters':512, 'size':3, 'stride':2, 'output':(7**2)*512 },  # Feature map size    25,088 - Params: 3x3x256x512 = 1'179,648
+                            'conv6':{'filters':256, 'size':3, 'stride':1, 'output':(7**2)*256 },  # Feature map size    12,544 - Params: 3x3x512x256 = 1'179,648
+                            'pad':'half'}                                                         #          TOTALS: 1'944,320 -                     = 3'565,344
+                inputDim = self.cnn['conv6']['output']
 
         self.targetDim = targetDim
         self.inputDim = inputDim + self.targetDim
@@ -306,28 +342,60 @@ class TheanoGruRnn(object):
         self.stateDim = stateDim
         self.imgSize = imgSize
         self.useAttention = useAttention
-        self.fitFunc, self.forwardFunc, self.params, self.stepFunc = self.buildModel(self.batchSize, self.inputDim, self.stateDim, self.targetDim, zeroTailFc, learningRate, use_cudnn, self.imgSize, self.useAttention)
+        self.computeFlow = computeFlow
+        if self.computeFlow:
+            if self.modelArch.endswith('ConvLayers'):
+                self.channels = 5
+            elif self.modelArch == 'base':
+                self.channels = 3
+            else:
+                print 'Flow not supported for these models'
+                self.channels = 3
+                self.computeFlow = False
+        else:
+            if self.modelArch == 'base':
+                self.channels = 1
+            else:
+                self.channels = 3
+        if self.useAttention == 'squareChannel':
+            self.channels += 1
+        self.fitFunc, self.forwardFunc, self.params, self.stepFunc = self.buildModel(self.batchSize, self.inputDim, self.stateDim, self.targetDim, zeroTailFc, learningRate, use_cudnn, self.imgSize)
 
-    
-    def fit(self, data, label):
-        if self.modelArch == 'lasagne':
+    def preprocess(self, data, label):
+        # Adjust channels and normalize pixels
+        if self.modelArch == 'base':
+            data = data[:, :, NP.newaxis, :, :]
+            data /= 255.0 
+        elif self.modelArch == 'lasagne':
             data = self.cnn.prepareBatch(data)
         elif self.modelArch.endswith('ConvLayers'):
             data = NP.swapaxes(NP.swapaxes(data, 3, 4), 2, 3)
             data = (data - 127.)/127.
+        # Prepare attention masks on first frame
+        if self.useAttention == 'square':
+            firstFrameMasks = VisualAttention.getSquaredMasks(data[:,0,...], label[:,0,:])
+            data[:,0,...] *= firstFrameMasks #Multiplicative mask
+        elif self.useAttention == 'squareChannel':
+            b,t,c,w,h = data.shape
+            firstFrameMasks = VisualAttention.getSquaredMaskChannel(data[:,0,...], label[:,0,:], c==3)
+            data = NP.append(data, NP.zeros((b,t,1,w,h)), axis=2)
+            data[:,0,-1,:,:] = firstFrameMasks
+        # Center labels around zero, and scale them between [-1,1]
+        label = label / (self.imgSize / 2.) - 1.
+        return data, label
+    
+    def fit(self, data, label, flow):
+        data, label = self.preprocess(data, label)
+        if self.computeFlow: data = NP.append(data, flow, axis=4)
         return self.fitFunc(self.seqLength, data, label[:, 0, :], label)
       
-        
-    def forward(self, data, label):
-        if self.modelArch == 'lasagne':
-          data = self.cnn.prepareBatch(data)
-        elif self.modelArch.endswith('ConvLayers'):
-            data = NP.swapaxes(NP.swapaxes(data, 3, 4), 2, 3)
-            data = (data - 127.)/127.
+    def forward(self, data, label, flow):
+        data, label = self.preprocess(data, label)
+        if self.computeFlow: data = NP.append(data, flow, axis=4)
         cost, output = self.forwardFunc(self.seqLength, data, label[:, 0, :], label)
         return cost, output
     
-    def buildModel(self, batchSize, inputDim, stateDim, targetDim, zeroTailFc, learningRate, use_cudnn, imgSize, useAttention):
+    def buildModel(self, batchSize, inputDim, stateDim, targetDim, zeroTailFc, learningRate, use_cudnn, imgSize):
         logging.info('Building network')
         
         # imgs: of shape (batchSize, seq_len, nr_channels, img_rows, img_cols)
@@ -338,7 +406,7 @@ class TheanoGruRnn(object):
         conv2d = initializeConv2d(use_cudnn)
 
         ## Attention mask
-        attention = buildAttention(useAttention, imgSize)
+        attention = VisualAttention.buildAttention(self.useAttention, imgSize)
 
         params = list(self.init_params(inputDim, stateDim, targetDim, zeroTailFc))
         if self.modelArch == 'base':
@@ -467,30 +535,25 @@ class TheanoGruRnn(object):
         if self.modelArch == 'base':
             conv1 = Theano.shared(glorot_uniform((self.conv_nr_filters, 1, self.conv_filter_row, self.conv_filter_col)), name='conv1')
         if self.modelArch == 'twoConvLayers':
-            channels = 3
-            conv1 = Theano.shared(glorot_uniform((self.cnn['conv1']['filters'], channels, self.cnn['conv1']['size'], self.cnn['conv1']['size'])), name='conv1')
+            conv1 = Theano.shared(glorot_uniform((self.cnn['conv1']['filters'], self.channels, self.cnn['conv1']['size'], self.cnn['conv1']['size'])), name='conv1')
             conv2 = Theano.shared(glorot_uniform((self.cnn['conv2']['filters'], self.cnn['conv1']['filters'], self.cnn['conv2']['size'], self.cnn['conv2']['size'])), name='conv2')
         if self.modelArch == 'threeConvLayers':
-            channels = 3
-            conv1 = Theano.shared(glorot_uniform((self.cnn['conv1']['filters'], channels, self.cnn['conv1']['size'], self.cnn['conv1']['size'])), name='conv1')
+            conv1 = Theano.shared(glorot_uniform((self.cnn['conv1']['filters'], self.channels, self.cnn['conv1']['size'], self.cnn['conv1']['size'])), name='conv1')
             conv2 = Theano.shared(glorot_uniform((self.cnn['conv2']['filters'], self.cnn['conv1']['filters'], self.cnn['conv2']['size'], self.cnn['conv2']['size'])), name='conv2')
             conv3 = Theano.shared(glorot_uniform((self.cnn['conv3']['filters'], self.cnn['conv2']['filters'], self.cnn['conv3']['size'], self.cnn['conv3']['size'])), name='conv3')
         if self.modelArch == 'fourConvLayers':
-            channels = 3
-            conv1 = Theano.shared(glorot_uniform((self.cnn['conv1']['filters'], channels, self.cnn['conv1']['size'], self.cnn['conv1']['size'])), name='conv1')
+            conv1 = Theano.shared(glorot_uniform((self.cnn['conv1']['filters'], self.channels, self.cnn['conv1']['size'], self.cnn['conv1']['size'])), name='conv1')
             conv2 = Theano.shared(glorot_uniform((self.cnn['conv2']['filters'], self.cnn['conv1']['filters'], self.cnn['conv2']['size'], self.cnn['conv2']['size'])), name='conv2')
             conv3 = Theano.shared(glorot_uniform((self.cnn['conv3']['filters'], self.cnn['conv2']['filters'], self.cnn['conv3']['size'], self.cnn['conv3']['size'])), name='conv3')
             conv4 = Theano.shared(glorot_uniform((self.cnn['conv4']['filters'], self.cnn['conv3']['filters'], self.cnn['conv4']['size'], self.cnn['conv4']['size'])), name='conv4')
         if self.modelArch == 'fiveConvLayers' or self.modelArch == 'fiveXConvLayers':
-            channels = 3
-            conv1 = Theano.shared(glorot_uniform((self.cnn['conv1']['filters'], channels, self.cnn['conv1']['size'], self.cnn['conv1']['size'])), name='conv1')
+            conv1 = Theano.shared(glorot_uniform((self.cnn['conv1']['filters'], self.channels, self.cnn['conv1']['size'], self.cnn['conv1']['size'])), name='conv1')
             conv2 = Theano.shared(glorot_uniform((self.cnn['conv2']['filters'], self.cnn['conv1']['filters'], self.cnn['conv2']['size'], self.cnn['conv2']['size'])), name='conv2')
             conv3 = Theano.shared(glorot_uniform((self.cnn['conv3']['filters'], self.cnn['conv2']['filters'], self.cnn['conv3']['size'], self.cnn['conv3']['size'])), name='conv3')
             conv4 = Theano.shared(glorot_uniform((self.cnn['conv4']['filters'], self.cnn['conv3']['filters'], self.cnn['conv4']['size'], self.cnn['conv4']['size'])), name='conv4')
             conv5 = Theano.shared(glorot_uniform((self.cnn['conv5']['filters'], self.cnn['conv4']['filters'], self.cnn['conv5']['size'], self.cnn['conv5']['size'])), name='conv5')
         if self.modelArch == 'sixConvLayers' or self.modelArch == 'sixXConvLayers':
-            channels = 3
-            conv1 = Theano.shared(glorot_uniform((self.cnn['conv1']['filters'], channels, self.cnn['conv1']['size'], self.cnn['conv1']['size'])), name='conv1')
+            conv1 = Theano.shared(glorot_uniform((self.cnn['conv1']['filters'], self.channels, self.cnn['conv1']['size'], self.cnn['conv1']['size'])), name='conv1')
             conv2 = Theano.shared(glorot_uniform((self.cnn['conv2']['filters'], self.cnn['conv1']['filters'], self.cnn['conv2']['size'], self.cnn['conv2']['size'])), name='conv2')
             conv3 = Theano.shared(glorot_uniform((self.cnn['conv3']['filters'], self.cnn['conv2']['filters'], self.cnn['conv3']['size'], self.cnn['conv3']['size'])), name='conv3')
             conv4 = Theano.shared(glorot_uniform((self.cnn['conv4']['filters'], self.cnn['conv3']['filters'], self.cnn['conv4']['size'], self.cnn['conv4']['size'])), name='conv4')

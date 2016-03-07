@@ -13,13 +13,15 @@ import GaussianGenerator
 import VisualAttention
 from VideoSequenceData import TraxClientWrapper
 
+MAX_SEQ_LENGTH = 60
+
 def clock(m, st): 
     print m,(time.time()-st)
 
 class Controller(object):
 
-    def train(self, tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize, seqLength):
-        validation = Validation(5, batchSize, generator, imgHeight)
+    def train(self, tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize, seqLength, computeFlow):
+        validation = Validation(8, batchSize, generator, imgHeight, computeFlow, seqLength)
         for i in range(0, epochs):
             train_cost = 0
             et = time.time()
@@ -28,23 +30,14 @@ class Controller(object):
                 # Obtain a batch of data to train on
                 if not tracker.sampleFromMem():
                     st = time.time()
-                    data, label = generator.getBatch(generationBatchSize)
                     # Keep max seqLength frames
-                    if seqLength < data.shape[1]:
-                        startFrame = NP.random.randint(0,data.shape[1]-seqLength)
-                        data = data[:,startFrame:startFrame+seqLength,...]
-                        label = label[:,startFrame:startFrame+seqLength,...]
-                    # Mask the object that has to be tracked in the first frame
-                    firstFrameMasks = VisualAttention.getSquaredMasks(data[:,0,...], label[:,0,:], 4, 0.1)
-                    data[:,0,...] *= firstFrameMasks
+                    if seqLength < MAX_SEQ_LENGTH:
+                        startFrame = NP.random.randint(0,MAX_SEQ_LENGTH-seqLength)
+                    else:
+                        startFrame = 0
+                    data, label, flow = generator.getBatch(generationBatchSize, startFrame, startFrame+seqLength)
                     # Replay memory management
                     storeInMem = (True and useReplayMem)  # When this flag is false, the memory is never used
-                    # Normalize gray scale data
-                    if generator.grayscale:
-                        data = data[:, :, NP.newaxis, :, :]
-                        data /= 255.0
-                    # Center labels around zero, and scale them between [-1,1]
-                    label = label / (imgHeight / 2.) - 1. 
                     clock('Simulations',st)
                 else:
                     st = time.time()
@@ -54,12 +47,12 @@ class Controller(object):
 
                 # Update parameters of the model
                 st = time.time()                
-                cost, bbox_seq = tracker.fit(data, label, storeInMem)
+                cost, bbox_seq = tracker.fit(data, label, flow, storeInMem)
                 clock('Training',st)
                 
                 print 'Cost', i, j, cost
                 train_cost += cost
-            bbox, iou = validation.validate(tracker, seqLength)
+            bbox, iou = validation.validate(tracker)
             '''
             outputVideoDir = os.path.join(os.path.dirname(trackerModelPath), 'epoch'+str(i))
             if not os.path.exists(outputVideoDir):
@@ -130,8 +123,9 @@ class ControllerConfig(object):
         parser.add_argument('--imgHeight', help='Image Height', type=int, default=224)
         parser.add_argument('--imgWidth', help='Image width', type=int, default=224)
         parser.add_argument('--gruStateDim', help='Dimension of GRU state', type=int, default=256)
-        parser.add_argument('--seqLength', help='Length of sequences', type=int, default=60)
+        parser.add_argument('--seqLength', help='Length of sequences', type=int, default=MAX_SEQ_LENGTH)
         parser.add_argument('--useReplayMem', help='Use replay memory to store simulated sequences', default=False, action='store_true')
+        parser.add_argument('--computeFlow', help='Compute optical flow between frames', default=False, action='store_true')
         parser.add_argument('--convFilters', help='Number of filters to use in the convolutional layer', type=int, default=32)
         #TODO: Check default values or make required
         parser.add_argument('--trackerModelPath', help='Name of model file', type=str, default='model.pkl')
@@ -149,7 +143,7 @@ class ControllerConfig(object):
         #TODO: Evaluate specifying the level instead if more than debug is needed   
         parser.add_argument('--debug', help='Enable debug logging', default=False, action='store_true')
         parser.add_argument('--norm', help='Norm type for cost', default=TheanoGruRnn.l2.func_name, choices=[TheanoGruRnn.smooth_l1.func_name, TheanoGruRnn.l2.func_name])
-        parser.add_argument('--useAttention', help='Enable attention', type=str, default='no', choices=['no', 'gaussian', 'square'])
+        parser.add_argument('--useAttention', help='Enable attention', type=str, default='no', choices=['no', 'gaussian', 'square','squareChannel'])
         parser.add_argument('--testType', help='Run test of the specified type', type=str, default='no', choices=['no', 'trax', 'tester'])
         parser.add_argument('--libvotPath', help='Path to libvot', type=str, default='/home/fmpaezri/repos/vot-toolkit/tracker/examples/native/libvot.so')
         
@@ -229,8 +223,8 @@ if __name__ == '__main__':
         try:
             M = 9600 # Constant number of example sequences per epoch
             batches = M/batchSize
-            generator = GaussianGenerator.GaussianGenerator(imageDir, summaryPath, trajectoryModelPath, seqLength=60, imageSize=imgHeight, grayscale=grayscale, parallel=not sequential, numProcs=numProcs)
-            controller.train(tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize, seqLength)
+            generator = GaussianGenerator.GaussianGenerator(imageDir, summaryPath, trajectoryModelPath, seqLength=MAX_SEQ_LENGTH, imageSize=imgHeight, grayscale=grayscale, parallel=not sequential, numProcs=numProcs, computeFlow=computeFlow)
+            controller.train(tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize, seqLength, computeFlow)
             #TODO: evaluate if it is wise to save on any exception
         except KeyboardInterrupt:
             TheanoGruRnn.saveModel(tracker.rnn, trackerModelPath)
