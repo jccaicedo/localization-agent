@@ -402,7 +402,10 @@ class TrajectorySimulator():
     # Initial scale of the object is 
     # a fraction of the smallest side of the scene
     smallestSide = min(self.camSize)
-    side = smallestSide*( 0.4*self.randGen.random() + 0.4 )
+    minScale = 0.2
+    scaleRange = 0.4
+    side = smallestSide*( scaleRange*self.randGen.random() + minScale )
+    logging.debug('Scaling object to minimum side: %s', side)
     # Preserve object's aspect ratio with the largest side being "side"
     ar = float(self.obj.size[1])/float(self.obj.size[0])
     if self.obj.size[1] > self.obj.size[0]:
