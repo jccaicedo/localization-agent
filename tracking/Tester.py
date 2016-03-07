@@ -1,5 +1,6 @@
 import numpy as NP
 import VideoSequence as SQ
+import matplotlib.pyplot as PLT
 import os
 
 from PIL import Image
@@ -86,7 +87,43 @@ class Tester(object):
             exportSequences(data * 255.0, (label + 1) * imageHeight / 2., (bboxSeqTest + 1) * imageHeight / 2., grayscale, outputVideoDir)
         
         iou = getIntOverUnion(label, bboxSeqTest)
+
+        return iou
+    
+            
+    def plotOverlapMeasures(self, iouMeasures, title, xLabel, yLabel, outputPath):
+        for idx, iou in enumerate(iouMeasures):
+            fig = PLT.figure(figsize=(20, 15))
+            PLT.plot(iou, label="Sequence #" + str(idx))
+            PLT.title(title)
+            PLT.xlabel(xLabel)
+            PLT.ylabel(yLabel)
+            PLT.legend(loc='upper left', bbox_to_anchor=(0.8, 0.8))
+            figPath = os.path.join(outputPath, )
+            PLT.savefig(outputPath + "Sequence_" + str(idx) + "_IOU.png")
+            PLT.close(fig)
+            PLT.clf()
+            
+            
+    def plotGeneralMeasures(self, iouMeasures, title, outputPath):
+        measures = {}
+        measures["mean"] = NP.mean(iouMeasures, axis=0)
+        measures["max"] = NP.max(iouMeasures, axis=0)
+        measures["min"] = NP.min(iouMeasures, axis=0)
+        measures["median"] = NP.median(iouMeasures, axis=0)
+        measures["std"] = NP.std(iouMeasures, axis=0)
         
+        for name, measure in measures.iteritems():
+            fig = PLT.figure(figsize=(20, 15))
+            PLT.plot(measure, label=name)
+            PLT.legend(loc='upper left', bbox_to_anchor=(0.8, 0.8))
+            PLT.title(title)
+            PLT.xlabel("Frame")
+            PLT.ylabel(name)
+            figPath = os.path.join(outputPath, name + ".png")
+            PLT.savefig(figPath)
+            PLT.close(fig)
+            PLT.clf()
         measures = {}
         
         measures["all"] =  iou

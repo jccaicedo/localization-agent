@@ -24,33 +24,39 @@ def box2cwh(boxTensor):
     return Tensor.stacklists([xc,yc,width,height]).dimshuffle(1,2,0)
 
 #TODO: turn into GRU class
-def gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2):
+def gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg):
     flat1 = Tensor.reshape(features, (features.shape[0], Tensor.prod(features.shape[1:])))
-    gru_in = Tensor.concatenate([flat1, prev_bbox], axis=1)
+    gru_in = Tensor.concatenate([flat1, prev_bbox], axis=1) #TODO: Remove this thing!
     gru_z = NN.sigmoid(Tensor.dot(gru_in, Wz) + Tensor.dot(state, Uz) + bz)
     gru_r = NN.sigmoid(Tensor.dot(gru_in, Wr) + Tensor.dot(state, Ur) + br)
     gru_h_ = Tensor.tanh(Tensor.dot(gru_in, Wg) + Tensor.dot(gru_r * state, Ug) + bg)
     gru_h = (1-gru_z) * state + gru_z * gru_h_
-    bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc2) + b_fc2)
+    return gru_h
+
+def boxRegressor(gru_h, W_fc, b_fc):
+    bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc) + b_fc)
     return bbox, gru_h
     
-def initGru(inputDim, stateDim, targetDim, zeroTailFc):
-    Wr = Theano.shared(glorot_uniform((inputDim, stateDim)), name='Wr')
-    Ur = Theano.shared(orthogonal((stateDim, stateDim)), name='Ur')
-    br = Theano.shared(NP.zeros((stateDim,), dtype=Theano.config.floatX), name='br')
-    Wz = Theano.shared(glorot_uniform((inputDim, stateDim)), name='Wz')
-    Uz = Theano.shared(orthogonal((stateDim, stateDim)), name='Uz')
-    bz = Theano.shared(NP.zeros((stateDim,), dtype=Theano.config.floatX), name='bz')
-    Wg = Theano.shared(glorot_uniform((inputDim, stateDim)), name='Wg')
-    Ug = Theano.shared(orthogonal((stateDim, stateDim)), name='Ug')
-    bg = Theano.shared(NP.zeros((stateDim,), dtype=Theano.config.floatX), name='bg')
+def initGru(inputDim, stateDim, level):
+    Wr = Theano.shared(glorot_uniform((inputDim, stateDim)), name='Wr'+level)
+    Ur = Theano.shared(orthogonal((stateDim, stateDim)), name='Ur'+level)
+    br = Theano.shared(NP.zeros((stateDim,), dtype=Theano.config.floatX), name='br'+level)
+    Wz = Theano.shared(glorot_uniform((inputDim, stateDim)), name='Wz'+level)
+    Uz = Theano.shared(orthogonal((stateDim, stateDim)), name='Uz'+level)
+    bz = Theano.shared(NP.zeros((stateDim,), dtype=Theano.config.floatX), name='bz'+level)
+    Wg = Theano.shared(glorot_uniform((inputDim, stateDim)), name='Wg'+level)
+    Ug = Theano.shared(orthogonal((stateDim, stateDim)), name='Ug'+level)
+    bg = Theano.shared(NP.zeros((stateDim,), dtype=Theano.config.floatX), name='bg'+level)
+    return Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg
+
+def initRegressor(stateDim, targetDim, zeroTailFc):
     if not zeroTailFc:
-        W_fc2init = glorot_uniform((stateDim, targetDim))
+        W_fcinit = glorot_uniform((stateDim, targetDim))
     else:
-        W_fc2init = NP.zeros((stateDim, targetDim), dtype=Theano.config.floatX)
-    W_fc2 = Theano.shared(W_fc2init, name='W_fc2')
-    b_fc2 = Theano.shared(NP.zeros((targetDim,), dtype=Theano.config.floatX), name='b_fc2')
-    return Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2
+        W_fcinit = NP.zeros((stateDim, targetDim), dtype=Theano.config.floatX)
+    W_fc = Theano.shared(W_fcinit, name='W_fc')
+    b_fc = Theano.shared(NP.zeros((targetDim,), dtype=Theano.config.floatX), name='b_fc')
+    return W_fc, b_fc
 
 def initializeConv2d(use_cudnn=False):
     conv2d = NN.conv2d
@@ -221,6 +227,75 @@ class TheanoGruRnn(object):
                             'conv2':{'filters':128, 'size':5, 'stride':2, 'output':(((94-5)/2+1)**2)*128 },
                             'conv3':{'filters':128, 'size':5, 'stride':2, 'output':(((45-5)/2+1)**2)*128 }}
                 inputDim = self.cnn['conv3']['output']
+        elif self.modelArch == 'fourConvLayers':
+            if convFilters == 1:
+                self.cnn = {'conv1':{'filters':96, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*96 },
+                            'conv2':{'filters':128, 'size':5, 'stride':2, 'output':(((94-5)/2+1)**2)*128 },
+                            'conv3':{'filters':128, 'size':3, 'stride':1, 'output':(((45-3)/1+1)**2)*128 },
+                            'conv4':{'filters':128, 'size':3, 'stride':2, 'output':(((43-3)/2+1)**2)*128 }}
+                inputDim = self.cnn['conv4']['output']
+        elif self.modelArch == 'fiveConvLayers':
+            if convFilters == 1:
+                self.cnn = {'conv1':{'filters':96, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*96 },
+                            'conv2':{'filters':128, 'size':5, 'stride':2, 'output':(((94-5)/2+1)**2)*128 },
+                            'conv3':{'filters':128, 'size':3, 'stride':1, 'output':(((45-3)/1+1)**2)*128 },
+                            'conv4':{'filters':128, 'size':5, 'stride':2, 'output':(((43-5)/2+1)**2)*128 },
+                            'conv5':{'filters':128, 'size':3, 'stride':1, 'output':(((20-3)/1+1)**2)*128 },
+                            'pad':'valid'}
+                inputDim = self.cnn['conv5']['output']
+            if convFilters == 2:
+                self.cnn = {'conv1':{'filters':96, 'size':5, 'stride':2, 'output':(96**2)*96 },   # Feature map size 884,736 - Params: 5x5x3x96    =   7,200
+                            'conv2':{'filters':128, 'size':5, 'stride':2, 'output':(48**2)*128 }, # Feature map size 294,912 - Params: 5x5x96x128  = 307,200
+                            'conv3':{'filters':128, 'size':3, 'stride':1, 'output':(48**2)*128 }, # Feature map size 294,912 - Params: 3x3x128x128 = 147,456
+                            'conv4':{'filters':128, 'size':3, 'stride':2, 'output':(24**2)*128 }, # Feature map size  73,728 - Params: 3x3x128x128 = 147,456
+                            'conv5':{'filters':128, 'size':3, 'stride':1, 'output':(24**2)*128 }, # Feature map size  73,728 - Params: 3x3x128x128 = 147,456
+                            'pad':'half'}                                                         #        TOTALS: 1'622,016 -                     = 756,768
+                inputDim = self.cnn['conv5']['output']
+            if convFilters == 3:
+                self.cnn = {'conv1':{'filters':96, 'size':5, 'stride':2, 'output':(96**2)*96 },   # Feature map size 884,736 - Params: 5x5x3x96    =   7,200
+                            'conv2':{'filters':256, 'size':5, 'stride':2, 'output':(48**2)*256 }, # Feature map size 589,824 - Params: 5x5x96x256  = 614,400
+                            'conv3':{'filters':256, 'size':3, 'stride':1, 'output':(48**2)*256 }, # Feature map size 589,824 - Params: 3x3x256x256 = 589,824
+                            'conv4':{'filters':256, 'size':3, 'stride':2, 'output':(24**2)*256 }, # Feature map size 147,456 - Params: 3x3x256x256 = 589,824
+                            'conv5':{'filters':128, 'size':3, 'stride':1, 'output':(24**2)*128 }, # Feature map size  73,728 - Params: 3x3x256x128 = 294,912
+                            'pad':'half'}                                                         #        TOTALS: 2'285,568 -                   = 2'096,160
+                inputDim = self.cnn['conv5']['output']
+            if convFilters == 4:
+                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(96**2)*64 },   # Feature map size 589,824 - Params: 5x5x3x64    =   4,800
+                            'conv2':{'filters':128, 'size':3, 'stride':2, 'output':(48**2)*128 }, # Feature map size 294,912 - Params: 3x3x64x128  =  73,728
+                            'conv3':{'filters':128, 'size':3, 'stride':1, 'output':(48**2)*128 }, # Feature map size 294,912 - Params: 3x3x128x128 = 147,456
+                            'conv4':{'filters':256, 'size':3, 'stride':2, 'output':(24**2)*256 }, # Feature map size 147,456 - Params: 3x3x128x256 = 294,912
+                            'conv5':{'filters':256, 'size':3, 'stride':2, 'output':(12**2)*256 }, # Feature map size  36,864 - Params: 3x3x256x256 = 589,824
+                            'pad':'half'}                                                         #        TOTALS: 1'363,968 -                   = 1'110,720
+                inputDim = self.cnn['conv5']['output']
+        elif self.modelArch == 'sixConvLayers':
+            if convFilters == 1:
+                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(96**2)*64 },   # Feature map size 589,824 - Params: 5x5x3x64    =   4,800
+                            'conv2':{'filters':128, 'size':3, 'stride':2, 'output':(48**2)*128 }, # Feature map size 294,912 - Params: 3x3x64x128  =  73,728
+                            'conv3':{'filters':128, 'size':3, 'stride':1, 'output':(48**2)*128 }, # Feature map size 294,912 - Params: 3x3x128x128 = 147,456
+                            'conv4':{'filters':256, 'size':3, 'stride':2, 'output':(24**2)*256 }, # Feature map size 147,456 - Params: 3x3x128x256 = 294,912
+                            'conv5':{'filters':256, 'size':3, 'stride':1, 'output':(24**2)*256 }, # Feature map size 147,456 - Params: 3x3x256x256 = 589,824
+                            'conv6':{'filters':256, 'size':3, 'stride':2, 'output':(12**2)*256 }, # Feature map size  36,864 - Params: 3x3x256x256 = 589,824
+                            'pad':'half'}                                                         #        TOTALS: 1'511,424 -                   = 1'700,544
+                inputDim = self.cnn['conv6']['output']
+        elif self.modelArch == 'fiveXConvLayers':
+            if convFilters == 1:
+                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(112**2)*64 },  # Feature map size 802,812 - Params: 5x5x3x64    =     4,800
+                            'conv2':{'filters':128, 'size':3, 'stride':2, 'output':(56**2)*128 }, # Feature map size 401,408 - Params: 3x3x64x128  =    73,728
+                            'conv3':{'filters':256, 'size':3, 'stride':2, 'output':(28**2)*256 }, # Feature map size 200,704 - Params: 3x3x128x256 =   294,912
+                            'conv4':{'filters':512, 'size':3, 'stride':2, 'output':(14**2)*512 }, # Feature map size 100,352 - Params: 3x3x256x512 = 1'179,648
+                            'conv5':{'filters':512, 'size':3, 'stride':2, 'output':(7**2)*512 },  # Feature map size  25,088 - Params: 3x3x512x512 = 2'359,296
+                            'pad':'half'}                                                         #        TOTALS: 1'530,364 -                     = 3'912,384
+                inputDim = self.cnn['conv5']['output']
+        elif self.modelArch == 'sixXConvLayers':
+            if convFilters == 1:
+                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(112**2)*64 },  # Feature map size 802,816 - Params: 5x5x3x64    =     4,800
+                            'conv2':{'filters':128, 'size':3, 'stride':2, 'output':(56**2)*128 }, # Feature map size 401,408 - Params: 3x3x64x128  =    73,728
+                            'conv3':{'filters':256, 'size':3, 'stride':1, 'output':(28**2)*256 }, # Feature map size 207,704 - Params: 3x3x128x256 =   294,912
+                            'conv4':{'filters':256, 'size':3, 'stride':2, 'output':(28**2)*256 }, # Feature map size 207,704 - Params: 3x3x256x256 =   589,824
+                            'conv5':{'filters':512, 'size':3, 'stride':2, 'output':(14**2)*512 }, # Feature map size 100,352 - Params: 3x3x256x512 = 1'179,648
+                            'conv6':{'filters':512, 'size':3, 'stride':2, 'output':(7**2)*256 },  # Feature map size  25,088 - Params: 3x3x512x512 = 2'359,296
+                            'pad':'half'}                                                         #        TOTALS: 1'745,072 -                     = 4'502,208
+                inputDim = self.cnn['conv6']['output']
 
 
         self.targetDim = targetDim
@@ -276,20 +351,20 @@ class TheanoGruRnn(object):
                 act1 = Tensor.tanh(fmap1)
                 #act1 = Tensor.nnet.relu(fmap1)
                 features = act1
-                return gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2)
+                return boxRegressor( gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg), W_fc2, b_fc2)
         elif self.modelArch == 'caffe':
             Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
             def step(img, prev_bbox, state):
                 # of (batch_size, nr_filters, some_rows, some_cols)
                 act1 = img
                 features = act1
-                return gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2)
+                return boxRegressor( gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg), W_fc2, b_fc2)
         elif self.modelArch == 'lasagne':
             Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
             def step(img, prev_bbox, state):
                 img = attention(img, prev_bbox)
                 features = self.cnn.getFeatureExtractor(img)
-                return gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2)
+                return boxRegressor( gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg), W_fc2, b_fc2)
         elif self.modelArch == 'twoConvLayers':
             conv1, conv2, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
             def step(img, prev_bbox, state):
@@ -299,7 +374,7 @@ class TheanoGruRnn(object):
                 fmap2 = conv2d(act1, conv2, subsample=(self.cnn['conv2']['stride'], self.cnn['conv2']['stride']))
                 act2 = Tensor.nnet.relu(fmap2)
                 features = act2
-                return gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2)
+                return boxRegressor( gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg), W_fc2, b_fc2)
         elif self.modelArch == 'threeConvLayers':
             conv1, conv2, conv3, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
             def step(img, prev_bbox, state):
@@ -311,7 +386,57 @@ class TheanoGruRnn(object):
                 fmap3 = conv2d(act2, conv3, subsample=(self.cnn['conv3']['stride'], self.cnn['conv3']['stride']))
                 act3 = Tensor.nnet.relu(fmap3)
                 features = act3
-                return gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2)
+                return boxRegressor( gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg), W_fc2, b_fc2)
+        elif self.modelArch == 'fourConvLayers':
+            conv1, conv2, conv3, conv4, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
+            def step(img, prev_bbox, state):
+                img = attention(img, prev_bbox)
+                fmap1 = conv2d(img, conv1, subsample=(self.cnn['conv1']['stride'], self.cnn['conv1']['stride']))
+                act1 = Tensor.nnet.relu(fmap1)
+                fmap2 = conv2d(act1, conv2, subsample=(self.cnn['conv2']['stride'], self.cnn['conv2']['stride']))
+                act2 = Tensor.nnet.relu(fmap2)
+                fmap3 = conv2d(act2, conv3, subsample=(self.cnn['conv3']['stride'], self.cnn['conv3']['stride']))
+                act3 = Tensor.nnet.relu(fmap3)
+                fmap4 = conv2d(act3, conv4, subsample=(self.cnn['conv4']['stride'], self.cnn['conv4']['stride']))
+                act4 = Tensor.nnet.relu(fmap4)
+                features = act4
+                return boxRegressor( gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg), W_fc2, b_fc2)
+        elif self.modelArch == 'fiveConvLayers' or self.modelArch == 'fiveXConvLayers':
+            conv1, conv2, conv3, conv4, conv5, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
+            def step(img, prev_bbox, state):
+                img = attention(img, prev_bbox)
+                fmap1 = conv2d(img, conv1, subsample=(self.cnn['conv1']['stride'], self.cnn['conv1']['stride']), border_mode=self.cnn['pad'])
+                act1 = Tensor.nnet.relu(fmap1)
+                fmap2 = conv2d(act1, conv2, subsample=(self.cnn['conv2']['stride'], self.cnn['conv2']['stride']), border_mode=self.cnn['pad'])
+                act2 = Tensor.nnet.relu(fmap2)
+                fmap3 = conv2d(act2, conv3, subsample=(self.cnn['conv3']['stride'], self.cnn['conv3']['stride']), border_mode=self.cnn['pad'])
+                act3 = Tensor.nnet.relu(fmap3)
+                fmap4 = conv2d(act3, conv4, subsample=(self.cnn['conv4']['stride'], self.cnn['conv4']['stride']), border_mode=self.cnn['pad'])
+                act4 = Tensor.nnet.relu(fmap4)
+                fmap5 = conv2d(act4, conv5, subsample=(self.cnn['conv5']['stride'], self.cnn['conv5']['stride']), border_mode=self.cnn['pad'])
+                act5 = Tensor.nnet.relu(fmap5)
+                features = act5
+                return boxRegressor( gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg), W_fc2, b_fc2)
+        elif self.modelArch == 'sixConvLayers' or self.modelArch == 'sixXConvLayers':
+            conv1, conv2, conv3, conv4, conv5, conv6, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
+            def step(img, prev_bbox, state):
+                img = attention(img, prev_bbox)
+                fmap1 = conv2d(img, conv1, subsample=(self.cnn['conv1']['stride'], self.cnn['conv1']['stride']), border_mode=self.cnn['pad'])
+                act1 = Tensor.nnet.relu(fmap1)
+                fmap2 = conv2d(act1, conv2, subsample=(self.cnn['conv2']['stride'], self.cnn['conv2']['stride']), border_mode=self.cnn['pad'])
+                act2 = Tensor.nnet.relu(fmap2)
+                fmap3 = conv2d(act2, conv3, subsample=(self.cnn['conv3']['stride'], self.cnn['conv3']['stride']), border_mode=self.cnn['pad'])
+                act3 = Tensor.nnet.relu(fmap3)
+                fmap4 = conv2d(act3, conv4, subsample=(self.cnn['conv4']['stride'], self.cnn['conv4']['stride']), border_mode=self.cnn['pad'])
+                act4 = Tensor.nnet.relu(fmap4)
+                fmap5 = conv2d(act4, conv5, subsample=(self.cnn['conv5']['stride'], self.cnn['conv5']['stride']), border_mode=self.cnn['pad'])
+                act5 = Tensor.nnet.relu(fmap5)
+                fmap6 = conv2d(act5, conv6, subsample=(self.cnn['conv6']['stride'], self.cnn['conv6']['stride']), border_mode=self.cnn['pad'])
+                act6 = Tensor.nnet.relu(fmap6)
+                features = act6
+                return boxRegressor( gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg), W_fc2, b_fc2)
+
+
                
         state = Tensor.zeros((batchSize, stateDim))
         # Move the time axis to the top
@@ -350,14 +475,44 @@ class TheanoGruRnn(object):
             conv1 = Theano.shared(glorot_uniform((self.cnn['conv1']['filters'], channels, self.cnn['conv1']['size'], self.cnn['conv1']['size'])), name='conv1')
             conv2 = Theano.shared(glorot_uniform((self.cnn['conv2']['filters'], self.cnn['conv1']['filters'], self.cnn['conv2']['size'], self.cnn['conv2']['size'])), name='conv2')
             conv3 = Theano.shared(glorot_uniform((self.cnn['conv3']['filters'], self.cnn['conv2']['filters'], self.cnn['conv3']['size'], self.cnn['conv3']['size'])), name='conv3')
-        Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = initGru(inputDim, stateDim, targetDim, zeroTailFc)
+        if self.modelArch == 'fourConvLayers':
+            channels = 3
+            conv1 = Theano.shared(glorot_uniform((self.cnn['conv1']['filters'], channels, self.cnn['conv1']['size'], self.cnn['conv1']['size'])), name='conv1')
+            conv2 = Theano.shared(glorot_uniform((self.cnn['conv2']['filters'], self.cnn['conv1']['filters'], self.cnn['conv2']['size'], self.cnn['conv2']['size'])), name='conv2')
+            conv3 = Theano.shared(glorot_uniform((self.cnn['conv3']['filters'], self.cnn['conv2']['filters'], self.cnn['conv3']['size'], self.cnn['conv3']['size'])), name='conv3')
+            conv4 = Theano.shared(glorot_uniform((self.cnn['conv4']['filters'], self.cnn['conv3']['filters'], self.cnn['conv4']['size'], self.cnn['conv4']['size'])), name='conv4')
+        if self.modelArch == 'fiveConvLayers' or self.modelArch == 'fiveXConvLayers':
+            channels = 3
+            conv1 = Theano.shared(glorot_uniform((self.cnn['conv1']['filters'], channels, self.cnn['conv1']['size'], self.cnn['conv1']['size'])), name='conv1')
+            conv2 = Theano.shared(glorot_uniform((self.cnn['conv2']['filters'], self.cnn['conv1']['filters'], self.cnn['conv2']['size'], self.cnn['conv2']['size'])), name='conv2')
+            conv3 = Theano.shared(glorot_uniform((self.cnn['conv3']['filters'], self.cnn['conv2']['filters'], self.cnn['conv3']['size'], self.cnn['conv3']['size'])), name='conv3')
+            conv4 = Theano.shared(glorot_uniform((self.cnn['conv4']['filters'], self.cnn['conv3']['filters'], self.cnn['conv4']['size'], self.cnn['conv4']['size'])), name='conv4')
+            conv5 = Theano.shared(glorot_uniform((self.cnn['conv5']['filters'], self.cnn['conv4']['filters'], self.cnn['conv5']['size'], self.cnn['conv5']['size'])), name='conv5')
+        if self.modelArch == 'sixConvLayers' or self.modelArch == 'sixXConvLayers':
+            channels = 3
+            conv1 = Theano.shared(glorot_uniform((self.cnn['conv1']['filters'], channels, self.cnn['conv1']['size'], self.cnn['conv1']['size'])), name='conv1')
+            conv2 = Theano.shared(glorot_uniform((self.cnn['conv2']['filters'], self.cnn['conv1']['filters'], self.cnn['conv2']['size'], self.cnn['conv2']['size'])), name='conv2')
+            conv3 = Theano.shared(glorot_uniform((self.cnn['conv3']['filters'], self.cnn['conv2']['filters'], self.cnn['conv3']['size'], self.cnn['conv3']['size'])), name='conv3')
+            conv4 = Theano.shared(glorot_uniform((self.cnn['conv4']['filters'], self.cnn['conv3']['filters'], self.cnn['conv4']['size'], self.cnn['conv4']['size'])), name='conv4')
+            conv5 = Theano.shared(glorot_uniform((self.cnn['conv5']['filters'], self.cnn['conv4']['filters'], self.cnn['conv5']['size'], self.cnn['conv5']['size'])), name='conv5')
+            conv6 = Theano.shared(glorot_uniform((self.cnn['conv6']['filters'], self.cnn['conv5']['filters'], self.cnn['conv6']['size'], self.cnn['conv6']['size'])), name='conv6')
+
+
+        Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg = initGru(inputDim, stateDim, '1')
+        W_fc2, b_fc2 = initRegressor(stateDim, targetDim, zeroTailFc)
         ### NETWORK PARAMETERS END
     
         if self.modelArch == 'base':
             return conv1, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2
-        if self.modelArch == 'twoConvLayers':
+        elif self.modelArch == 'twoConvLayers':
             return conv1, conv2, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2
-        if self.modelArch == 'threeConvLayers':
+        elif self.modelArch == 'threeConvLayers':
             return conv1, conv2, conv3, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2
+        elif self.modelArch == 'fourConvLayers':
+            return conv1, conv2, conv3, conv4, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2
+        elif self.modelArch == 'fiveConvLayers' or self.modelArch == 'fiveXConvLayers':
+            return conv1, conv2, conv3, conv4, conv5, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2
+        elif self.modelArch == 'sixConvLayers' or self.modelArch == 'sixXConvLayers':
+            return conv1, conv2, conv3, conv4, conv5, conv6, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2
         else:
             return Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2
