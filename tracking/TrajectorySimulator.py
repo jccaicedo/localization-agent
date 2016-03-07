@@ -119,18 +119,22 @@ class OffsetTrajectory():
             Transformation(translateY, self.yMin, self.yMax),
         ]
 
-class BoundedTrajectory():
+class StretchedSineTrajectoryModel():
 
-  def __init__(self, w, h):
+  def __init__(self, length):
+    self.length = length
+    self.randGen = startRandGen()
+
+  def sample(self, sceneSize):
     # Do sampling of starting and ending points (fixed number of steps).
     # Implicitly selects speed, length and direction of movement.
     # Assume constant speed (no acceleration).
-    self.randGen = startRandGen()
+    w,h = sceneSize
     x1 = (0.8*w - 0.2*w)*self.randGen.random() + 0.2*w
     y1 = (0.8*h - 0.2*h)*self.randGen.random() + 0.2*h
     x2 = (0.8*w - 0.2*w)*self.randGen.random() + 0.2*w
     y2 = (0.8*h - 0.2*h)*self.randGen.random() + 0.2*h
-    print 'Trajectory: from',int(x1),int(y1),'to',int(x2),int(y2)
+    logging.debug('Trajectory: from %s,%s to %s,%s',int(x1),int(y1),int(x2),int(y2))
 
     # Sample direction of waving
     if self.randGen.random() > 0.5:
@@ -141,13 +145,13 @@ class BoundedTrajectory():
       # Horizontal wave, vertical steps
       self.X = cosine(x1, x2, self.randGen)
       self.Y = stretch(RANGE, y1, y2)
-    self.transforms = [
+    transforms = [
+        Transformation(scaleX, 0.9, 1.1),
+        Transformation(scaleY, 0.9, 1.1),
         Transformation(translateX, None, None, lambda a,b,steps: self.X),
         Transformation(translateY, None, None, lambda a,b,steps: self.Y),
     ]
-
-  def getCoord(self, j):
-    return (self.X[j], self.Y[j])
+    return transforms
 
 #################################
 # TRANSFORMATION CLASS
@@ -155,7 +159,7 @@ class BoundedTrajectory():
 
 class Transformation():
 
-  def __init__(self, f, a, b, pathFunction=None, steps=64):
+  def __init__(self, f, a, b, pathFunction=None, steps=60):
     self.func = f
     self.randGen = startRandGen()
     if pathFunction is None:
@@ -293,11 +297,13 @@ class TrajectorySimulator():
     else:
       logging.debug('Random object trajectory model')
       self.trajectoryModel = RandomTrajectoryModel(self.trajectoryModelLength)
+      #self.trajectoryModel = StretchedSineTrajectoryModel(self.trajectoryModelLength)
     if cameraTrajectoryModel is not None:
       self.cameraTrajectoryModel = TrajectoryModel(cameraTrajectoryModel, self.trajectoryModelLength)
     else:
       logging.debug('Random camera trajectory model')
       self.cameraTrajectoryModel = RandomTrajectoryModel(self.trajectoryModelLength, step_length_=1e-2)
+      #self.cameraTrajectoryModel = StretchedSineTrajectoryModel(self.trajectoryModelLength)
     self.cameraContentTransforms = cameraContentTransforms
     self.cameraShapeTransforms = cameraShapeTransforms
     logging.debug('Scene: %s Object: %s', sceneFile, objectFile)
@@ -673,7 +679,7 @@ class RandomTrajectoryModel(object):
         return start_x, start_y, scales, scales
         
 
-class TrajectoryModel():
+class GMMTrajectoryModel():
 
     def __init__(self, model, length, maxSize=10, base=10.0):
         self.model = model
@@ -681,10 +687,7 @@ class TrajectoryModel():
         self.maxSize = maxSize
 
     def sample(self, sceneSize):
-        if isinstance(self.model, RandomTrajectoryModel):
-            return self.model.sample(sceneSize)
-        else:
-            return self.getAveragedTrajectory(sceneSize)
+        return self.getAveragedTrajectory(sceneSize)
 
     def getAveragedTrajectory(self, sceneSize, base=10.0):
         '''Generates a sample trajectory from the model by taking the average of a random sample of clusters'''
@@ -717,3 +720,31 @@ class TrajectoryModel():
             Transformation(translateY, None, None, pathFunction=lambda a,b,steps: ty),
         ]
         return transforms
+
+class SineTrajectoryModel():
+    def __init__(self, length):
+        self.length = length
+
+    def sample(self, sceneSize):
+        transforms = [
+            Transformation(scaleX, 0.9, 1.1, None, steps=self.length),
+            Transformation(scaleY, 0.9, 1.1, None, steps=self.length),
+            Transformation(translateX, 0, sceneSize[0], None, steps=self.length),
+            Transformation(translateY, 0, sceneSize[1], None, steps=self.length),
+        ]
+        return transforms
+
+class TrajectoryModel(object):
+    def __init__(self, model, length):
+        self.length = length
+        self.gmmModel = GMMTrajectoryModel(model, self.length)
+        self.randomModel = RandomTrajectoryModel(self.length)
+        self.sineModel = SineTrajectoryModel(self.length)
+        self.stretchedModel = StretchedSineTrajectoryModel(self.length)
+        self.models = [self.randomModel, self.sineModel, self.stretchedModel, self.gmmModel]
+        self.randGen = startRandGen()
+
+    def sample(self, sceneSize):
+        modelIndex = self.randGen.randrange(len(self.models))
+        logging.info('Sampling trajectory from model: %s', self.models[modelIndex])
+        return self.models[modelIndex].sample(sceneSize)
