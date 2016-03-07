@@ -11,6 +11,11 @@ import shutil
 import os
 from PIL import Image, ImageDraw
 
+def displayHTML(output):
+    videoSrc = 'data:video/mp4;base64,' + open(output, 'rb').read().encode('base64')
+    videoTag = '<video controls width=\"320\" height=\"240\"><source src=\"{0}\" type=\"video/mp4\">Unsupported tag</video>'
+    return videoTag.format(videoSrc)
+
 class VideoSequence:
     PROCESS_TEMPLATE = 'avconv -y -f image2pipe -vcodec mjpeg -r {} -i - -vcodec libx264 -qscale 5 -r {} {}'
     PROCESS_TEMPLATE_OFFLINE = 'avconv -y -f image2 -vcodec mjpeg -r {} -i {} -vcodec libx264 -qscale 5 -r {} {}'
