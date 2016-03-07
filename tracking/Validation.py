@@ -19,14 +19,14 @@ class Validation(object):
             print 'Loaded validation set with examples:',  self.valSet['data'].shape
         except:
             # Create a fixed validation set for this training session
-            d, l = generator.getBatch(batchSize)
+            d, l, f = generator.getBatch(batchSize, 0, seqLen)
             dataShape = [valBatches*d.shape[0]] + list(d.shape[1:])
             labelShape = [valBatches*l.shape[0]] + list(l.shape[1:])
             self.valSet = {'data':NP.zeros(dataShape),'labels':NP.zeros(labelShape)}
             self.valSet['data'][0:batchSize,...] = d
             self.valSet['labels'][0:batchSize,...] = l
             for i in range(1,valBatches):
-                d, l = generator.getBatch(batchSize)
+                d, l, f = generator.getBatch(batchSize, 0, seqLen)
                 start = i*batchSize
                 end = (i+1)*batchSize
                 self.valSet['data'][start:end,...] = d
