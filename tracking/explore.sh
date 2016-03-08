@@ -7,7 +7,7 @@ run() {
     cd $CODE_DIR
 
     if [ $3 = "base" ] ; then
-        model="--modelArch=base --convFilters=$9"
+        model="--modelArch=oneConvLayers --convFilters=$9"
     elif [ $3 = "caffe" ] ; then
         model="--modelArch=caffe --caffeRoot=/home/jccaicedo/caffe/"
     elif [ $3 = "lasagne" ] ; then

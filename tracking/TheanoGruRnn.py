@@ -144,20 +144,12 @@ class TheanoGruRnn(object):
     seqLength = None
     stepFunc = None
     
-    def __init__(self, inputDim, stateDim, targetDim, batchSize, seqLength, zeroTailFc, learningRate, use_cudnn, imgSize, modelArch='base', norm=l2, useAttention=False, modelPath=None, layerKey=None, convFilters=32, computeFlow=False):
+    def __init__(self, inputDim, stateDim, targetDim, batchSize, seqLength, zeroTailFc, learningRate, use_cudnn, imgSize, modelArch='oneConvLayers', norm=l2, useAttention=False, modelPath=None, layerKey=None, convFilters=32, computeFlow=False):
         ### Computed hyperparameters begin
         self.modelArch = modelArch
-        if self.modelArch == 'base':
-            #TODO: change to same structure as multiple conv layers
-            #Number of feature filters
-            self.conv_nr_filters = convFilters
-            #Rows/cols of feature filters
-            self.conv_filter_row = self.conv_filter_col = 10
-            self.conv_stride = 5
-            #TODO: pass image dims
-            inputDim = ((imgSize - self.conv_filter_row) / self.conv_stride + 1) * \
-                        ((imgSize - self.conv_filter_col) / self.conv_stride + 1) * \
-                        self.conv_nr_filters
+        if self.modelArch == 'oneConvLayers':
+            self.cnn = {'conv1':{'filters':32, 'size':10, 'stride':5, 'output':(((32-10)/5+1)**2)*32 }}
+            inputDim = self.cnn['conv1']['output']
         elif self.modelArch == 'lasagne':
             self.cnn = LasagneVGG16(modelPath, layerKey)
             inputDim = 512 * 7 * 7
@@ -346,31 +338,23 @@ class TheanoGruRnn(object):
         if self.computeFlow:
             if self.modelArch.endswith('ConvLayers'):
                 self.channels = 5
-            elif self.modelArch == 'base':
-                self.channels = 3
             else:
                 print 'Flow not supported for these models'
                 self.channels = 3
                 self.computeFlow = False
         else:
-            if self.modelArch == 'base':
-                self.channels = 1
-            else:
-                self.channels = 3
+            self.channels = 3
         if self.useAttention == 'squareChannel':
             self.channels += 1
         self.fitFunc, self.forwardFunc, self.params, self.stepFunc = self.buildModel(self.batchSize, self.inputDim, self.stateDim, self.targetDim, zeroTailFc, learningRate, use_cudnn, self.imgSize)
 
     def preprocess(self, data, label):
         # Adjust channels and normalize pixels
-        if self.modelArch == 'base':
-            data = data[:, :, NP.newaxis, :, :]
-            data /= 255.0 
-        elif self.modelArch == 'lasagne':
-            data = self.cnn.prepareBatch(data)
-        elif self.modelArch.endswith('ConvLayers'):
+        if self.modelArch.endswith('ConvLayers'):
             data = NP.swapaxes(NP.swapaxes(data, 3, 4), 2, 3)
             data = (data - 127.)/127.
+        elif self.modelArch == 'lasagne':
+            data = self.cnn.prepareBatch(data)
         # Prepare attention masks on first frame
         if self.useAttention == 'square':
             firstFrameMasks = VisualAttention.getSquaredMasks(data[:,0,...], label[:,0,:])
@@ -409,15 +393,14 @@ class TheanoGruRnn(object):
         attention = VisualAttention.buildAttention(self.useAttention, imgSize)
 
         params = list(self.init_params(inputDim, stateDim, targetDim, zeroTailFc))
-        if self.modelArch == 'base':
+        if self.modelArch == 'oneConvLayers':
             conv1, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
             def step(img, prev_bbox, state):
                 img = attention(img, prev_bbox)
-                # of (batch_size, nr_filters, some_rows, some_cols)
-                fmap1 = conv2d(img, conv1, subsample=(self.conv_stride, self.conv_stride))
+                fmap1 = conv2d(img, conv1, subsample=(self.cnn['conv1']['stride'], self.cnn['conv1']['stride']))
                 #TODO: compare both functions                
-                act1 = Tensor.tanh(fmap1)
-                #act1 = Tensor.nnet.relu(fmap1)
+                #act1 = Tensor.tanh(fmap1)
+                act1 = Tensor.nnet.relu(fmap1)
                 features = act1
                 return boxRegressor( gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg), W_fc2, b_fc2)
         elif self.modelArch == 'caffe':
@@ -532,8 +515,8 @@ class TheanoGruRnn(object):
     
     def init_params(self, inputDim, stateDim, targetDim, zeroTailFc):
         ### NETWORK PARAMETERS BEGIN
-        if self.modelArch == 'base':
-            conv1 = Theano.shared(glorot_uniform((self.conv_nr_filters, 1, self.conv_filter_row, self.conv_filter_col)), name='conv1')
+        if self.modelArch == 'oneConvLayers':
+            conv1 = Theano.shared(glorot_uniform((self.cnn['conv1']['filters'], self.channels, self.cnn['conv1']['size'], self.cnn['conv1']['size'])), name='conv1')
         if self.modelArch == 'twoConvLayers':
             conv1 = Theano.shared(glorot_uniform((self.cnn['conv1']['filters'], self.channels, self.cnn['conv1']['size'], self.cnn['conv1']['size'])), name='conv1')
             conv2 = Theano.shared(glorot_uniform((self.cnn['conv2']['filters'], self.cnn['conv1']['filters'], self.cnn['conv2']['size'], self.cnn['conv2']['size'])), name='conv2')
@@ -565,7 +548,7 @@ class TheanoGruRnn(object):
         W_fc2, b_fc2 = initRegressor(stateDim, targetDim, zeroTailFc)
         ### NETWORK PARAMETERS END
     
-        if self.modelArch == 'base':
+        if self.modelArch == 'oneConvLayers':
             return conv1, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2
         elif self.modelArch == 'twoConvLayers':
             return conv1, conv2, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2
