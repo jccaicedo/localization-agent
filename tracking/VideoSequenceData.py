@@ -46,6 +46,21 @@ def maskFrame(frame, flow, box):
 
     return maskedF
 
+def boxToPolygon(box):
+    leftTopX = box[0]
+    leftTopY = box[1]
+    width = box[2] - box[0]
+    height = box[3] - box[1]
+    rightTopX = leftTopX + width
+    rightTopY = leftTopY
+    rightBottomX = rightTopX
+    rightBottomY = rightTopY + height
+    leftBottomX = leftTopX
+    leftBottomY = leftTopY + height
+            
+    coords = [leftTopX, leftTopY, rightTopX, rightTopY, rightBottomX, rightBottomY, leftBottomX, leftBottomY]
+    return coords
+
 class VideoSequenceData(object):
 
     def __init__(self, workingDir='/home/jccaicedo/data/tracking/simulations/debug/'):
@@ -179,18 +194,7 @@ class TraxClientWrapper(object):
 
   def reportBox(self, box):
     self.box = box
-    leftTopX = box[0]
-    leftTopY = box[1]
-    width = box[2] - box[0]
-    height = box[3] - box[1]
-    rightTopX = leftTopX + width
-    rightTopY = leftTopY
-    rightBottomX = rightTopX
-    rightBottomY = rightTopY + height
-    leftBottomX = leftTopX
-    leftBottomY = leftTopY + height
-            
-    coords = [leftTopX, leftTopY, rightTopX, rightTopY, rightBottomX, rightBottomY, leftBottomX, leftBottomY]
+    coords = boxToPolygon(self.box)
     logging.info('Reporting box: %s', coords)
     boxT = tc.Box()
     boxT.setRegion(coords)
