@@ -8,7 +8,8 @@ import sys
 from RecurrentTracker import RecurrentTracker
 from Validation import Validation
 import Tester
-import TheanoGruRnn
+#import TheanoGruRnn
+import TheanoDoubleGruRnn as TheanoGruRnn
 import GaussianGenerator
 import VisualAttention
 from VideoSequenceData import TraxClientWrapper
@@ -21,7 +22,7 @@ def clock(m, st):
 class Controller(object):
 
     def train(self, tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize, seqLength, computeFlow):
-        validation = Validation(8, batchSize, generator, imgHeight, computeFlow, seqLength)
+        validation = Validation(5, batchSize, generator, imgHeight, computeFlow, seqLength)
         for i in range(0, epochs):
             train_cost = 0
             et = time.time()
@@ -137,7 +138,7 @@ class ControllerConfig(object):
         parser.add_argument('--layerKey', help='Key string of layer name to use as features', type=str, default='inception_5b/output')
         parser.add_argument('--learningRate', help='SGD learning rate', type=float, default=0.0005)
         parser.add_argument('--useCUDNN', help='Use CUDA CONV or THEANO', type=bool, default=False)
-        parser.add_argument('--modelArch', help='Network architecture', type=str, default='base', choices=['base', 'caffe', 'lasagne', 'twoConvLayers','threeConvLayers','fourConvLayers','fiveConvLayers','sixConvLayers','fiveXConvLayers','sixXConvLayers'])
+        parser.add_argument('--modelArch', help='Network architecture', type=str, default='oneConvLayers', choices=['oneConvLayers', 'caffe', 'lasagne', 'twoConvLayers','threeConvLayers','fourConvLayers','fiveConvLayers','sixConvLayers','fiveXConvLayers','sixXConvLayers'])
         parser.add_argument('--sequential', help='Make sequential simulations', default=False, action='store_true')
         parser.add_argument('--numProcs', help='Number of processes for parallel simulations', type=int, default=None)
         #TODO: Evaluate specifying the level instead if more than debug is needed   
@@ -156,7 +157,7 @@ if __name__ == '__main__':
     config = ControllerConfig()
     globals().update(vars(config.args))
     
-    logging.BASIC_FORMAT = '%(asctime)s:%(levelname)s:%(funcName)s:%(lineno)d:%(message)s'
+    logging.BASIC_FORMAT = '%(asctime)s:%(levelname)s:%(process)d:%(funcName)s:%(lineno)d:%(message)s'
     logger = logging.getLogger()
     if testType == 'trax':
         for handler in logger.handlers:
@@ -183,10 +184,10 @@ if __name__ == '__main__':
     elif modelArch == 'lasagne':
         cnn = gruInputDim = None
         grayscale = False
-    elif modelArch == 'base':
+    elif modelArch == 'oneConvLayers':
         cnn = gruInputDim = None
         imgHeight = imgWidth = 100
-        grayscale = True
+        grayscale = False
     elif modelArch == 'twoConvLayers':
         cnn = gruInputDim = None
         imgHeight = imgWidth = 128

@@ -5,6 +5,8 @@ import pickle
 import multiprocessing
 import VisualAttention
 import time
+import VideoSequence
+import os
 
 SEQUENCE_LENGTH = 60
 IMG_HEIGHT = 100
@@ -139,3 +141,18 @@ class GaussianGenerator(object):
             index += 1
         
         return data, label, flow
+
+    def saveBatch(self, batchSize, start, end, outputDir, gtFilename='groundtruth.txt'):
+        '''Generates a batch and saves it following VOT sequence structure'''
+        data, label, flow = self.getBatch(batchSize, start, end)
+        if not os.path.exists(outputDir):
+            os.mkdir(outputDir)
+        with open(os.path.join(outputDir, 'list.txt'), 'w') as listFile:
+            for i in xrange(batchSize):
+                videoSeq = VideoSequence.fromarray(data[i])
+                videoSeq.addBoxes(label[i], outline='green')
+                #TODO: improve sequence naming, hash instead of batch element
+                videoSeq.exportToVideo(30, os.path.join(outputDir, str(i), 'video{}.mp4'.format(i)), keep=True)
+                videoSeq.exportBoxes(os.path.join(outputDir, str(i), gtFilename), 'green')
+                #TODO: check ending empty line
+                listFile.write('{}\n'.format(i))

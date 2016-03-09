@@ -10,11 +10,16 @@ import tempfile
 import shutil
 import os
 from PIL import Image, ImageDraw
+from VideoSequenceData import boxToPolygon
+import csv
 
 def displayHTML(output):
     videoSrc = 'data:video/mp4;base64,' + open(output, 'rb').read().encode('base64')
     videoTag = '<video controls width=\"320\" height=\"240\"><source src=\"{0}\" type=\"video/mp4\">Unsupported tag</video>'
     return videoTag.format(videoSrc)
+
+def fromarray(data):
+    return VideoSequence((Image.fromarray(frame.astype(np.uint8)) for frame in data))
 
 class VideoSequence:
     PROCESS_TEMPLATE = 'avconv -y -f image2pipe -vcodec mjpeg -r {} -i - -vcodec libx264 -qscale 5 -r {} {}'
@@ -148,13 +153,30 @@ class VideoSequence:
     @type    output: string
     @param   output: The name of the output video.
     """ 
-    def exportToVideo(self, fps, output):
-        tempPath = tempfile.mkdtemp()
-        processString = self.PROCESS_TEMPLATE_OFFLINE.format(fps, os.path.join(tempPath, '%08d.jpg'), fps, output)
+    def exportToVideo(self, fps, output, keep=False):
+        if keep:
+            outputPath = os.path.dirname(output)
+            os.makedirs(outputPath)
+        else:
+            outputPath = tempfile.mkdtemp()
+        processString = self.PROCESS_TEMPLATE_OFFLINE.format(fps, os.path.join(outputPath, '%08d.jpg'), fps, output)
         
         for index, frame in enumerate(self.getFramesWithBoxes(), start=0):
-            frame.save(os.path.join(tempPath, '{:08d}.jpg'.format(index)), format='JPEG')
+            frame.save(os.path.join(outputPath, '{:08d}.jpg'.format(index)), format='JPEG')
         
         conversionProcess = subprocess.Popen(processString.split(' '), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         conversionProcess.wait()
-        shutil.rmtree(tempPath)
+        if not keep:
+            shutil.rmtree(outputPath)
+
+    def exportBoxes(self, output, outline):
+        polygons = self.boxes[outline]
+        with open(output, 'w') as csvFile:
+            csvwriter = csv.writer(csvFile)
+            if len(polygons[0]) == 4:
+                converted = []
+                for box in polygons:
+                    csvwriter.writerow(boxToPolygon(box))
+            else:
+                for polygon in polygons:
+                    csvwriter.writerow(polygon)

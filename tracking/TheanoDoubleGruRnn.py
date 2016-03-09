@@ -26,8 +26,8 @@ def box2cwh(boxTensor):
 
 #TODO: turn into GRU class
 def gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg):
-    flat1 = Tensor.reshape(features, (features.shape[0], Tensor.prod(features.shape[1:])))
-    gru_in = Tensor.concatenate([flat1, prev_bbox], axis=1) #TODO: Remove this thing!
+    gru_in = Tensor.reshape(features, (features.shape[0], Tensor.prod(features.shape[1:])))
+    #gru_in = Tensor.concatenate([flat1, prev_bbox], axis=1) #TODO: Remove this thing!
     gru_z = NN.sigmoid(Tensor.dot(gru_in, Wz) + Tensor.dot(state, Uz) + bz)
     gru_r = NN.sigmoid(Tensor.dot(gru_in, Wr) + Tensor.dot(state, Ur) + br)
     gru_h_ = Tensor.tanh(Tensor.dot(gru_in, Wg) + Tensor.dot(gru_r * state, Ug) + bg)
@@ -36,7 +36,7 @@ def gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg):
 
 def boxRegressor(gru_h, W_fc, b_fc):
     bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc) + b_fc)
-    return bbox, gru_h
+    return bbox
     
 def initGru(inputDim, stateDim, level):
     Wr = Theano.shared(glorot_uniform((inputDim, stateDim)), name='Wr'+level)
@@ -352,11 +352,11 @@ class TheanoGruRnn(object):
                 inputDim = self.cnn['conv6']['output']
 
         self.targetDim = targetDim
-        self.inputDim = inputDim + self.targetDim
+        self.inputDim = inputDim #+ self.targetDim
         self.seqLength = seqLength
         self.batchSize = batchSize
         self.norm = norm
-        self.stateDim = stateDim
+        self.stateDim = [stateDim, stateDim]
         self.imgSize = imgSize
         self.useAttention = useAttention
         self.computeFlow = computeFlow
@@ -419,29 +419,37 @@ class TheanoGruRnn(object):
 
         params = list(self.init_params(inputDim, stateDim, targetDim, zeroTailFc))
         if self.modelArch.endswith('ConvLayers'):
-            Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params[:11]
-            convParams = params[11:]
-            def step(img, prev_bbox, state):
+            Wr1, Ur1, br1, Wz1, Uz1, bz1, Wg1, Ug1, bg1, Wr2, Ur2, br2, Wz2, Uz2, bz2, Wg2, Ug2, bg2, Wfc3, bfc3 = params[:20]
+            convParams = params[20:]
+            def step(img, prev_bbox, state1, state2):
                 img = attention(img, prev_bbox)
                 features = buildCNN(img, self.cnn, convParams)
-                return boxRegressor( gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg), W_fc2, b_fc2)
+                h1 = gru(features, prev_bbox, state1, Wr1, Ur1, br1, Wz1, Uz1, bz1, Wg1, Ug1, bg1)
+                h2 = gru(h1, prev_bbox, state2, Wr2, Ur2, br2, Wz2, Uz2, bz2, Wg2, Ug2, bg2)
+                boxes = boxRegressor(h2, Wfc3, bfc3)
+                return boxes, h1, h2
         elif self.modelArch == 'caffe':
-            Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
-            def step(img, prev_bbox, state):
-                # of (batch_size, nr_filters, some_rows, some_cols)
-                act1 = img
-                features = act1
-                return boxRegressor( gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg), W_fc2, b_fc2)
+            Wr1, Ur1, br1, Wz1, Uz1, bz1, Wg1, Ug1, bg1, Wr2, Ur2, br2, Wz2, Uz2, bz2, Wg2, Ug2, bg2, Wfc3, bfc3 = params
+            def step(img, prev_bbox, state1, state2):
+                features = img
+                h1 = gru(features, prev_bbox, state1, Wr1, Ur1, br1, Wz1, Uz1, bz1, Wg1, Ug1, bg1)
+                h2 = gru(h1, prev_bbox, state2, Wr2, Ur2, br2, Wz2, Uz2, bz2, Wg2, Ug2, bg2)
+                boxes = boxRegressor(h2, Wfc3, bfc3)
+                return boxes, h1, h2
         elif self.modelArch == 'lasagne':
-            Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
-            def step(img, prev_bbox, state):
+            Wr1, Ur1, br1, Wz1, Uz1, bz1, Wg1, Ug1, bg1, Wr2, Ur2, br2, Wz2, Uz2, bz2, Wg2, Ug2, bg2, Wfc3, bfc3 = params
+            def step(img, prev_bbox, state1, state2):
                 img = attention(img, prev_bbox)
                 features = self.cnn.getFeatureExtractor(img)
-                return boxRegressor( gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg), W_fc2, b_fc2)
+                h1 = gru(features, prev_bbox, state1, Wr1, Ur1, br1, Wz1, Uz1, bz1, Wg1, Ug1, bg1)
+                h2 = gru(h1, prev_bbox, state2, Wr2, Ur2, br2, Wz2, Uz2, bz2, Wg2, Ug2, bg2)
+                boxes = boxRegressor(h2, Wfc3, bfc3)
+                return boxes, h1, h2
                
-        state = Tensor.zeros((batchSize, stateDim))
+        state1 = Tensor.zeros((batchSize, stateDim[0]))
+        state2 = Tensor.zeros((batchSize, stateDim[1]))
         # Move the time axis to the top
-        sc, _ = Theano.scan(step, sequences=[imgs.dimshuffle(1, 0, 2, 3, 4)], outputs_info=[starts, state])
+        sc, _ = Theano.scan(step, sequences=[imgs.dimshuffle(1, 0, 2, 3, 4)], outputs_info=[starts, state1, state2])
     
         bbox_seq = sc[0].dimshuffle(1, 0, 2)
     
@@ -457,8 +465,9 @@ class TheanoGruRnn(object):
         forwardFunc = Theano.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], allow_input_downcast=True)
         imgStep = getTensor("images", Theano.config.floatX, 4)
         startsStep = Tensor.matrix()
-        stateStep = Tensor.matrix()
-        stepFunc = Theano.function([imgStep, startsStep, stateStep], step(imgStep, startsStep, stateStep))
+        state1Step = Tensor.matrix()
+        state2Step = Tensor.matrix()
+        stepFunc = Theano.function([imgStep, startsStep, state1Step, state2Step], step(imgStep, startsStep, state1Step, state2Step))
         
         return fitFunc, forwardFunc, params, stepFunc
     
@@ -466,11 +475,12 @@ class TheanoGruRnn(object):
     def init_params(self, inputDim, stateDim, targetDim, zeroTailFc):
         ### NETWORK PARAMETERS BEGIN
         convParams = initCNN(self.cnn, self.channels)
-        Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg = initGru(inputDim, stateDim, '1')
-        W_fc2, b_fc2 = initRegressor(stateDim, targetDim, zeroTailFc)
+        gru1 = initGru(inputDim, stateDim[0], '1')
+        gru2 = initGru(stateDim[0], stateDim[1], '2')
+        regressor = initRegressor(stateDim[1], targetDim, zeroTailFc)
         ### NETWORK PARAMETERS END
     
         if self.modelArch.endswith('ConvLayers'):
-            return (Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2) + tuple(convParams)
+            return tuple(gru1) + tuple(gru2) + tuple(regressor) + tuple(convParams)
         else:
-            return (Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2)
+            return tuple(gru1) + tuple(gru2) + regressor
