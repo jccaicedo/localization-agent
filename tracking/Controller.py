@@ -8,7 +8,8 @@ import sys
 from RecurrentTracker import RecurrentTracker
 from Validation import Validation
 import Tester
-import TheanoGruRnn
+#import TheanoGruRnn
+import TheanoDoubleGruRnn as TheanoGruRnn
 import GaussianGenerator
 import VisualAttention
 from VideoSequenceData import TraxClientWrapper
