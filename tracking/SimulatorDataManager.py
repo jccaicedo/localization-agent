@@ -50,8 +50,8 @@ class SimulatorDataManager(object):
         with open(outputPath, "w") as summaryFile:
             pickle.dump(outputSummary, summaryFile)
     
-    def splitTrainVal(self, trainPercentage, minSide, allowedCategories, outputPathTrain, outputPathTest):
-        filteredSummary = self.filterObjects(-1, minSide, allowedCategories)
+    def splitTrainVal(self, size, trainPercentage, minSide, allowedCategories, outputPathTrain, outputPathTest):
+        filteredSummary = self.filterObjects(size, minSide, allowedCategories)
         objs = filteredSummary[self.SUMMARY_KEY]
         cats = filteredSummary[self.CATEGORY_KEY]
         

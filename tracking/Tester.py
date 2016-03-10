@@ -5,6 +5,27 @@ import os
 
 from PIL import Image
 
+"""
+Scale the bounding boxes from a frame dimensions to another
+
+@type bboxes: numpy.array(frames, coordinates)
+@param bboxes: The array with the bounding boxes, one per row
+@type fromSize: [height, width]
+@param fromSize: The dimensions of the source frames
+@type toSize: [height, width]
+@param toSize: The dimensions of the target frames
+
+@rtype: numpy.array(frames, coordinates)
+@return: The array with the bounding boxes, one per row
+"""
+def scaleBboxes(bboxes, fromSize, toSize):
+    scaledFromSize = 1.0 / NP.array(fromSize)
+    coords = bboxes.shape[1]
+    scaledFromSize = NP.multiply(scaledFromSize, NP.ones((2, coords / 2))).flatten()
+    scaledBboxes = NP.multiply(bboxes, scaledFromSize)
+    toScaledSize = NP.multiply(toSize, NP.ones((2, coords / 2))).flatten()
+    return NP.multiply(scaledBboxes, toScaledSize)
+
 def getIntOverUnion(bboxTruth, bboxPred):
     left = NP.max([bboxPred[:, :, 0], bboxTruth[:, :, 0]], axis=0)
     top = NP.max([bboxPred[:, :, 1], bboxTruth[:, :, 1]], axis=0)
