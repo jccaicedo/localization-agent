@@ -323,7 +323,7 @@ class TheanoGruRnn(object):
                             'conv6':{'filters':512, 'size':3, 'stride':2, 'output':(7**2)*512 },  # Feature map size  25,088 - Params: 3x3x512x512 = 2'359,296
                             'pad':'half'}                                                         #        TOTALS: 1'745,072 -                     = 4'502,208
                 inputDim = self.cnn['conv6']['output']
-            if convFilters == 2:
+            if convFilters == 20:
                 self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(112**2)*64 },  # Feature map size 802,816 - Params: 5x5x3x64    =     4,800
                             'conv2':{'filters':128, 'size':3, 'stride':2, 'output':(56**2)*128 }, # Feature map size 401,408 - Params: 3x3x64x128  =    73,728
                             'conv3':{'filters':256, 'size':3, 'stride':2, 'output':(28**2)*256 }, # Feature map size 200,704 - Params: 3x3x128x256 =   294,912
@@ -332,6 +332,25 @@ class TheanoGruRnn(object):
                             'conv6':{'filters':128, 'size':3, 'stride':1, 'output':(7**2)*128 },  # Feature map size   6,272 - Params: 3x3x512x128 =   589,824
                             'pad':'half'}                                                         #        TOTALS: 1'543,640 -                     = 2'732,736
                 inputDim = self.cnn['conv6']['output']
+            if convFilters == 21:
+                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(112**2)*64 },  # Feature map size 802,816 - Params: 5x5x3x64    =     4,800
+                            'conv2':{'filters':128, 'size':3, 'stride':2, 'output':(56**2)*128 }, # Feature map size 401,408 - Params: 3x3x64x128  =    73,728
+                            'conv3':{'filters':256, 'size':3, 'stride':2, 'output':(28**2)*256 }, # Feature map size 200,704 - Params: 3x3x128x256 =   294,912
+                            'conv4':{'filters':256, 'size':3, 'stride':2, 'output':(14**2)*256 }, # Feature map size 100,352 - Params: 3x3x256x256 =   589,824
+                            'conv5':{'filters':512, 'size':3, 'stride':2, 'output':(7**2)*512 },  # Feature map size  25,088 - Params: 3x3x256x512 = 1'179,648
+                            'conv6':{'filters':256, 'size':3, 'stride':1, 'output':(7**2)*256 },  # Feature map size   6,272 - Params: 3x3x512x128 =   589,824
+                            'pad':'half'}                                                         #        TOTALS: 1'543,640 -                     = 2'732,736
+                inputDim = self.cnn['conv6']['output']
+            if convFilters == 22:
+                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(112**2)*64 },  # Feature map size 802,816 - Params: 5x5x3x64    =     4,800
+                            'conv2':{'filters':128, 'size':3, 'stride':2, 'output':(56**2)*128 }, # Feature map size 401,408 - Params: 3x3x64x128  =    73,728
+                            'conv3':{'filters':256, 'size':3, 'stride':2, 'output':(28**2)*256 }, # Feature map size 200,704 - Params: 3x3x128x256 =   294,912
+                            'conv4':{'filters':256, 'size':3, 'stride':2, 'output':(14**2)*256 }, # Feature map size 100,352 - Params: 3x3x256x256 =   589,824
+                            'conv5':{'filters':512, 'size':3, 'stride':2, 'output':(7**2)*512 },  # Feature map size  25,088 - Params: 3x3x256x512 = 1'179,648
+                            'conv6':{'filters':512, 'size':3, 'stride':1, 'output':(7**2)*512 },  # Feature map size   6,272 - Params: 3x3x512x128 =   589,824
+                            'pad':'half'}                                                         #        TOTALS: 1'543,640 -                     = 2'732,736
+                inputDim = self.cnn['conv6']['output']
+
             if convFilters == 3:
                 self.cnn = {'conv1':{'filters':64,  'size':5, 'stride':2, 'output':(112**2)*64 }, # Feature map size 802,816 - Params: 5x5x3x64    =     4,800
                             'conv2':{'filters':128, 'size':3, 'stride':2, 'output':(56**2)*128 }, # Feature map size 401,408 - Params: 3x3x64x128  =    73,728
