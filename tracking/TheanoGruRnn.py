@@ -363,21 +363,24 @@ class TheanoGruRnn(object):
         if self.computeFlow:
             if self.modelArch.endswith('ConvLayers'):
                 self.channels = 5
+                logging.info('Computing optic flow')
             else:
-                print 'Flow not supported for these models'
+                logging.warning('Flow not supported for these models')
                 self.channels = 3
                 self.computeFlow = False
         else:
             self.channels = 3
         if self.useAttention == 'squareChannel':
             self.channels += 1
+            logging.info('Adding extra mask channel')
         self.fitFunc, self.forwardFunc, self.params, self.stepFunc = self.buildModel(self.batchSize, self.inputDim, self.stateDim, self.targetDim, zeroTailFc, learningRate, use_cudnn, self.imgSize)
 
-    def preprocess(self, data, label):
+    def preprocess(self, data, label, flow):
         # Adjust channels and normalize pixels
         if self.modelArch.endswith('ConvLayers'):
-            data = NP.swapaxes(NP.swapaxes(data, 3, 4), 2, 3)
             data = (data - 127.)/127.
+            if self.computeFlow: data = NP.append(data, flow, axis=4)
+            data = NP.swapaxes(NP.swapaxes(data, 3, 4), 2, 3)
         elif self.modelArch == 'lasagne':
             data = self.cnn.prepareBatch(data)
         # Prepare attention masks on first frame
@@ -386,7 +389,7 @@ class TheanoGruRnn(object):
             data[:,0,...] *= firstFrameMasks #Multiplicative mask
         elif self.useAttention == 'squareChannel':
             b,t,c,w,h = data.shape
-            firstFrameMasks = VisualAttention.getSquaredMaskChannel(data[:,0,...], label[:,0,:], c==3)
+            firstFrameMasks = VisualAttention.getSquaredMaskChannel(data[:,0,...], label[:,0,:])
             data = NP.append(data, NP.zeros((b,t,1,w,h)), axis=2)
             data[:,0,-1,:,:] = firstFrameMasks
         # Center labels around zero, and scale them between [-1,1]
@@ -394,13 +397,11 @@ class TheanoGruRnn(object):
         return data, label
     
     def fit(self, data, label, flow):
-        data, label = self.preprocess(data, label)
-        if self.computeFlow: data = NP.append(data, flow, axis=4)
+        data, label = self.preprocess(data, label, flow)
         return self.fitFunc(self.seqLength, data, label[:, 0, :], label)
       
     def forward(self, data, label, flow):
-        data, label = self.preprocess(data, label)
-        if self.computeFlow: data = NP.append(data, flow, axis=4)
+        data, label = self.preprocess(data, label, flow)
         cost, output = self.forwardFunc(self.seqLength, data, label[:, 0, :], label)
         return cost, output
     

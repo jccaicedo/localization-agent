@@ -376,8 +376,9 @@ class TheanoGruRnn(object):
     def preprocess(self, data, label):
         # Adjust channels and normalize pixels
         if self.modelArch.endswith('ConvLayers'):
-            data = NP.swapaxes(NP.swapaxes(data, 3, 4), 2, 3)
             data = (data - 127.)/127.
+            if self.computeFlow: data = NP.append(data, flow, axis=4)
+            data = NP.swapaxes(NP.swapaxes(data, 3, 4), 2, 3)
         elif self.modelArch == 'lasagne':
             data = self.cnn.prepareBatch(data)
         # Prepare attention masks on first frame
@@ -394,13 +395,11 @@ class TheanoGruRnn(object):
         return data, label
     
     def fit(self, data, label, flow):
-        data, label = self.preprocess(data, label)
-        if self.computeFlow: data = NP.append(data, flow, axis=4)
+        data, label = self.preprocess(data, label, flow)
         return self.fitFunc(self.seqLength, data, label[:, 0, :], label)
       
     def forward(self, data, label, flow):
-        data, label = self.preprocess(data, label)
-        if self.computeFlow: data = NP.append(data, flow, axis=4)
+        data, label = self.preprocess(data, label, flow)
         cost, output = self.forwardFunc(self.seqLength, data, label[:, 0, :], label)
         return cost, output
     

@@ -66,7 +66,7 @@ def getSquaredMasks(data, labels):
         masks[i, :, l[i,1]:l[i,3], l[i,0]:l[i,2]] = 1
     return masks
 
-def getSquaredMaskChannel(data, labels, threeChannels=True):
+def getSquaredMaskChannel(data, labels):
     # Assuming input shape=(batch, channels, width, height)
     b,c,w,h = data.shape
     l = labels.copy()
@@ -78,10 +78,7 @@ def getSquaredMaskChannel(data, labels, threeChannels=True):
     l[l > w] = w
     l = NP.array(l, NP.int)
     # Create masks
-    if threeChannels:
-        masks = -1 * NP.ones((b,w,h))
-    else:
-        masks = NP.zeros((b,w,h))
+    masks = -1 * NP.ones((b,w,h))
     for i in range(masks.shape[0]):
         masks[i, l[i,1]:l[i,3], l[i,0]:l[i,2]] = 1.
     return masks
