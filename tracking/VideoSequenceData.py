@@ -190,7 +190,11 @@ class TraxClientWrapper(object):
   def getBox(self):
     box = self.region.toList()
         
-    return [box[i] for i in [0, 1, 4, 5]]
+    sampledBox = [box[i] for i in [0, 1, 4, 5]]
+    #Guarantee box ordering
+    sampledBox = [np.min(sampledBox[0::2]), np.min(sampledBox[1::2]), np.max(sampledBox[0::2]), np.max(sampledBox[1::2])]
+
+    return sampledBox
 
   def reportBox(self, box):
     self.box = box
