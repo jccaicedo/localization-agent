@@ -143,14 +143,10 @@ def loadModel(modelPath):
     logging.info('Loading model from %s', modelPath)
     with open(modelPath, 'rb') as modelFile: 
         model = pickle.load(modelFile)
-    if not isinstance(model, TheanoGruRnn):
-        raise Exception('Model of type {}, expected {}'.format(type(model), TheanoGruRnn))
     return model
       
 def saveModel(model, modelPath):
     #TODO: silent for trax
-    if not isinstance(model, TheanoGruRnn):
-        raise Exception('Model of type {}, expected {}'.format(type(model), TheanoGruRnn))
     print 'Saving model to {}'.format(modelPath)
     with open(modelPath, 'wb') as modelFile:
         pickle.dump(model, modelFile)

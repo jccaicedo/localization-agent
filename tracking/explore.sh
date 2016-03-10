@@ -40,7 +40,7 @@ run() {
          --epochs=$4 --batchSize=$5 --generationBatchSize=32 --gpuBatchSize=4 \
          --gruStateDim=$6 --learningRate=$7 --trackerModelPath=$1/model.pkl \
          --imageDir=/mnt/ramdisk/ --numProcs=16 \
-         --useReplayMem $flow \
+         $flow \
          --summaryPath=/home/jccaicedo/data/simulations/CocoSummaries/cocoTrainSummaryCategAndSideGt100SmplsAllCorrected.pkl \
          $model \
          --norm=$8 --useAttention=${10} --seqLength=${11} \

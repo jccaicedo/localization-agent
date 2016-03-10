@@ -64,7 +64,8 @@ class Controller(object):
             '''
             print 'Epoch average loss (train)', train_cost / (batches*batchSize)
             clock('Epoch time',et)
-            TheanoGruRnn.saveModel(tracker.rnn, trackerModelPath)
+            #Save snapshot
+            TheanoGruRnn.saveModel(tracker.rnn, trackerModelPath+str(i))
             if i >= 10:
                 tracker.decayLearningRate()
 
@@ -113,7 +114,8 @@ class ControllerConfig(object):
     def dump_args(self, configPath):
         with open(configPath, 'w') as configFile:
             for key, value in self.args.iteritems():
-                configFile.write('{} {}\n'.format(key, value))
+                #TODO: validate all args are required
+                configFile.write('--{}\n{}\n'.format(key, value))
 
     def build_parser(self):
         parser = AP.ArgumentParser(description='Trains a RNN tracker', fromfile_prefix_chars='@')
@@ -171,6 +173,8 @@ if __name__ == '__main__':
         logger.setLevel(logging.DEBUG)
     else:
         logger.setLevel(logging.INFO)
+
+    logging.info('Running experiment with parameters: %s', config.args)
     
     #TODO: make arguments not redundant
     if modelArch == 'caffe':

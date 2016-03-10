@@ -58,7 +58,7 @@ class Validation(object):
             else:
                 bbox[start:end,...] = tracker.forward(D[start:end,...], L[start:end,...], None)
         # Compute IoU
-        iou = Tester.getIntOverUnion(L / (self.imgHeight / 2) - 1, bbox)
+        iou = Tester.getIntOverUnion(VisualAttention.stdLabels(L), bbox)
         # Report to the log
         print 'IoU in validation set:',NP.average(iou)
         return bbox, iou
