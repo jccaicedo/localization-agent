@@ -6,12 +6,28 @@ import cv2
 CONTEXT = 4
 ALPHA = 0.1
 
+def normalLabels(labels, imgSize):
+    return labels / (imgSize / 2.) - 1.
+
+def unnormedLabels(labels, imgSize):
+    return (labels + 1.) * (imgSize / 2.)
+
+def centeredLabels(labels, imgSize):
+    return labels - (imgSize / 2.)
+
+def uncenteredLabels(labels, imgSize):
+    return labels + (imgSize / 2.)
+
+# TODO: Parameterize the use of the following functions
+stdLabels = centeredLabels
+stdBoxes = uncenteredLabels
+
 def createGaussianMasker(imgSize):
     R = Tensor.arange(imgSize, dtype=Theano.config.floatX)
     eps = 1e-8
     alpha = ALPHA
     def mask(img, label):
-        box = (label + 1.) * (imgSize / 2.) # Uncenter and rescale labels
+        box = stdBoxes(label, imgSize)
         cx = (box[:, 3] + box[:, 1]) / 2.
         cy = (box[:, 2] + box[:, 0]) / 2.
         sx = (box[:,3] - cx)*0.60
@@ -32,7 +48,7 @@ def createSquareMasker(imgSize):
     eps = 1e-8
     alpha = ALPHA
     def mask(img, label):
-        box = (label + 1.) * (imgSize / 2.) # Uncenter and rescale labels
+        box = stdBoxes(label, imgSize)
         FX = Tensor.gt(R, box[:,1].dimshuffle(0,'x')) * Tensor.le(R, box[:,3].dimshuffle(0,'x'))
         FY = Tensor.gt(R, box[:,0].dimshuffle(0,'x')) * Tensor.le(R, box[:,2].dimshuffle(0,'x'))
         m = (FX.dimshuffle(0, 1, 'x') * FY.dimshuffle(0, 'x', 1))
@@ -44,13 +60,14 @@ def createSquareChannelMasker(imgSize):
     R = Tensor.arange(imgSize, dtype=Theano.config.floatX)
     eps = 1e-8
     def mask(img, label):
-        box = (label + 1.) * (imgSize / 2.) # Uncenter and rescale labels
+        box = stdBoxes(label, imgSize)
         FX = Tensor.gt(R, box[:,1].dimshuffle(0,'x')) * Tensor.le(R, box[:,3].dimshuffle(0,'x'))
         FY = Tensor.gt(R, box[:,0].dimshuffle(0,'x')) * Tensor.le(R, box[:,2].dimshuffle(0,'x'))
         m = 2.*(FX.dimshuffle(0, 1, 'x') * FY.dimshuffle(0, 'x', 1)) - 1.
         return Tensor.set_subtensor(img[:,-1,:,:], m)
     return mask
 
+# TODO: standardize the use of the term labels (for learning) and boxes (for actual usable coordinates)
 def getSquaredMasks(data, labels):
     l = labels.copy()
     # Expand boxes with context

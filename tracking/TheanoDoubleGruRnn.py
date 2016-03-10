@@ -409,8 +409,8 @@ class TheanoGruRnn(object):
             firstFrameMasks = VisualAttention.getSquaredMaskChannel(data[:,0,...], label[:,0,:])
             data = NP.append(data, NP.zeros((b,t,1,w,h)), axis=2)
             data[:,0,-1,:,:] = firstFrameMasks
-        # Center labels around zero, and scale them between [-1,1]
-        label = label / (self.imgSize / 2.) - 1.
+        # Normalize labels according to the chosen mask
+        label = VisualAttention.stdLabels(label, self.imgSize)
         return data, label
     
     def fit(self, data, label, flow):
