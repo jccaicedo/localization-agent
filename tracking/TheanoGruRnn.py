@@ -173,7 +173,7 @@ class TheanoGruRnn(object):
         ### Computed hyperparameters begin
         self.modelArch = modelArch
         if self.modelArch == 'oneConvLayers':
-            self.cnn = {'conv1':{'filters':32, 'size':10, 'stride':5, 'output':(((32-10)/5+1)**2)*32 }}
+            self.cnn = {'conv1':{'filters':32, 'size':10, 'stride':5, 'output':(((inputDim-10)/5+1)**2)*32 }}
             inputDim = self.cnn['conv1']['output']
         elif self.modelArch == 'lasagne':
             self.cnn = LasagneVGG16(modelPath, layerKey)
