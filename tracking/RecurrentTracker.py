@@ -31,6 +31,9 @@ class RecurrentTracker(object):
         
         return cost, bbox_seq
 
+    def decayLearningRate(self):
+        self.rnn.decayLearningRate()
+        logging.info('Current learning rate: {}'.format(self.rnn.learningRate.get_value(borrow=True),))
     
     def forward(self, data, label, flow):
         activations = self.activate(data)
