@@ -65,6 +65,9 @@ class Controller(object):
             print 'Epoch average loss (train)', train_cost / (batches*batchSize)
             clock('Epoch time',et)
             TheanoGruRnn.saveModel(tracker.rnn, trackerModelPath)
+            if i >= 10:
+                tracker.decayLearningRate()
+
     
     def test(self, tracker, libvotPath, grayscale, testType):
         if testType == 'trax':

@@ -392,7 +392,7 @@ class TheanoGruRnn(object):
         if self.useAttention == 'squareChannel':
             self.channels += 1
             logging.info('Adding extra mask channel')
-        self.fitFunc, self.forwardFunc, self.params, self.stepFunc = self.buildModel(self.batchSize, self.inputDim, self.stateDim, self.targetDim, zeroTailFc, learningRate, use_cudnn, self.imgSize)
+        self.buildModel(self.batchSize, self.inputDim, self.stateDim, self.targetDim, zeroTailFc, learningRate, use_cudnn, self.imgSize)
 
     def preprocess(self, data, label, flow):
         # Adjust channels and normalize pixels
@@ -424,7 +424,7 @@ class TheanoGruRnn(object):
         cost, output = self.forwardFunc(self.seqLength, data, label[:, 0, :], label)
         return cost, output
     
-    def buildModel(self, batchSize, inputDim, stateDim, targetDim, zeroTailFc, learningRate, use_cudnn, imgSize):
+    def buildModel(self, batchSize, inputDim, stateDim, targetDim, zeroTailFc, initialLearningRate, use_cudnn, imgSize):
         logging.info('Building network')
         
         # imgs: of shape (batchSize, seq_len, nr_channels, img_rows, img_cols)
@@ -470,6 +470,11 @@ class TheanoGruRnn(object):
         seq_len_scalar = Tensor.scalar()
     
         cost = self.norm(targets - bbox_seq).sum() / batchSize / seq_len_scalar
+
+        # Learning rate
+        learning_rate_decay = 0.95
+        learningRate = Theano.shared(NP.asarray(initialLearningRate, dtype=Theano.config.floatX))
+        decayLearningRate = Theano.function(inputs=[], outputs=learningRate, updates={learningRate: learningRate * learning_rate_decay})
     
         logging.info('Building optimizer')
     
@@ -480,7 +485,9 @@ class TheanoGruRnn(object):
         stateStep = Tensor.matrix()
         stepFunc = Theano.function([imgStep, startsStep, stateStep], step(imgStep, startsStep, stateStep))
         
-        return fitFunc, forwardFunc, params, stepFunc
+        self.learningRate = learningRate
+        self.decayLearningRate = decayLearningRate
+        self.fitFunc, self.forwardFunc, self.params, self.stepFunc = fitFunc, forwardFunc, params, stepFunc
     
     
     def init_params(self, inputDim, stateDim, targetDim, zeroTailFc):

@@ -390,9 +390,9 @@ class TheanoGruRnn(object):
             self.channels = 3
         if self.useAttention == 'squareChannel':
             self.channels += 1
-        self.fitFunc, self.forwardFunc, self.params, self.stepFunc = self.buildModel(self.batchSize, self.inputDim, self.stateDim, self.targetDim, zeroTailFc, learningRate, use_cudnn, self.imgSize)
+        self.buildModel(self.batchSize, self.inputDim, self.stateDim, self.targetDim, zeroTailFc, learningRate, use_cudnn, self.imgSize)
 
-    def preprocess(self, data, label):
+    def preprocess(self, data, label, flow):
         # Adjust channels and normalize pixels
         if self.modelArch.endswith('ConvLayers'):
             data = (data - 127.)/127.
@@ -406,7 +406,7 @@ class TheanoGruRnn(object):
             data[:,0,...] *= firstFrameMasks #Multiplicative mask
         elif self.useAttention == 'squareChannel':
             b,t,c,w,h = data.shape
-            firstFrameMasks = VisualAttention.getSquaredMaskChannel(data[:,0,...], label[:,0,:], c==3)
+            firstFrameMasks = VisualAttention.getSquaredMaskChannel(data[:,0,...], label[:,0,:])
             data = NP.append(data, NP.zeros((b,t,1,w,h)), axis=2)
             data[:,0,-1,:,:] = firstFrameMasks
         # Center labels around zero, and scale them between [-1,1]
@@ -422,7 +422,7 @@ class TheanoGruRnn(object):
         cost, output = self.forwardFunc(self.seqLength, data, label[:, 0, :], label)
         return cost, output
     
-    def buildModel(self, batchSize, inputDim, stateDim, targetDim, zeroTailFc, learningRate, use_cudnn, imgSize):
+    def buildModel(self, batchSize, inputDim, stateDim, targetDim, zeroTailFc, initialLearningRate, use_cudnn, imgSize):
         logging.info('Building network')
         
         # imgs: of shape (batchSize, seq_len, nr_channels, img_rows, img_cols)
@@ -476,6 +476,11 @@ class TheanoGruRnn(object):
         seq_len_scalar = Tensor.scalar()
     
         cost = self.norm(targets - bbox_seq).sum() / batchSize / seq_len_scalar
+
+        # Learning rate
+        learning_rate_decay = 0.95
+        learningRate = Theano.shared(NP.asarray(initialLearningRate, dtype=Theano.config.floatX))
+        decayLearningRate = Theano.function(inputs=[], outputs=learningRate, updates={learningRate: learningRate * learning_rate_decay})
     
         logging.info('Building optimizer')
     
@@ -486,8 +491,10 @@ class TheanoGruRnn(object):
         state1Step = Tensor.matrix()
         state2Step = Tensor.matrix()
         stepFunc = Theano.function([imgStep, startsStep, state1Step, state2Step], step(imgStep, startsStep, state1Step, state2Step))
-        
-        return fitFunc, forwardFunc, params, stepFunc
+
+        self.learningRate = learningRate
+        self.decayLearningRate = decayLearningRate
+        self.fitFunc, self.forwardFunc, self.params, self.stepFunc = fitFunc, forwardFunc, params, stepFunc
     
     
     def init_params(self, inputDim, stateDim, targetDim, zeroTailFc):
