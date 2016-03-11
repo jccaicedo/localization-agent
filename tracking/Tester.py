@@ -2,6 +2,7 @@ import numpy as NP
 import VideoSequence as SQ
 import matplotlib.pyplot as PLT
 import os
+import logging
 
 from PIL import Image
 
@@ -39,20 +40,11 @@ def getIntOverUnion(bboxTruth, bboxPred):
     
     return iou
 
-def preprocessData(data, label, imageHeight, grayscale, batchSize):
-    size = data.shape[0]
+def padBatch(array, batchSize):
+    size = array.shape[0]
     padNum = batchSize - size % batchSize
-        
-    if grayscale:
-        data = data[:, :, NP.newaxis, :, :]
-        
-    data = NP.pad(data, ((0,padNum), (0,0), (0,0), (0,0), (0,0)), 'constant')
-    label = NP.pad(label, ((0,padNum), (0,0), (0,0)), 'constant')
-        
-    data /= 255.0
-    label = label / (imageHeight / 2.) - 1.
-        
-    return data, label
+    paddedArray = NP.pad(array, [(0,padNum)]+[(0,0)]*len(array.shape[1:]), 'constant')
+    return paddedArray
     
 def getFrames(frames, isGrayScale):
     fs, _, _ = frames.shape
@@ -85,19 +77,24 @@ class Tester(object):
         self.tracker = tracker
         
         
-    def test(self, data, label, batchSize, imageHeight, grayscale, withVideoGen, seqLength, targetDim, outputVideoDir):
+    def test(self, data, label, flow, batchSize, imageHeight, grayscale, withVideoGen, seqLength, targetDim, outputVideoDir):
         size = data.shape[0]
         iters = size / batchSize + (size % batchSize > 0)
         bboxSeqTest = NP.empty((0, seqLength, targetDim))
         
-        data, label = preprocessData(data, label, imageHeight, grayscale, batchSize)
+        data = padBatch(data, batchSize)
+        label = padBatch(label, batchSize)
         
         for i in range(1, iters + 1):
             start = batchSize * (i-1)
             end = batchSize * i
             dataTest = data[start:end, ...]
             labelTest = label[start:end, ...]
-            pred = self.tracker.forward(dataTest, labelTest)
+            if flow is None:
+                flowTest = None
+            else:
+                flowTest = flow[start:end, ...]
+            pred = self.tracker.forward(dataTest, labelTest, flowTest)
             bboxSeqTest = NP.append(bboxSeqTest, pred, axis=0)
         
         data = data[0:size, ...]
@@ -109,7 +106,7 @@ class Tester(object):
         
         iou = getIntOverUnion(label, bboxSeqTest)
 
-        return iou
+        return iou, bboxSeqTest
     
             
     def plotOverlapMeasures(self, iouMeasures, title, xLabel, yLabel, outputPath):
@@ -168,12 +165,16 @@ class Tester(object):
         
         return dataTest, labelTest
     
-    def loadImageSequence(self, sequenceDir, extension='.jpg', relativeGtPath='groundtruth.txt'):
+    def loadImageSequence(self, sequenceDir, newShape=None, extension='.jpg', relativeGtPath='groundtruth.txt'):
         framePaths = sorted([framePath for framePath in os.listdir(sequenceDir) if framePath.endswith(extension)])
-        data = (numpy.asarray(Image.open(os.path.join(sequenceDir, framePath))) for framePath in framePaths)
+        #Get the original image size
+        originalSize = Image.open(os.path.join(sequenceDir,framePaths[0])).size 
+        frames = (Image.open(os.path.join(sequenceDir, framePath)) for framePath in framePaths)
+        data = NP.array([NP.asarray(frame if newShape is None else frame.resize(newShape)) for frame in frames])
         with open(os.path.join(sequenceDir, relativeGtPath), 'r') as gtFile:
             gtLines = gtFile.readlines()
         #TODO: better polygon handling
-        gtPolygons = numpy.array([map(float, line.strip().split(',')) for line in gtLines])
-        labels = gtPolygons[:, [0,1,4,5]]
+        posCorrection = NP.array(newShape if newShape is not None else originalSize, dtype=NP.float)/NP.array(originalSize)
+        gtPolygons = NP.array([map(float, line.strip().split(',')) for line in gtLines])
+        labels = gtPolygons[:, [0,1,4,5]]*[posCorrection[0], posCorrection[1], posCorrection[0], posCorrection[1]]
         return data, labels
