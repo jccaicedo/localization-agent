@@ -18,9 +18,34 @@ def centeredLabels(labels, imgSize):
 def uncenteredLabels(labels, imgSize):
     return labels + (imgSize / 2.)
 
+def box2cwh_numpy(labels, imgSize):
+    out = NP.zeros(labels.shape)
+    out[:,:,0] = (labels[:,:,2] + labels[:,:,0]) / 2 # xc
+    out[:,:,1] = (labels[:,:,3] + labels[:,:,1]) / 2 # yc
+    out[:,:,2] = labels[:,:,2] - labels[:,:,0]      # width
+    out[:,:,3] = labels[:,:,3] - labels[:,:,1]      # height
+    return out
+
+def box2cwh_theano(boxTensor):
+    xc = (boxTensor[:,2]+boxTensor[:,0])/2
+    yc = (boxTensor[:,3]+boxTensor[:,1])/2
+    width = (boxTensor[:,2]-boxTensor[:,0])
+    height = (boxTensor[:,3]-boxTensor[:,1])
+    return Tensor.stacklists([xc,yc,width,height]).dimshuffle(1,0)
+
+def box2params_theano(boxTensor):
+    xc = (boxTensor[:,2]+boxTensor[:,0])/2
+    yc = (boxTensor[:,3]+boxTensor[:,1])/2
+    width = (boxTensor[:,2]-boxTensor[:,0])
+    height = (boxTensor[:,3]-boxTensor[:,1])
+    zeros1 = Tensor.zeros(xc.shape)
+    zeros2 = Tensor.zeros(xc.shape)
+    return Tensor.stack([width, zeros1, xc, zeros2, height, yc]).dimshuffle(1,0)
+
+
 # TODO: Parameterize the use of the following functions
-stdLabels = centeredLabels
-stdBoxes = uncenteredLabels
+stdLabels = normalLabels #centeredLabels
+stdBoxes = unnormedLabels #uncenteredLabels
 
 def createGaussianMasker(imgSize):
     R = Tensor.arange(imgSize, dtype=Theano.config.floatX)

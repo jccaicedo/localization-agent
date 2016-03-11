@@ -6,6 +6,7 @@ import theano.tensor.nnet as NN
 import cPickle as pickle
 import VisualAttention
 import logging
+import lasagne
 
 from collections import OrderedDict
 from LasagneVGG16 import LasagneVGG16
@@ -16,13 +17,6 @@ def smooth_l1(x):
 
 def l2(x):
     return x ** 2
-
-def box2cwh(boxTensor):
-    xc = (boxTensor[:,:,2]+boxTensor[:,:,0])/2
-    yc = (boxTensor[:,:,3]+boxTensor[:,:,1])/2
-    width = (boxTensor[:,:,2]-boxTensor[:,:,0])
-    height = (boxTensor[:,:,3]-boxTensor[:,:,1])
-    return Tensor.stacklists([xc,yc,width,height]).dimshuffle(1,2,0)
 
 #TODO: turn into GRU class
 def gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg):
@@ -417,8 +411,7 @@ class TheanoGruRnn(object):
       
     def forward(self, data, label, flow):
         data, label = self.preprocess(data, label, flow)
-        cost, output = self.forwardFunc(self.seqLength, data, label[:, 0, :], label)
-        return cost, output
+        return self.forwardFunc(self.seqLength, data, label[:, 0, :], label)
     
     def buildModel(self, batchSize, inputDim, stateDim, targetDim, zeroTailFc, initialLearningRate, use_cudnn, imgSize):
         logging.info('Building network')
@@ -454,12 +447,24 @@ class TheanoGruRnn(object):
                 img = attention(img, prev_bbox)
                 features = self.cnn.getFeatureExtractor(img)
                 return boxRegressor( gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg), W_fc2, b_fc2)
+        if self.modelArch.endswith('TransfConvLayers'):
+            Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params[:11]
+            convParams = params[11:]
+            def step(img, prev_bbox, state):
+                p = VisualAttention.box2params_theano(prev_bbox)
+                l_trans = lasagne.layers.TransformerLayer(img.shape, p.shape)
+                transformed = l_trans.get_output_for( (img.dimshuffle(), p) )
+                img = attention(img, prev_bbox)
+                features = buildCNN(img, self.cnn, convParams)
+                return boxRegressor( gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg), W_fc2, b_fc2) + (transformed,)
+
                
         state = Tensor.zeros((batchSize, stateDim))
         # Move the time axis to the top
         sc, _ = Theano.scan(step, sequences=[imgs.dimshuffle(1, 0, 2, 3, 4)], outputs_info=[starts, state])
     
         bbox_seq = sc[0].dimshuffle(1, 0, 2)
+        transformed = sc[2]
     
         # targets: of shape (batch_size, seq_len, targetDim)
         targets = getTensor("targets", Theano.config.floatX, 3)
@@ -474,13 +479,13 @@ class TheanoGruRnn(object):
     
         logging.info('Building optimizer')
     
-        fitFunc = Theano.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], updates=rmsprop(cost, params, learningRate), allow_input_downcast=True)
-        forwardFunc = Theano.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], allow_input_downcast=True)
+        fitFunc = Theano.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq, transformed], updates=rmsprop(cost, params, learningRate), allow_input_downcast=True)
+        forwardFunc = Theano.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq, transformed], allow_input_downcast=True)
         imgStep = getTensor("images", Theano.config.floatX, 4)
         startsStep = Tensor.matrix()
         stateStep = Tensor.matrix()
         stepFunc = Theano.function([imgStep, startsStep, stateStep], step(imgStep, startsStep, stateStep))
-        
+
         self.learningRate = learningRate
         self.decayLearningRate = decayLearningRate
         self.fitFunc, self.forwardFunc, self.params, self.stepFunc = fitFunc, forwardFunc, params, stepFunc

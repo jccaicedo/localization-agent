@@ -54,9 +54,9 @@ class Validation(object):
             start = i*self.batchSize
             end = (i+1)*self.batchSize
             if self.computeFlow:
-                bbox[start:end,...] = tracker.forward(D[start:end,...], L[start:end,...], F[start:end,...])
+                bbox[start:end,...], _ = tracker.forward(D[start:end,...], L[start:end,...], F[start:end,...])
             else:
-                bbox[start:end,...] = tracker.forward(D[start:end,...], L[start:end,...], None)
+                bbox[start:end,...], _ = tracker.forward(D[start:end,...], L[start:end,...], None)
         # Compute IoU
         iou = Tester.getIntOverUnion(VisualAttention.stdLabels(L, self.imgHeight), bbox)
         # Report to the log

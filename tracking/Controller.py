@@ -48,7 +48,7 @@ class Controller(object):
 
                 # Update parameters of the model
                 st = time.time()                
-                cost, bbox_seq = tracker.fit(data, label, flow, storeInMem)
+                cost, bbox_seq, crops = tracker.fit(data, label, flow, storeInMem)
                 clock('Training',st)
                 
                 print 'Cost', i, j, cost

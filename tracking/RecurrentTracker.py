@@ -25,11 +25,11 @@ class RecurrentTracker(object):
     def fit(self, data, label, flow, store_in_mem):
         st = time.time()
         activations = self.activate(data)
-        cost, bbox_seq = self.processMultiBatch(activations, label, flow, self.rnn.batchSize, (label.shape[-1],), self.rnn.fit)
+        cost, bbox_seq, transformed = self.processMultiBatch(activations, label, flow, self.rnn.batchSize, (label.shape[-1],), self.rnn.fit)
         if store_in_mem:
             self.store(activations, label)
         
-        return cost, bbox_seq
+        return cost, bbox_seq, transformed
 
     def decayLearningRate(self):
         self.rnn.decayLearningRate()
@@ -37,14 +37,16 @@ class RecurrentTracker(object):
     
     def forward(self, data, label, flow):
         activations = self.activate(data)
-        cost, pred = self.processMultiBatch(activations, label, flow, self.rnn.batchSize, (label.shape[-1],), self.rnn.forward)
+        cost, pred, transformed = self.processMultiBatch(activations, label, flow, self.rnn.batchSize, (label.shape[-1],), self.rnn.forward)
         
-        return pred
+        return pred, transformed
 
     def processMultiBatch(self, data, label, flow, atomicBatchSize, outputShape, processFunction):
         '''Reshapes input to fit batchSize and applies the specified function over each atomic batch'''
         #Initialize output variables
         outputs = NP.zeros((data.shape[0], data.shape[1])+outputShape, dtype=data.dtype)
+        crops = NP.zeros(data.shape, dtype=data.dtype)
+
         totalCost = 0
         #Reshape inputs, adding a new dim
         if data.shape[0] != label.shape[0]:
@@ -62,12 +64,13 @@ class RecurrentTracker(object):
         #Iterate and accumulate
         for i in NP.arange(newDataShape[0]):
             if flow is not None:
-                cost, bbox_seq = processFunction(data[i], label[i], flow[i])
+                cost, bbox_seq, transformed = processFunction(data[i], label[i], flow[i])
             else:
-                cost, bbox_seq = processFunction(data[i], label[i], flow)
+                cost, bbox_seq, transformed = processFunction(data[i], label[i], flow)
             totalCost += cost
             outputs[i*atomicBatchSize:(i+1)*atomicBatchSize, ...] = bbox_seq
-        return totalCost, outputs
+            crops[i*atomicBatchSize:(i+1)*atomicBatchSize, ...] = transformed
+        return totalCost, outputs, crops
 
     def store(self, activations, labels):
         if self.memory is None:
