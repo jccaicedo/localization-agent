@@ -36,6 +36,7 @@ def gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg):
 
 def boxRegressor(gru_h, W_fc, b_fc):
     bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc) + b_fc)
+    #bbox = Tensor.dot(gru_h, W_fc) + b_fc
     return bbox, gru_h
     
 def initGru(inputDim, stateDim, level):
@@ -488,12 +489,12 @@ class TheanoGruRnn(object):
     
     def init_params(self, inputDim, stateDim, targetDim, zeroTailFc):
         ### NETWORK PARAMETERS BEGIN
-        convParams = initCNN(self.cnn, self.channels)
         Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg = initGru(inputDim, stateDim, '1')
         W_fc2, b_fc2 = initRegressor(stateDim, targetDim, zeroTailFc)
         ### NETWORK PARAMETERS END
     
         if self.modelArch.endswith('ConvLayers'):
+            convParams = initCNN(self.cnn, self.channels)
             return (Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2) + tuple(convParams)
         else:
             return (Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2)
