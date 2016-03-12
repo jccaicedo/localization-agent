@@ -19,8 +19,8 @@ def uncenteredLabels(labels, imgSize):
     return labels + (imgSize / 2.)
 
 # TODO: Parameterize the use of the following functions
-stdLabels = centeredLabels
-stdBoxes = uncenteredLabels
+stdLabels = normalLabels # centeredLabels
+stdBoxes = unnormedLabels # uncenteredLabels
 
 def createGaussianMasker(imgSize):
     R = Tensor.arange(imgSize, dtype=Theano.config.floatX)
