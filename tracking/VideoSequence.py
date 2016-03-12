@@ -24,8 +24,6 @@ def fromarray(data):
 class VideoSequence:
     PROCESS_TEMPLATE = 'avconv -y -f image2pipe -vcodec mjpeg -r {} -i - -vcodec libx264 -qscale 5 -r {} {}'
     PROCESS_TEMPLATE_OFFLINE = 'avconv -y -f image2 -vcodec mjpeg -r {} -i {} -vcodec libx264 -qscale 5 -r {} {}'
-    frames = None
-    boxes = {}
     
     """
     Create a Sequence base on a list of frames.
@@ -35,7 +33,7 @@ class VideoSequence:
     """
     def __init__(self, frames):
         self.frames = frames
-        
+        self.boxes = {}
     
     """
     Add bounding boxes to the frames.
