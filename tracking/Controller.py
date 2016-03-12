@@ -49,9 +49,14 @@ class Controller(object):
                 # Update parameters of the model
                 st = time.time()                
                 cost, bbox_seq = tracker.fit(data, label, flow, storeInMem)
+                if NP.isnan(cost):
+                    msg = 'Cost is %s at iteration %s %s' % (NP.nan, i, j)
+                    logging.error(msg)
+                    raise Exception(msg)
                 clock('Training',st)
                 
                 print 'Cost', i, j, cost
+                print 'Batch IoU:', Tester.getIntOverUnion(label, bbox_seq).mean()
                 train_cost += cost
             bbox, iou = validation.validate(tracker)
             '''
