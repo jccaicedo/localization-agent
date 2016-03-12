@@ -126,6 +126,8 @@ class ControllerConfig(object):
     def build_parser(self):
         parser = AP.ArgumentParser(description='Trains a RNN tracker', fromfile_prefix_chars='@')
         parser.add_argument('--imageDir', help='Root directory for images', type=str, default='/home/jccaicedo/data/coco')
+        parser.add_argument('--scenePathTemplate', help='Scenes path relative to image dir', type=str, default='images/train2014')
+        parser.add_argument('--objectPathTemplate', help='Objects path relative to image dir', type=str, default='images/train2014')
         parser.add_argument('--summaryPath', help='Path of summary file', type=str, default='./cocoTrain2014Summary.pkl')
         parser.add_argument('--trajectoryModelSpec', help='Specification of the object trajectory models to sample', nargs='+', required=True)
         parser.add_argument('--cameraTrajectoryModelSpec', help='Specification of the camera trajectory models to sample', nargs='+', required=True)
@@ -228,7 +230,10 @@ if __name__ == '__main__':
         if not testType == 'no':
             raise Exception(e)
         logging.warn('Creating new model')
-        rnn = TheanoGruRnn.TheanoGruRnn(gruInputDim, gruStateDim, GaussianGenerator.TARGET_DIM, batchSize, seqLength, zeroTailFc, learningRate, useCUDNN, imgHeight, modelArch, getattr(TheanoGruRnn, norm), useAttention, modelPath=cnnModelPath, layerKey=layerKey, convFilters=convFilters, computeFlow=computeFlow)
+        rnn = TheanoGruRnn.TheanoGruRnn(gruInputDim, gruStateDim, GaussianGenerator.TARGET_DIM, batchSize,
+                                         seqLength, zeroTailFc, learningRate, useCUDNN, imgHeight, modelArch,
+                                          getattr(TheanoGruRnn, norm), useAttention, modelPath=cnnModelPath, 
+                                          layerKey=layerKey, convFilters=convFilters, computeFlow=computeFlow)
     
     
     tracker = RecurrentTracker(cnn, rnn)    
@@ -239,7 +244,10 @@ if __name__ == '__main__':
     else:
         try:
             batches = sequenceCount/batchSize
-            generator = GaussianGenerator.GaussianGenerator(imageDir, summaryPath, trajectoryModelSpec, cameraTrajectoryModelSpec, gmmPath, seqLength=MAX_SEQ_LENGTH, imageSize=imgHeight, grayscale=grayscale, parallel=not sequential, numProcs=numProcs, computeFlow=computeFlow)
+            generator = GaussianGenerator.GaussianGenerator(imageDir, summaryPath, trajectoryModelSpec, 
+                            cameraTrajectoryModelSpec, gmmPath, seqLength=MAX_SEQ_LENGTH, imageSize=imgHeight,
+                            grayscale=grayscale, parallel=not sequential, numProcs=numProcs, computeFlow=computeFlow,
+                            scenePathTemplate=scenePathTemplate, objectPathTemplate=objectPathTemplate)
             controller.train(tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize, seqLength, computeFlow)
             #TODO: evaluate if it is wise to save on any exception
         except KeyboardInterrupt:
