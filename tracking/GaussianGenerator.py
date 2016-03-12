@@ -38,7 +38,7 @@ def wrapped_simulate(params):
 ## CLASS
 ## Simulator with Gaussian mixture models of movement
 class GaussianGenerator(object):
-    def __init__(self, imageDir, summaryPath, trajectoryModelPath, seqLength=60, imageSize=IMG_WIDTH, grayscale=True, parallel=True, numProcs=None, scenePathTemplate='images/train2014', objectPathTemplate='images/train2014', computeFlow=False):
+    def __init__(self, imageDir, summaryPath, trajectoryModelSpec, cameraTrajectoryModelSpec, gmmPath, seqLength=60, imageSize=IMG_WIDTH, grayscale=True, parallel=True, numProcs=None, scenePathTemplate='images/train2014', objectPathTemplate='images/train2014', computeFlow=False):
         self.imageSize = imageSize
         self.seqLength = seqLength
         self.factory = None
@@ -50,8 +50,10 @@ class GaussianGenerator(object):
             self.pool = None
         self.factory = trsim.SimulatorFactory(
             imageDir,
-            trajectoryModelPath=trajectoryModelPath,
-            summaryPath = summaryPath,
+            trajectoryModelSpec,
+            cameraTrajectoryModelSpec,
+            summaryPath,
+            gmmPath,
             scenePathTemplate=scenePathTemplate, objectPathTemplate=objectPathTemplate
             )
         self.grayscale = grayscale

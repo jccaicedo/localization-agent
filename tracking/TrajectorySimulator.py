@@ -260,7 +260,7 @@ class OcclussionGenerator():
 
 class TrajectorySimulator():
 
-  def __init__(self, sceneFile, objectFile, polygon, maxSegments=9, camSize=(224,224), axes=False, maxSteps=None, contentTransforms=None, shapeTransforms=None, cameraContentTransforms=None, cameraShapeTransforms=None, drawBox=False, camera=True, drawCam=False, trajectoryModel=None, cameraTrajectoryModel=None, trajectoryModelLength=60):
+  def __init__(self, sceneFile, objectFile, polygon, maxSegments=9, camSize=(224,224), axes=False, maxSteps=None, contentTransforms=None, shapeTransforms=None, cameraContentTransforms=None, cameraShapeTransforms=None, drawBox=False, camera=True, drawCam=False, trajectoryModelSpec=None, cameraTrajectoryModelSpec=None, gmmModel=None, trajectoryModelLength=60):
     self.randGen = startRandGen()
     #Number of maximum steps/frames generated
     if maxSteps is None:
@@ -288,22 +288,12 @@ class TrajectorySimulator():
     self.drawCam = drawCam
     self.camera = camera
     self.axes = axes
-    # Default transformations
+    # Transformations
     self.shapeTransforms = shapeTransforms
     self.contentTransforms = contentTransforms
     self.trajectoryModelLength = trajectoryModelLength
-    if trajectoryModel is not None:
-      self.trajectoryModel = TrajectoryModel(trajectoryModel, self.trajectoryModelLength)
-    else:
-      logging.debug('Random object trajectory model')
-      self.trajectoryModel = RandomTrajectoryModel(self.trajectoryModelLength)
-      #self.trajectoryModel = StretchedSineTrajectoryModel(self.trajectoryModelLength)
-    if cameraTrajectoryModel is not None:
-      self.cameraTrajectoryModel = TrajectoryModel(cameraTrajectoryModel, self.trajectoryModelLength)
-    else:
-      logging.debug('Stretched sine  camera trajectory model')
-      self.cameraTrajectoryModel = StretchedSineTrajectoryModel(self.trajectoryModelLength)
-      #self.cameraTrajectoryModel = StretchedSineTrajectoryModel(self.trajectoryModelLength)
+    self.trajectoryModel = TrajectoryModel(trajectoryModelSpec, self.trajectoryModelLength, gmmModel=gmmModel)
+    self.cameraTrajectoryModel = TrajectoryModel(cameraTrajectoryModelSpec, self.trajectoryModelLength, gmmModel=gmmModel)
     self.cameraContentTransforms = cameraContentTransforms
     self.cameraShapeTransforms = cameraShapeTransforms
     logging.debug('Scene: %s Object: %s', sceneFile, objectFile)
@@ -337,30 +327,15 @@ class TrajectorySimulator():
         self.shapeTransforms = [
             Transformation(identityShape, 1, 1),
         ]
-    if self.trajectoryModel is None:
-        if self.contentTransforms is None:
-            self.contentTransforms = [
-                Transformation(scaleX, 0.7, 1.3),
-                Transformation(scaleY, 0.7, 1.3),
-                Transformation(rotate, -np.pi/50, np.pi/50),
-                Transformation(translateX, 0, self.camSize[0]-max(self.objSize)),
-                Transformation(translateY, 0, self.camSize[1]-max(self.objSize)),
-            ]
-        if self.cameraContentTransforms is None:
-            #TODO: camera transforms related to sampled trajectory
-            cameraDiagonal = np.sqrt(self.camSize[0]**2+self.camSize[1]**2)
-            #self.cameraContentTransforms = OffsetTrajectory(self.scene.size[0], self.scene.size[1], cameraDiagonal).transforms
-            self.cameraContentTransforms = BoundedTrajectory(self.scene.size[0], self.scene.size[1]).transforms
-    else:
-        #TODO: Check why the order (object, camera) generates different results
-        #Object transform sampling and correction
-        self.contentTransforms = self.fit_trajectory(self.bounds, self.camSize, self.trajectoryModel)
-        #Camera transform sampling and correction
-        self.cameraContentTransforms = self.fit_trajectory(self.cameraBounds, self.scene.size, self.cameraTrajectoryModel)
     if self.cameraShapeTransforms is None:
         self.cameraShapeTransforms = [
             Transformation(identityShape, 1, 1),
         ]
+    #TODO: Check why the order (object, camera) generates different results
+    #Object transform sampling and correction
+    self.contentTransforms = self.fit_trajectory(self.bounds, self.camSize, self.trajectoryModel)
+    #Camera transform sampling and correction
+    self.cameraContentTransforms = self.fit_trajectory(self.cameraBounds, self.scene.size, self.cameraTrajectoryModel)
     self.transform()
     self.render()
 
@@ -578,7 +553,7 @@ CATEGORY_KEY='categories'
 
 class SimulatorFactory():
 
-    def __init__(self, dataDir, trajectoryModelPath, summaryPath, scenePathTemplate = 'images/train2014', objectPathTemplate = 'images/train2014'):
+    def __init__(self, dataDir, trajectoryModelSpec, cameraTrajectoryModelSpec, summaryPath, gmmPath=None, scenePathTemplate = 'images/train2014', objectPathTemplate = 'images/train2014'):
         self.dataDir = dataDir
         self.scenePathTemplate = scenePathTemplate
         self.objectPathTemplate = objectPathTemplate
@@ -587,11 +562,12 @@ class SimulatorFactory():
         self.summary = pickle.load(summaryFile)
         summaryFile.close()
         #Default model is Random, overwrite if specified
-        self.trajectoryModel = None
-        if trajectoryModelPath is not None:
-            modelFile = open(trajectoryModelPath, 'r')
-            self.trajectoryModel = pickle.load(modelFile)
-            modelFile.close()
+        self.trajectoryModelSpec = trajectoryModelSpec
+        self.cameraTrajectoryModelSpec = cameraTrajectoryModelSpec
+        if gmmPath is not None:
+            gmmFile = open(gmmPath, 'r')
+            self.gmmModel = pickle.load(gmmFile)
+            gmmFile.close()
         self.sceneList = os.listdir(os.path.join(self.dataDir, self.scenePathTemplate))
 
     def createInstance(self, *args, **kwargs):
@@ -608,7 +584,7 @@ class SimulatorFactory():
         logging.debug('Segmenting object from category %s', self.summary[CATEGORY_KEY][int(objData['category_id'])])
         polygon = self.randGen.choice(objData['segmentation'])
 
-        simulator = TrajectorySimulator(scenePath, objPath, polygon=polygon, trajectoryModel=self.trajectoryModel, cameraTrajectoryModel=self.trajectoryModel, *args, **kwargs)
+        simulator = TrajectorySimulator(scenePath, objPath, polygon=polygon, trajectoryModelSpec=self.trajectoryModelSpec, cameraTrajectoryModelSpec=self.cameraTrajectoryModelSpec, gmmModel=self.gmmModel, *args, **kwargs)
         
         return simulator
 
@@ -735,16 +711,33 @@ class SineTrajectoryModel():
         return transforms
 
 class TrajectoryModel(object):
-    def __init__(self, model, length):
+    def __init__(self, modelSpec, length, gmmModel=None):
+        self.modelSpec = modelSpec
+        self.gmmModel = gmmModel
         self.length = length
-        self.gmmModel = GMMTrajectoryModel(model, self.length)
-        self.randomModel = RandomTrajectoryModel(self.length)
-        self.sineModel = SineTrajectoryModel(self.length)
-        self.stretchedModel = StretchedSineTrajectoryModel(self.length)
-        self.models = [self.randomModel, self.sineModel, self.stretchedModel, self.gmmModel]
         self.randGen = startRandGen()
+        self.buildModels()
 
     def sample(self, sceneSize):
         modelIndex = self.randGen.randrange(len(self.models))
         logging.debug('Sampling trajectory from model: %s', self.models[modelIndex])
         return self.models[modelIndex].sample(sceneSize)
+    
+    def buildModels(self):
+        #Unique specs
+        uniqueSpecs = list(set(self.modelSpec))
+        self.models = []
+        for spec in uniqueSpecs:
+            if spec == 'gmm':
+                if self.gmmModel is None:
+                    raise Exception('Required trajectory model for GMM is empty')
+                newModel = GMMTrajectoryModel(self.gmmModel, self.length)
+            elif spec == 'sine':
+                newModel = SineTrajectoryModel(self.length)
+            elif spec == 'stretched':
+                newModel = StretchedSineTrajectoryModel(self.length)
+            elif spec == 'random':
+                newModel = RandomTrajectoryModel(self.length)
+            else:
+                raise Exception('Unrecognized trajectory model specification: {}'.format(spec))
+            self.models.append(newModel)

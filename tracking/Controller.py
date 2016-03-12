@@ -121,7 +121,9 @@ class ControllerConfig(object):
         parser = AP.ArgumentParser(description='Trains a RNN tracker', fromfile_prefix_chars='@')
         parser.add_argument('--imageDir', help='Root directory for images', type=str, default='/home/jccaicedo/data/coco')
         parser.add_argument('--summaryPath', help='Path of summary file', type=str, default='./cocoTrain2014Summary.pkl')
-        parser.add_argument('--trajectoryModelPath', help='Trajectory model path', type=str, default=None)
+        parser.add_argument('--trajectoryModelSpec', help='Specification of the object trajectory models to sample', nargs='+')
+        parser.add_argument('--cameraTrajectoryModelSpec', help='Specification of the camera trajectory models to sample', nargs='+')
+        parser.add_argument('--gmmPath', help='GMM model path', type=str, default=None)
         parser.add_argument('--epochs', help='Number of epochs with 32000 example sequences each', type=int, default=1)
         parser.add_argument('--generationBatchSize', help='Number of elements in one generation step', type=int, default=32)
         parser.add_argument('--batchSize', help='Number of elements in batch', type=int, default=32)
@@ -231,7 +233,7 @@ if __name__ == '__main__':
         try:
             M = 9600 # Constant number of example sequences per epoch
             batches = M/batchSize
-            generator = GaussianGenerator.GaussianGenerator(imageDir, summaryPath, trajectoryModelPath, seqLength=MAX_SEQ_LENGTH, imageSize=imgHeight, grayscale=grayscale, parallel=not sequential, numProcs=numProcs, computeFlow=computeFlow)
+            generator = GaussianGenerator.GaussianGenerator(imageDir, summaryPath, trajectoryModelSpec, cameraTrajectoryModelSpec, gmmPath, seqLength=MAX_SEQ_LENGTH, imageSize=imgHeight, grayscale=grayscale, parallel=not sequential, numProcs=numProcs, computeFlow=computeFlow)
             controller.train(tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize, seqLength, computeFlow)
             #TODO: evaluate if it is wise to save on any exception
         except KeyboardInterrupt:
