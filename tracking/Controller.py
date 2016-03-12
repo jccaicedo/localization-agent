@@ -132,7 +132,7 @@ class ControllerConfig(object):
         parser.add_argument('--trajectoryModelSpec', help='Specification of the object trajectory models to sample', nargs='+', required=True)
         parser.add_argument('--cameraTrajectoryModelSpec', help='Specification of the camera trajectory models to sample', nargs='+', required=True)
         parser.add_argument('--gmmPath', help='GMM model path', type=str, default=None)
-        parser.add_argument('--epochs', help='Number of epochs with 32000 example sequences each', type=int, default=1)
+        parser.add_argument('--epochs', help='Number of epochs with 9600 example sequences each', type=int, default=1)
         parser.add_argument('--generationBatchSize', help='Number of elements in one generation step', type=int, default=32)
         parser.add_argument('--batchSize', help='Number of elements in batch', type=int, default=32)
         parser.add_argument('--gpuBatchSize', help='Number of elements in GPU batch', type=int, default=4)

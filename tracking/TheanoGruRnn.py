@@ -36,7 +36,6 @@ def gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg):
 
 def boxRegressor(gru_h, W_fc, b_fc):
     bbox = Tensor.tanh(Tensor.dot(gru_h, W_fc) + b_fc)
-    #bbox = Tensor.dot(gru_h, W_fc) + b_fc
     return bbox, gru_h
     
 def initGru(inputDim, stateDim, level):
