@@ -29,13 +29,13 @@ def scaleBboxes(bboxes, fromSize, toSize):
 
 def getIntOverUnion(bboxTruth, bboxPred):
     #TODO: what if boxes are not referenced/ordered according to distance from 0,0 in screen?
-    left = NP.max([bboxPred[:, :, 0], bboxTruth[:, :, 0]], axis=0)
-    top = NP.max([bboxPred[:, :, 1], bboxTruth[:, :, 1]], axis=0)
-    right = NP.min([bboxPred[:, :, 2], bboxTruth[:, :, 2]], axis=0)
-    bottom = NP.min([bboxPred[:, :, 3], bboxTruth[:, :, 3]], axis=0)
+    left = NP.max([bboxPred[..., 0], bboxTruth[..., 0]], axis=0)
+    top = NP.max([bboxPred[..., 1], bboxTruth[..., 1]], axis=0)
+    right = NP.min([bboxPred[..., 2], bboxTruth[..., 2]], axis=0)
+    bottom = NP.min([bboxPred[..., 3], bboxTruth[..., 3]], axis=0)
     intersect = (right - left) * ((right - left) > 0) * (bottom - top) * ((bottom - top) > 0)
-    label_area = NP.abs(bboxTruth[:, :, 2] - bboxTruth[:, :, 0]) * NP.abs(bboxTruth[:, :, 3] - bboxTruth[:, :, 1])
-    predict_area = NP.abs(bboxPred[:, :, 2] - bboxPred[:, :, 0]) * NP.abs(bboxPred[:, :, 3] - bboxPred[:, :, 1])
+    label_area = NP.abs(bboxTruth[..., 2] - bboxTruth[..., 0]) * NP.abs(bboxTruth[..., 3] - bboxTruth[..., 1])
+    predict_area = NP.abs(bboxPred[..., 2] - bboxPred[..., 0]) * NP.abs(bboxPred[..., 3] - bboxPred[..., 1])
     union = label_area + predict_area - intersect
     iou = intersect / union
     
