@@ -169,7 +169,7 @@ class TheanoGruRnn(object):
         ### Computed hyperparameters begin
         self.modelArch = modelArch
         if self.modelArch == 'oneConvLayers':
-            self.cnn = {'conv1':{'filters':32, 'size':10, 'stride':5, 'output':(((inputDim-10)/5+1)**2)*32 }}
+            self.cnn = {'conv1':{'filters':32, 'size':10, 'stride':5, 'output':(((imgSize-10)/5+1)**2)*32 }}
             inputDim = self.cnn['conv1']['output']
         elif self.modelArch == 'lasagne':
             self.cnn = LasagneVGG16(modelPath, layerKey)
@@ -410,6 +410,11 @@ class TheanoGruRnn(object):
         # Normalize labels according to the chosen mask
         label = VisualAttention.stdLabels(label, self.imgSize)
         return data, label
+    
+    #We could be interested in data post processing but for now only on labels
+    def postprocess(self, label):
+        label = VisualAttention.stdBoxes(label, self.imgSize)
+        return label
     
     def fit(self, data, label, flow):
         data, label = self.preprocess(data, label, flow)
