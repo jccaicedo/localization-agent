@@ -8,7 +8,6 @@ import VisualAttention
 import logging
 
 from collections import OrderedDict
-from LasagneVGG16 import LasagneVGG16
 
 
 def smooth_l1(x):
@@ -172,6 +171,7 @@ class TheanoGruRnn(object):
             self.cnn = {'conv1':{'filters':32, 'size':10, 'stride':5, 'output':(((imgSize-10)/5+1)**2)*32 }}
             inputDim = self.cnn['conv1']['output']
         elif self.modelArch == 'lasagne':
+            from LasagneVGG16 import LasagneVGG16
             self.cnn = LasagneVGG16(modelPath, layerKey)
             inputDim = 512 * 7 * 7
         elif self.modelArch == 'twoConvLayers':
