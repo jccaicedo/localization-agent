@@ -32,9 +32,9 @@ def getIntOverUnion(bboxTruth, bboxPred):
     top = NP.max([bboxPred[:, :, 1], bboxTruth[:, :, 1]], axis=0)
     right = NP.min([bboxPred[:, :, 2], bboxTruth[:, :, 2]], axis=0)
     bottom = NP.min([bboxPred[:, :, 3], bboxTruth[:, :, 3]], axis=0)
-    intersect = (right - left) * ((right - left) > 0) * (bottom - top) * ((bottom - top) > 0)
-    label_area = (bboxTruth[:, :, 2] - bboxTruth[:, :, 0]) * (bboxTruth[:, :, 2] - bboxTruth[:, :, 0] > 0) * (bboxTruth[:, :, 3] - bboxTruth[:, :, 1]) * (bboxTruth[:, :, 3] - bboxTruth[:, :, 1] > 0)
-    predict_area = (bboxPred[:, :, 2] - bboxPred[:, :, 0]) * (bboxPred[:, :, 2] - bboxPred[:, :, 0] > 0) * (bboxPred[:, :, 3] - bboxPred[:, :, 1]) * (bboxPred[:, :, 3] - bboxPred[:, :, 1] > 0)
+    intersect = NP.abs(right - left) * NP.abs(bottom - top)
+    label_area = NP.abs(bboxTruth[:, :, 2] - bboxTruth[:, :, 0]) * NP.abs(bboxTruth[:, :, 3] - bboxTruth[:, :, 1])
+    predict_area = NP.abs(bboxPred[:, :, 2] - bboxPred[:, :, 0]) * NP.abs(bboxPred[:, :, 3] - bboxPred[:, :, 1])
     union = label_area + predict_area - intersect
     iou = intersect / union
     
@@ -77,7 +77,7 @@ class Tester(object):
         self.tracker = tracker
         
         
-    def test(self, data, label, flow, batchSize, imageHeight, grayscale, withVideoGen, seqLength, targetDim, outputVideoDir):
+    def test(self, data, label, flow, batchSize, imageHeight, withVideoGen, seqLength, targetDim, outputVideoDir):
         size = data.shape[0]
         iters = size / batchSize + (size % batchSize > 0)
         bboxSeqTest = NP.empty((0, seqLength, targetDim))
@@ -102,7 +102,8 @@ class Tester(object):
         label = label[0:size, ...]
         
         if(withVideoGen):
-            exportSequences(data * 255.0, (label + 1) * imageHeight / 2., (bboxSeqTest + 1) * imageHeight / 2., grayscale, outputVideoDir)
+            #TODO: use postprocessed data for data
+            exportSequences(data, label , bboxSeqTest, outputVideoDir)
         
         iou = getIntOverUnion(label, bboxSeqTest)
 
