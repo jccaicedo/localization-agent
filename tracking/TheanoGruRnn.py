@@ -417,6 +417,17 @@ class TheanoGruRnn(object):
         label = VisualAttention.stdBoxes(label, self.imgSize)
         return label
     
+    def postprocessData(self, data):
+        # Adjust channels and normalize pixels
+        if self.modelArch.endswith('ConvLayers'):
+            data = NP.swapaxes(NP.swapaxes(data, 2, 3), 3, 4)
+            #Unconditional 
+            data = data[...,:3]
+            data = (data * 127.) + 127.
+        elif self.modelArch == 'lasagne':
+            raise Exception('Not implemented yet')
+        return data
+    
     def fit(self, data, label, flow):
         data, label = self.preprocess(data, label, flow)
         cost, bbox = self.fitFunc(self.seqLength, data, label[:, 0, :], label)
