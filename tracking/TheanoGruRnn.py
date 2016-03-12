@@ -419,12 +419,13 @@ class TheanoGruRnn(object):
     
     def fit(self, data, label, flow):
         data, label = self.preprocess(data, label, flow)
-        return self.fitFunc(self.seqLength, data, label[:, 0, :], label)
+        cost, bbox = self.fitFunc(self.seqLength, data, label[:, 0, :], label)
+        return cost, self.postprocess(bbox)
       
     def forward(self, data, label, flow):
         data, label = self.preprocess(data, label, flow)
-        cost, output = self.forwardFunc(self.seqLength, data, label[:, 0, :], label)
-        return cost, output
+        cost, bbox = self.forwardFunc(self.seqLength, data, label[:, 0, :], label)
+        return cost, self.postprocess(bbox)
     
     def buildModel(self, batchSize, inputDim, stateDim, targetDim, zeroTailFc, initialLearningRate, use_cudnn, imgSize):
         logging.info('Building network')
