@@ -15,6 +15,7 @@ import VisualAttention
 from VideoSequenceData import TraxClientWrapper
 
 MAX_SEQ_LENGTH = 60
+DEFAULT_SEQUENCE_COUNT = 9600
 
 def clock(m, st): 
     print m,(time.time()-st)
@@ -126,8 +127,8 @@ class ControllerConfig(object):
         parser = AP.ArgumentParser(description='Trains a RNN tracker', fromfile_prefix_chars='@')
         parser.add_argument('--imageDir', help='Root directory for images', type=str, default='/home/jccaicedo/data/coco')
         parser.add_argument('--summaryPath', help='Path of summary file', type=str, default='./cocoTrain2014Summary.pkl')
-        parser.add_argument('--trajectoryModelSpec', help='Specification of the object trajectory models to sample', nargs='+')
-        parser.add_argument('--cameraTrajectoryModelSpec', help='Specification of the camera trajectory models to sample', nargs='+')
+        parser.add_argument('--trajectoryModelSpec', help='Specification of the object trajectory models to sample', nargs='+', required=True)
+        parser.add_argument('--cameraTrajectoryModelSpec', help='Specification of the camera trajectory models to sample', nargs='+', required=True)
         parser.add_argument('--gmmPath', help='GMM model path', type=str, default=None)
         parser.add_argument('--epochs', help='Number of epochs with 32000 example sequences each', type=int, default=1)
         parser.add_argument('--generationBatchSize', help='Number of elements in one generation step', type=int, default=32)
@@ -159,6 +160,7 @@ class ControllerConfig(object):
         parser.add_argument('--useAttention', help='Enable attention', type=str, default='no', choices=['no', 'gaussian', 'square','squareChannel'])
         parser.add_argument('--testType', help='Run test of the specified type', type=str, default='no', choices=['no', 'trax', 'tester'])
         parser.add_argument('--libvotPath', help='Path to libvot', type=str, default='/home/fmpaezri/repos/vot-toolkit/tracker/examples/native/libvot.so')
+        parser.add_argument('--sequenceCount', help='Number of sequences per epoch', type=int, default=DEFAULT_SEQUENCE_COUNT)
         
         return parser
 
@@ -236,8 +238,7 @@ if __name__ == '__main__':
         controller.test(tracker, libvotPath, grayscale, testType)
     else:
         try:
-            M = 9600 # Constant number of example sequences per epoch
-            batches = M/batchSize
+            batches = sequenceCount/batchSize
             generator = GaussianGenerator.GaussianGenerator(imageDir, summaryPath, trajectoryModelSpec, cameraTrajectoryModelSpec, gmmPath, seqLength=MAX_SEQ_LENGTH, imageSize=imgHeight, grayscale=grayscale, parallel=not sequential, numProcs=numProcs, computeFlow=computeFlow)
             controller.train(tracker, epochs, batches, batchSize, generator, imgHeight, trackerModelPath, useReplayMem, generationBatchSize, seqLength, computeFlow)
             #TODO: evaluate if it is wise to save on any exception

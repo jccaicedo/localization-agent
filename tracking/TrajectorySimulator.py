@@ -564,6 +564,7 @@ class SimulatorFactory():
         #Default model is Random, overwrite if specified
         self.trajectoryModelSpec = trajectoryModelSpec
         self.cameraTrajectoryModelSpec = cameraTrajectoryModelSpec
+        self.gmmModel = None
         if gmmPath is not None:
             gmmFile = open(gmmPath, 'r')
             self.gmmModel = pickle.load(gmmFile)
