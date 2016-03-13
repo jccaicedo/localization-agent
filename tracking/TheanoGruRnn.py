@@ -6,6 +6,7 @@ import theano.tensor.nnet as NN
 import cPickle as pickle
 import VisualAttention
 import logging
+import lasagne
 
 from collections import OrderedDict
 
@@ -15,13 +16,6 @@ def smooth_l1(x):
 
 def l2(x):
     return x ** 2
-
-def box2cwh(boxTensor):
-    xc = (boxTensor[:,:,2]+boxTensor[:,:,0])/2
-    yc = (boxTensor[:,:,3]+boxTensor[:,:,1])/2
-    width = (boxTensor[:,:,2]-boxTensor[:,:,0])
-    height = (boxTensor[:,:,3]-boxTensor[:,:,1])
-    return Tensor.stacklists([xc,yc,width,height]).dimshuffle(1,2,0)
 
 #TODO: turn into GRU class
 def gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg):
@@ -454,10 +448,15 @@ class TheanoGruRnn(object):
         if self.modelArch.endswith('ConvLayers'):
             Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params[:11]
             convParams = params[11:]
-            def step(img, prev_bbox, state):
+            l_trans = lasagne.layers.TransformerLayer((batchSize, self.channels, imgSize, imgSize), (batchSize, 6))
+            def step(img, gt_box, prev_bbox, state):
+                predParams = VisualAttention.box2params_theano(prev_bbox)
+                gtParams = VisualAttention.box2params_theano(gt_box)
+                predCrop = l_trans.get_output_for( (img, predParams) )
+                boxCrop = l_trans.get_output_for( (img, gtParams) )
                 img = attention(img, prev_bbox)
                 features = buildCNN(img, self.cnn, convParams)
-                return boxRegressor( gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg), W_fc2, b_fc2)
+                return boxRegressor( gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg), W_fc2, b_fc2) + (boxCrop, predCrop)
         elif self.modelArch == 'caffe':
             Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
             def step(img, prev_bbox, state):
@@ -471,18 +470,24 @@ class TheanoGruRnn(object):
                 img = attention(img, prev_bbox)
                 features = self.cnn.getFeatureExtractor(img)
                 return boxRegressor( gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg), W_fc2, b_fc2)
+
                
         state = Tensor.zeros((batchSize, stateDim))
-        # Move the time axis to the top
-        sc, _ = Theano.scan(step, sequences=[imgs.dimshuffle(1, 0, 2, 3, 4)], outputs_info=[starts, state])
-    
-        bbox_seq = sc[0].dimshuffle(1, 0, 2)
-    
         # targets: of shape (batch_size, seq_len, targetDim)
         targets = getTensor("targets", Theano.config.floatX, 3)
+        # Move the time axis to the top
+        sc, _ = Theano.scan(step, sequences=[imgs.dimshuffle(1, 0, 2, 3, 4), targets.dimshuffle(1, 0, 2)], 
+                            outputs_info=[starts, state, None, None])
+    
+        bbox_seq = sc[0].dimshuffle(1, 0, 2)
+        gtCrops = sc[2].dimshuffle(1, 0, 2, 3, 4)
+        predCrops = sc[3].dimshuffle(1, 0, 2, 3, 4)
+    
         seq_len_scalar = Tensor.scalar()
     
-        cost = self.norm(targets - bbox_seq).sum() / batchSize / seq_len_scalar
+        reconstruction = self.norm(gtCrops-predCrops).mean()
+        distance = self.norm(targets - bbox_seq).sum() / batchSize / seq_len_scalar
+        cost = distance + reconstruction
 
         # Learning rate
         learning_rate_decay = 0.95
@@ -493,11 +498,8 @@ class TheanoGruRnn(object):
     
         fitFunc = Theano.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], updates=rmsprop(cost, params, learningRate), allow_input_downcast=True)
         forwardFunc = Theano.function([seq_len_scalar, imgs, starts, targets], [cost, bbox_seq], allow_input_downcast=True)
-        imgStep = getTensor("images", Theano.config.floatX, 4)
-        startsStep = Tensor.matrix()
-        stateStep = Tensor.matrix()
-        stepFunc = Theano.function([imgStep, startsStep, stateStep], step(imgStep, startsStep, stateStep))
-        
+        stepFunc = Theano.function([imgs, targets, starts], [gtCrops, predCrops])
+
         self.learningRate = learningRate
         self.decayLearningRate = decayLearningRate
         self.fitFunc, self.forwardFunc, self.params, self.stepFunc = fitFunc, forwardFunc, params, stepFunc
