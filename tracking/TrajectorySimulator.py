@@ -711,6 +711,24 @@ class SineTrajectoryModel():
         ]
         return transforms
 
+class StillTrajectoryModel():
+    def __init__(self, length):
+        self.length = length
+        self.randGen = startRandGen()
+        
+    def sample(self, sceneSize):
+        x = self.randGen.randint(0, sceneSize[0])
+        y = self.randGen.randint(0, sceneSize[1])
+        sx = 1
+        sy = 1
+        transforms = [
+            Transformation(scaleX, None, None, pathFunction=lambda a,b,steps: [sx]*steps, steps=self.length),
+            Transformation(scaleY, None, None, pathFunction=lambda a,b,steps: [sy]*steps, steps=self.length),
+            Transformation(translateX, None, None, pathFunction=lambda a,b,steps: [x]*steps, steps=self.length),
+            Transformation(translateY, None, None, pathFunction=lambda a,b,steps: [y]*steps, steps=self.length),
+        ]
+        return transforms
+    
 class TrajectoryModel(object):
     def __init__(self, modelSpec, length, gmmModel=None):
         self.modelSpec = modelSpec
@@ -739,6 +757,8 @@ class TrajectoryModel(object):
                 newModel = StretchedSineTrajectoryModel(self.length)
             elif spec == 'random':
                 newModel = RandomTrajectoryModel(self.length)
+            elif spec == 'still':
+                newModel = StillTrajectoryModel(self.length)
             else:
                 raise Exception('Unrecognized trajectory model specification: {}'.format(spec))
             self.models.append(newModel)
