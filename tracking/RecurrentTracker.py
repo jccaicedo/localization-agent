@@ -49,6 +49,7 @@ class RecurrentTracker(object):
         #Reshape inputs, adding a new dim
         if data.shape[0] != label.shape[0]:
             raise Exception('Data and labels first shape must match: {} != {}'.format(data.shape, label.shape))
+        #TODO: Maybe use 1 instead of negative starts
         newDataShape = (data.shape[0]/atomicBatchSize, atomicBatchSize) + data.shape[-4:]
         logging.debug('Reshaping data from %s to %s', data.shape, newDataShape)
         newLabelShape = (label.shape[0]/atomicBatchSize, atomicBatchSize) + label.shape[-2:]
