@@ -27,8 +27,8 @@ def gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg):
     return gru_h
 
 def actionClassifier(gru_h, W_fc, b_fc):
-    bbox = NN.softmax(Tensor.dot(gru_h, W_fc) + b_fc)
-    return bbox
+    actionProb = NN.softmax(Tensor.dot(gru_h, W_fc) + b_fc)
+    return actionProb
     
 def initGru(inputDim, stateDim, level):
     Wr = Theano.shared(glorot_uniform((inputDim, stateDim)), name='Wr'+level)
