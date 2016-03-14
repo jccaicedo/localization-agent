@@ -118,7 +118,8 @@ def framesFlow(f1, f2):
     frame1 = rgb2gray(f1)
     frame2 = rgb2gray(f2)
     f = cv2.calcOpticalFlowFarneback(frame1, frame2, 0.5, 1, 3, 15, 3, 1.2, 0)
-    f /= (NP.max(f) - NP.min(f))
+    f[...,0] = cv2.normalize(f[...,0], None, 0, 255, cv2.NORM_MINMAX)
+    f[...,1] = cv2.normalize(f[...,0], None, 0, 255, cv2.NORM_MINMAX)
     return f
 
 def computeFlowFromBatch(data):
