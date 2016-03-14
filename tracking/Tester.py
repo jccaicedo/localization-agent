@@ -180,3 +180,85 @@ class Tester(object):
         gtPolygons = NP.array([map(float, line.strip().split(',')) for line in gtLines])
         labels = gtPolygons[:, [0,1,4,5]]*[posCorrection[0], posCorrection[1], posCorrection[0], posCorrection[1]]
         return data, labels
+
+import socket
+import pickle
+import tracking.VideoSequenceData as vs
+import argparse as ap
+
+#Toy server that returns the initial box
+def modelServer(modelPath):
+    logging.BASIC_FORMAT = '%(asctime)s:%(levelname)s:%(process)d:%(funcName)s:%(lineno)d:%(message)s'
+    logger = logging.getLogger()
+    for handler in logger.handlers:
+        logger.removeHandler(handler)
+    fileHandler = logging.FileHandler(os.path.join(os.path.dirname(modelPath), 'traxServer.log'))
+    formatter = logging.Formatter(logging.BASIC_FORMAT)
+    fileHandler.setFormatter(formatter)
+    logger.addHandler(fileHandler)
+    logger.setLevel(logging.DEBUG)
+    with open(modelPath, 'r') as modelFile:
+        model = pickle.load(modelFile)
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(('', 2501))
+    s.listen(5)
+    while True:
+        conn, addr = s.accept()
+        logging.debug('Connected by %s', addr)
+        try:
+            while True:
+                data = conn.recv(4096)
+                if not data:
+                    logging.debug('No more data')
+                    break
+                try:
+                    box = eval(data)
+                    conn.send(str(box))
+                except SyntaxError as e:
+                    if os.path.exists(data):
+                        logging.debug('Path to frame exists %s', data)
+                        conn.send(str(box))
+                    else:
+                        raise e                    
+        finally:
+            conn.close()
+        
+def modelClient(serverPort, libvotPath):
+    logging.BASIC_FORMAT = '%(asctime)s:%(levelname)s:%(process)d:%(funcName)s:%(lineno)d:%(message)s'
+    logger = logging.getLogger()
+    for handler in logger.handlers:
+        logger.removeHandler(handler)
+    fileHandler = logging.FileHandler(os.path.join('/home/fmpaezri/repos/localization-agent', 'traxClient.log'))
+    formatter = logging.Formatter(logging.BASIC_FORMAT)
+    fileHandler.setFormatter(formatter)
+    logger.addHandler(fileHandler)
+    logger.setLevel(logging.DEBUG)
+    tcw = vs.TraxClientWrapper(libvotPath)
+    initBox = tcw.getBox()
+    hasNext = True
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect(('localhost', serverPort))
+    s.sendall(str(initBox))
+    repliedBox = s.recv(4096)
+    logging.info('Received initial box %s', repliedBox)
+    logging.info('Box as list %s', eval(repliedBox))
+    while hasNext:
+        frame = tcw.path
+        s.sendall(frame)
+        data = s.recv(4096)
+        logging.info('Received new box: %s', data)
+        tcw.reportBox(eval(data))
+        hasNext = tcw.nextStep()
+    s.close()
+    
+if __name__ == '__main__':
+    parser = ap.ArgumentParser(description='Script for evaluation')
+    parser.add_argument('testType', help='Type of test to perform', default='trax', choices=['trax', 'custom'])
+    parser.add_argument('serverPort', help='Port of listening server', type=int, default=2501)
+    parser.add_argument('--libvotPath', help='Path to libvot library for TRAX integration', default='/home/fmpaezri/repos/vot-toolkit/tracker/examples/native/libvot.so')
+    args = parser.parse_args()
+
+    if args.testType == 'trax':
+        modelClient(args.serverPort, args.libvotPath)
+    else:
+        raise Exception('Not implemented yet')

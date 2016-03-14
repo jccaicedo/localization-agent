@@ -4,6 +4,8 @@ import numpy as NP
 import logging
 import os
 import sys
+import socket
+from PIL import Image
 
 from RecurrentTracker import RecurrentTracker
 from Validation import Validation
@@ -77,9 +79,11 @@ class Controller(object):
                 tracker.decayLearningRate()
 
     
-    def test(self, tracker, libvotPath, testType):
+    def test(self, tracker, libvotPath, testType, serverPort):
         if testType == 'trax':
             self.testTrax(tracker, libvotPath)
+        elif testType == 'traxServer':
+            self.testTraxServer(tracker, serverPort)
         else:
             #TODO: test with Tester
             raise Exception('Not implemented yet')
@@ -131,6 +135,73 @@ class Controller(object):
             tcw.reportBox(pred)
             initBox = pred
             hasNext = tcw.nextStep()
+            
+    #TODO: handle/test Caffe and convnets
+    def testTraxServer(self, tracker, serverPort):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(('', serverPort))
+        s.listen(5)
+        logging.info('Server listening at %s', serverPort)
+        while True:
+            conn, addr = s.accept()
+            logging.info('Connected by %s', addr)
+            #TODO: Handle flow padding
+            flow = None
+            dataElementShape = (1, tracker.rnn.imgSize, tracker.rnn.imgSize, tracker.rnn.channels)
+            labelsElementShape = (1, tracker.rnn.targetDim )
+            data = NP.zeros(dataElementShape)
+            labels = NP.zeros(labelsElementShape)
+            maxHistory = 8
+            try:
+                while True:
+                    clientData = conn.recv(4096)
+                    if not clientData:
+                        logging.info('No more data')
+                        break
+                    try:
+                        initBox = eval(clientData)
+                        conn.send(str(initBox))
+                    except SyntaxError as e:
+                        if os.path.exists(clientData):
+                            path = clientData
+                            logging.info('Path to frame exists %s', path)
+                            frame = Image.open(path)
+                            
+                            #Save original frame size to rescale reported boxes
+                            originalSize = frame.size
+                            sizeScales = NP.array([originalSize[0], originalSize[1], originalSize[0], originalSize[1]])
+                            #Resize image to fit in model input
+                            frame = frame.resize((tracker.rnn.imgSize, tracker.rnn.imgSize))
+                            frame = NP.asarray(frame, dtype=NP.float32).copy()
+                            initBox = NP.array(initBox, dtype=NP.float32)
+                            #Scale boxes to model input shape
+                            initBox = initBox*(rnn.imgSize / sizeScales)
+                            #Store values
+                            labels[-1,...] = initBox
+                            data[-1,...] = frame
+                            #Complete batch
+                            dataPadded = Tester.padBatch(data[NP.newaxis,...], tracker.rnn.batchSize)
+                            labelsPadded = Tester.padBatch(labels[NP.newaxis,...], tracker.rnn.batchSize)
+                            cost, pred = tracker.rnn.forward(dataPadded, labelsPadded, flow)
+                            #Take only last frame box of first sequence
+                            pred = pred[0,-1,:]
+                            #Rescale to original coordinates
+                            pred = pred*(sizeScales / rnn.imgSize)
+                            pred = list(pred)
+                            initBox = pred
+                            
+                            #Make space for next data
+                            data = NP.concatenate([data, NP.zeros(dataElementShape)])
+                            labels = NP.concatenate([labels, NP.zeros(labelsElementShape)])
+                            if data.shape[0] > maxHistory:
+                                data = data[-8:]
+                                labels = labels[-8:]
+                            
+                            conn.send(str(pred))
+                        else:
+                            raise e                    
+            finally:
+                conn.close()
 
 class ControllerConfig(object):
 
@@ -181,9 +252,10 @@ class ControllerConfig(object):
         parser.add_argument('--debug', help='Enable debug logging', default=False, action='store_true')
         parser.add_argument('--norm', help='Norm type for cost', default=TheanoGruRnn.l2.func_name, choices=[TheanoGruRnn.smooth_l1.func_name, TheanoGruRnn.l2.func_name])
         parser.add_argument('--useAttention', help='Enable attention', type=str, default='no', choices=['no', 'gaussian', 'square','squareChannel'])
-        parser.add_argument('--testType', help='Run test of the specified type', type=str, default='no', choices=['no', 'trax', 'tester'])
+        parser.add_argument('--testType', help='Run test of the specified type', type=str, default='no', choices=['no', 'trax', 'tester', 'traxServer'])
         parser.add_argument('--libvotPath', help='Path to libvot', type=str, default='/home/fmpaezri/repos/vot-toolkit/tracker/examples/native/libvot.so')
         parser.add_argument('--sequenceCount', help='Number of sequences per epoch', type=int, default=DEFAULT_SEQUENCE_COUNT)
+        parser.add_argument('--serverPort', help='Server port', type=int, default=2501)
         
         return parser
 
@@ -196,7 +268,7 @@ if __name__ == '__main__':
     
     logging.BASIC_FORMAT = '%(asctime)s:%(levelname)s:%(process)d:%(funcName)s:%(lineno)d:%(message)s'
     logger = logging.getLogger()
-    if testType == 'trax':
+    if testType.startswith('trax'):
         for handler in logger.handlers:
             logger.removeHandler(handler)
         fileHandler = logging.FileHandler(os.path.join(os.path.dirname(trackerModelPath), 'trax.log'))
@@ -265,7 +337,7 @@ if __name__ == '__main__':
     
     controller = Controller()
     if not testType == 'no':
-        controller.test(tracker, libvotPath, testType)
+        controller.test(tracker, libvotPath, testType, serverPort)
     else:
         try:
             batches = sequenceCount/batchSize
