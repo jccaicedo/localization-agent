@@ -385,8 +385,8 @@ class TheanoGruRnn(object):
     def preprocess(self, data, boxes, flow):
         # Adjust channels and normalize pixels
         if self.modelArch.endswith('ConvLayers'):
-            data = (data - 127.)/127.
             if self.computeFlow: data = NP.append(data, flow, axis=4)
+            data = (data - 127.)/127.
             data = NP.swapaxes(NP.swapaxes(data, 3, 4), 2, 3)
         elif self.modelArch == 'lasagne':
             data = self.cnn.prepareBatch(data)
