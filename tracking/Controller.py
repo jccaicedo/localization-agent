@@ -77,36 +77,34 @@ class Controller(object):
                 tracker.decayLearningRate()
 
     
-    def test(self, tracker, libvotPath, grayscale, testType):
+    def test(self, tracker, libvotPath, testType):
         if testType == 'trax':
-            self.testTrax(tracker, libvotPath, grayscale)
+            self.testTrax(tracker, libvotPath)
         else:
             #TODO: test with Tester
             raise Exception('Not implemented yet')
     
     #TODO: handle/test Caffe and convnets
-    def testTrax(self, tracker, libvotPath, grayscale):
+    def testTrax(self, tracker, libvotPath):
         tcw = TraxClientWrapper(libvotPath)
         initBox = tcw.getBox()
         initState = NP.zeros((1, tracker.rnn.stateDim))
         hasNext = True
         while hasNext:
             frame = tcw.getFrame()
-            if grayscale:
-                frame = frame.convert('L')
             originalSize = frame.size
             sizeScales = NP.array([originalSize[0], originalSize[1], originalSize[0], originalSize[1]])
             frame = frame.resize((tracker.rnn.imgSize, tracker.rnn.imgSize))
             frame = NP.asarray(frame, dtype=NP.float32).copy()
             initBox = NP.array(initBox)
-            initBox = initBox/(sizeScales/2.)-1.
+            initBox = initBox*(rnn.imgSize / sizeScales)
             initBox = initBox[NP.newaxis, ...]
-            if grayscale:
-                frame /= 255.0
-                frame = frame[NP.newaxis, ...]
+            VisualAttention.stdLabels(initBox, rnn.imgSize)
             frame = frame[NP.newaxis, ...]
             newBox, newState = tracker.rnn.stepFunc(frame, initBox, initState)
-            newBox = list((newBox[0]+1.)*sizeScales/2.)
+            newBox = VisualAttention.stdBoxes(newBox, rnn.imgSize)
+            newBox = newBox*(sizeScales / rnn.imgSize)
+            newBox = list((newBox[0])
             tcw.reportBox(newBox)
             initBox = newBox
             initState = newState
@@ -243,7 +241,7 @@ if __name__ == '__main__':
     
     controller = Controller()
     if not testType == 'no':
-        controller.test(tracker, libvotPath, grayscale, testType)
+        controller.test(tracker, libvotPath, testType)
     else:
         try:
             batches = sequenceCount/batchSize
