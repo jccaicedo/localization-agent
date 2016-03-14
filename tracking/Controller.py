@@ -86,28 +86,50 @@ class Controller(object):
     
     #TODO: handle/test Caffe and convnets
     def testTrax(self, tracker, libvotPath):
+        #TODO: Handle flow padding
+        flow = None
+        dataElementShape = (1, tracker.rnn.imgSize, tracker.rnn.imgSize, tracker.rnn.channels)
+        labelsElementShape = (1, tracker.rnn.targetDim )
+        data = NP.zeros(dataElementShape)
+        labels = NP.zeros(labelsElementShape)
+        
         tcw = TraxClientWrapper(libvotPath)
         initBox = tcw.getBox()
-        initState = NP.zeros((1, tracker.rnn.stateDim))
         hasNext = True
+        maxHistory = 8
         while hasNext:
             frame = tcw.getFrame()
+            #Save original frame size to rescale reported boxes
             originalSize = frame.size
             sizeScales = NP.array([originalSize[0], originalSize[1], originalSize[0], originalSize[1]])
+            #Resize image to fit in model input
             frame = frame.resize((tracker.rnn.imgSize, tracker.rnn.imgSize))
             frame = NP.asarray(frame, dtype=NP.float32).copy()
-            initBox = NP.array(initBox)
+            initBox = NP.array(initBox, dtype=NP.float32)
+            #Scale boxes to model input shape
             initBox = initBox*(rnn.imgSize / sizeScales)
-            initBox = initBox[NP.newaxis, ...]
-            VisualAttention.stdLabels(initBox, rnn.imgSize)
-            frame = frame[NP.newaxis, ...]
-            newBox, newState = tracker.rnn.stepFunc(frame, initBox, initState)
-            newBox = VisualAttention.stdBoxes(newBox, rnn.imgSize)
-            newBox = newBox*(sizeScales / rnn.imgSize)
-            newBox = list((newBox[0])
-            tcw.reportBox(newBox)
-            initBox = newBox
-            initState = newState
+            #Store values
+            labels[-1,...] = initBox
+            data[-1,...] = frame
+            #Complete batch
+            dataPadded = Tester.padBatch(data[NP.newaxis,...], tracker.rnn.batchSize)
+            labelsPadded = Tester.padBatch(labels[NP.newaxis,...], tracker.rnn.batchSize)
+            cost, pred = tracker.rnn.forward(dataPadded, labelsPadded, flow)
+            #Take only last frame box of first sequence
+            pred = pred[0,-1,:]
+            #Rescale to original coordinates
+            pred = pred*(sizeScales / rnn.imgSize)
+            pred = list(pred)
+            
+            #Make space for next data
+            data = NP.concatenate([data, NP.zeros(dataElementShape)])
+            labels = NP.concatenate([labels, NP.zeros(labelsElementShape)])
+            if data.shape[0] > maxHistory:
+                data = data[-8:]
+                labels = labels[-8:]
+                
+            tcw.reportBox(pred)
+            initBox = pred
             hasNext = tcw.nextStep()
 
 class ControllerConfig(object):
@@ -178,6 +200,8 @@ if __name__ == '__main__':
         for handler in logger.handlers:
             logger.removeHandler(handler)
         fileHandler = logging.FileHandler(os.path.join(os.path.dirname(trackerModelPath), 'trax.log'))
+        formatter = logging.Formatter(logging.BASIC_FORMAT)
+        fileHandler.setFormatter(formatter)
         logger.addHandler(fileHandler)
     if debug:
         logger.setLevel(logging.DEBUG)
