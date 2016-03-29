@@ -117,7 +117,20 @@ def rgb2gray(rgb):
 def framesFlow(f1, f2):
     frame1 = rgb2gray(f1)
     frame2 = rgb2gray(f2)
-    f = cv2.calcOpticalFlowFarneback(frame1, frame2, 0.5, 1, 3, 15, 3, 1.2, 0)
+    #Farnebacks flow parameters
+    pyr_scale = 0.5
+    levels = 3 #1
+    winsize = 15 #3
+    iterations = 3 #15
+    poly_n = 5 #3
+    poly_sigma = 1.2 #1.2
+    flags = 0 #0
+    #Choose correct function invocation according to cv2 version
+    if cv2.__version__.startswith('3'):
+        f = cv2.calcOpticalFlowFarneback(frame1, frame2, None, pyr_scale, levels, winsize, iterations, poly_n, poly_sigma, flags)
+    else:
+        #TODO: Use created variables to ease interpretation and tweaking and check correct placement
+        f = cv2.calcOpticalFlowFarneback(frame1, frame2, 0.5, 1, 3, 15, 3, 1.2, 0)
     f[...,0] = cv2.normalize(f[...,0], None, 0, 255, cv2.NORM_MINMAX)
     f[...,1] = cv2.normalize(f[...,0], None, 0, 255, cv2.NORM_MINMAX)
     return f

@@ -147,7 +147,7 @@ class Controller(object):
             logging.info('Connected by %s', addr)
             #TODO: Handle flow padding
             flow = None
-            dataElementShape = (1, tracker.rnn.imgSize, tracker.rnn.imgSize, tracker.rnn.channels)
+            dataElementShape = (1, tracker.rnn.imgSize, tracker.rnn.imgSize, 3)
             labelsElementShape = (1, tracker.rnn.targetDim )
             data = NP.zeros(dataElementShape)
             labels = NP.zeros(labelsElementShape)
