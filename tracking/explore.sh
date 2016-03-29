@@ -39,25 +39,28 @@ run() {
     stdbuf -o0 python Controller.py \
          --epochs=$4 --batchSize=$5 --generationBatchSize=32 --gpuBatchSize=4 \
          --gruStateDim=$6 --learningRate=$7 --trackerModelPath=$1/model.pkl \
-         --imageDir=/mnt/ramdisk/ --numProcs=16 \
+         --trajectoryModelSpec random sine stretched gmm \
+         --cameraTrajectoryModelSpec=still \
+         --scenePathTemplate=images/scenes \
+         --gmmPath=$CODE_DIR/../notebooks/gmmDenseAbsoluteNormalizedOOT.pkl \
          $flow \
          --summaryPath=/home/jccaicedo/data/simulations/CocoSummaries/cocoTrainSummaryCategAndSideGt100SmplsAllCorrected.pkl \
          $model \
          --norm=$8 --useAttention=${10} --seqLength=${11} \
-         --useCUDNN=True > $1/out.log 2> $1/err.log
+         --sequenceCount=96 \
+#         --useCUDNN=True > $1/out.log 2> $1/err.log
 
-#         --trajectoryModelPath=$CODE_DIR/../notebooks/gmmDenseAbsoluteNormalizedOOT.pkl \
+#         --imageDir=/mnt/ramdisk/ --numProcs=16 \
 
-    python parseLogs.py --log_file=$1/out.log --out_file=$1/results.png \
-         --batch_size=$5 --gru_dim=$6 --learning_rate=$7
+#    python parseLogs.py --log_file=$1/out.log --out_file=$1/results.png \
+#         --batch_size=$5 --gru_dim=$6 --learning_rate=$7
 }
 
 # Add experiments here
 # PARAMS: 1.outputDir 2.device 3.model 4.epochs 5.batchSize 6.GRUsize 7.learningRate 8.norm 9.convFilters 10.visualAttention 11.sequenceLength 12.flow
 
-run ~/data/experiments/X/ 0 6Xconvl 3 32 256 0.0001 smooth_l1 20 square 2 y & 
-run ~/data/experiments/Y/ 1 6Xconvl 3 32 512 0.0001 smooth_l1 22 squareChannel 2 n &
-wait 
+run ~/data/experiments/debug/ 0 6Xconvl 3 32 256 0.00005 smooth_l1 20 squareChannel 8 n 
+#run ~/data/experiments/expD13/ 0 6Xconvl 1 32 256 0.00005 smooth_l1 20 squareChannel 16 n  
 
 
 : <<'END'

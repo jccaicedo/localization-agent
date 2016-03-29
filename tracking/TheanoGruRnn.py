@@ -8,7 +8,7 @@ import VisualAttention
 import logging
 
 from collections import OrderedDict
-
+from TheanoConvNet import TheanoConvNet
 
 def smooth_l1(x):
     return Tensor.switch(Tensor.lt(Tensor.abs_(x),1), 0.5*x**2, Tensor.abs_(x)-0.5)
@@ -57,40 +57,6 @@ def initRegressor(stateDim, targetDim, zeroTailFc):
     W_fc = Theano.shared(W_fcinit, name='W_fc')
     b_fc = Theano.shared(NP.zeros((targetDim,), dtype=Theano.config.floatX), name='b_fc')
     return W_fc, b_fc
-
-def buildCNN(img, cnnConfig, params):
-    '''Builds a stacked sequential CNN using the config dict. Drawback: How to skip?'''
-    act = img
-    #Valid is the default
-    pad = cnnConfig.get('pad', 'valid')
-    #TODO: validate key and values of same len
-    layerKeys = sorted([key for key in cnnConfig.keys() if key.startswith('conv')])
-    if not (len(layerKeys) == len(params)):
-        raise Exception('Layers length differs from parameters length: {} != {}'.format(len(layerKeys), len(params)))
-    for layerIndex, layerKey in enumerate(layerKeys):
-        layerConfig = cnnConfig[layerKey]
-        fmap = NN.conv2d(act, params[layerIndex], subsample=(layerConfig['stride'], layerConfig['stride']), border_mode=pad)
-        act = Tensor.nnet.relu(fmap)
-    return act
-
-def initCNN(cnnConfig, channels, initialValues={}):
-    layerKeys = sorted([key for key in cnnConfig.keys() if key.startswith('conv')])
-    params = []
-    for layerIndex, layerKey in enumerate(layerKeys):
-        layerConfig = cnnConfig[layerKey]
-        inputChannels = cnnConfig[layerKeys[layerIndex-1]]['filters'] if layerIndex > 0 else channels
-        convParam = Theano.shared(initialValues[layerKey] if layerKey in initialValues else glorot_uniform((layerConfig['filters'], inputChannels, layerConfig['size'], layerConfig['size'])), name=layerKey)
-        params += [convParam]
-    return params
-
-def initializeConv2d(use_cudnn=False):
-    conv2d = NN.conv2d
-    if use_cudnn and Theano.config.device[:3] == 'gpu':
-        import theano.sandbox.cuda.dnn as CUDNN
-        if CUDNN.dnn_available():
-            logging.warning('Using CUDNN instead of Theano conv2d')
-            conv2d = CUDNN.dnn_conv
-    return conv2d
 
 def rmsprop(cost, params, lr=0.0005, rho=0.9, epsilon=1e-6):
     '''
@@ -167,204 +133,13 @@ class TheanoGruRnn(object):
     def __init__(self, inputDim, stateDim, targetDim, batchSize, seqLength, zeroTailFc, learningRate, use_cudnn, imgSize, modelArch='oneConvLayers', norm=l2, useAttention=False, modelPath=None, layerKey=None, convFilters=32, computeFlow=False):
         ### Computed hyperparameters begin
         self.modelArch = modelArch
-        if self.modelArch == 'oneConvLayers':
-            self.cnn = {'conv1':{'filters':32, 'size':10, 'stride':5, 'output':(((imgSize-10)/5+1)**2)*32 }}
-            inputDim = self.cnn['conv1']['output']
+        if self.modelArch.endswith('ConvLayers'):
+            self.cnn = TheanoConvNet(modelArch, convFilters, use_cudnn)
+            inputDim = self.cnn.output
         elif self.modelArch == 'lasagne':
             from LasagneVGG16 import LasagneVGG16
             self.cnn = LasagneVGG16(modelPath, layerKey)
             inputDim = 512 * 7 * 7
-        elif self.modelArch == 'twoConvLayers':
-            if convFilters == 1:
-                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(((128-5)/2+1)**2)*64 },
-                            'conv2':{'filters':32, 'size':3, 'stride':2, 'output':(((62-3)/2+1)**2)*32 }}
-                inputDim = self.cnn['conv2']['output']
-            elif convFilters == 2:
-                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(((128-5)/2+1)**2)*64 },
-                            'conv2':{'filters':64, 'size':3, 'stride':2, 'output':(((62-3)/2+1)**2)*64 }}
-                inputDim = self.cnn['conv2']['output']
-            elif convFilters == 3:
-                self.cnn = {'conv1':{'filters':128, 'size':5, 'stride':2, 'output':(((128-5)/2+1)**2)*128 },
-                            'conv2':{'filters':64, 'size':3, 'stride':2, 'output':(((62-3)/2+1)**2)*64 }}
-                inputDim = self.cnn['conv2']['output']
-            elif convFilters == 4:
-                self.cnn = {'conv1':{'filters':128, 'size':5, 'stride':2, 'output':(((128-5)/2+1)**2)*128 },
-                            'conv2':{'filters':128, 'size':3, 'stride':2, 'output':(((62-3)/2+1)**2)*128 }}
-                inputDim = self.cnn['conv2']['output']
-        elif self.modelArch == 'threeConvLayers':
-            if convFilters == 1:
-                self.cnn = {'conv1':{'filters':32, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*32 },
-                            'conv2':{'filters':32, 'size':3, 'stride':2, 'output':(((94-3)/2+1)**2)*32 },
-                            'conv3':{'filters':32, 'size':3, 'stride':2, 'output':(((46-3)/2+1)**2)*32 }}
-                inputDim = self.cnn['conv3']['output']
-            if convFilters == 2:
-                self.cnn = {'conv1':{'filters':32, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*32 },
-                            'conv2':{'filters':32, 'size':5, 'stride':2, 'output':(((94-5)/2+1)**2)*32 },
-                            'conv3':{'filters':32, 'size':5, 'stride':2, 'output':(((45-5)/2+1)**2)*32 }}
-                inputDim = self.cnn['conv3']['output']
-            if convFilters == 3:
-                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*64 },
-                            'conv2':{'filters':32, 'size':3, 'stride':2, 'output':(((94-3)/2+1)**2)*32 },
-                            'conv3':{'filters':32, 'size':3, 'stride':2, 'output':(((46-3)/2+1)**2)*32 }}
-                inputDim = self.cnn['conv3']['output']
-            if convFilters == 4:
-                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*64 },
-                            'conv2':{'filters':64, 'size':3, 'stride':2, 'output':(((94-3)/2+1)**2)*64 },
-                            'conv3':{'filters':32, 'size':3, 'stride':2, 'output':(((46-3)/2+1)**2)*32 }}
-                inputDim = self.cnn['conv3']['output']
-            if convFilters == 5:
-                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*64 },
-                            'conv2':{'filters':64, 'size':3, 'stride':2, 'output':(((94-3)/2+1)**2)*64 },
-                            'conv3':{'filters':64, 'size':3, 'stride':2, 'output':(((46-3)/2+1)**2)*64 }}
-                inputDim = self.cnn['conv3']['output']
-            if convFilters == 6:
-                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*64 },
-                            'conv2':{'filters':64, 'size':5, 'stride':2, 'output':(((94-5)/2+1)**2)*64 },
-                            'conv3':{'filters':64, 'size':5, 'stride':2, 'output':(((45-5)/2+1)**2)*64 }}
-                inputDim = self.cnn['conv3']['output']
-            if convFilters == 7:
-                self.cnn = {'conv1':{'filters':96, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*96 },
-                            'conv2':{'filters':128, 'size':5, 'stride':2, 'output':(((94-5)/2+1)**2)*128 },
-                            'conv3':{'filters':64, 'size':5, 'stride':2, 'output':(((45-5)/2+1)**2)*64 }}
-                inputDim = self.cnn['conv3']['output']
-            if convFilters == 8:
-                self.cnn = {'conv1':{'filters':96, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*96 },
-                            'conv2':{'filters':128, 'size':5, 'stride':2, 'output':(((94-5)/2+1)**2)*128 },
-                            'conv3':{'filters':128, 'size':5, 'stride':2, 'output':(((45-5)/2+1)**2)*128 }}
-                inputDim = self.cnn['conv3']['output']
-        elif self.modelArch == 'fourConvLayers':
-            if convFilters == 1:
-                self.cnn = {'conv1':{'filters':96, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*96 },
-                            'conv2':{'filters':128, 'size':5, 'stride':2, 'output':(((94-5)/2+1)**2)*128 },
-                            'conv3':{'filters':128, 'size':3, 'stride':1, 'output':(((45-3)/1+1)**2)*128 },
-                            'conv4':{'filters':128, 'size':3, 'stride':2, 'output':(((43-3)/2+1)**2)*128 }}
-                inputDim = self.cnn['conv4']['output']
-        elif self.modelArch == 'fiveConvLayers':
-            if convFilters == 1:
-                self.cnn = {'conv1':{'filters':96, 'size':5, 'stride':2, 'output':(((192-5)/2+1)**2)*96 },
-                            'conv2':{'filters':128, 'size':5, 'stride':2, 'output':(((94-5)/2+1)**2)*128 },
-                            'conv3':{'filters':128, 'size':3, 'stride':1, 'output':(((45-3)/1+1)**2)*128 },
-                            'conv4':{'filters':128, 'size':5, 'stride':2, 'output':(((43-5)/2+1)**2)*128 },
-                            'conv5':{'filters':128, 'size':3, 'stride':1, 'output':(((20-3)/1+1)**2)*128 },
-                            'pad':'valid'}
-                inputDim = self.cnn['conv5']['output']
-            if convFilters == 2:
-                self.cnn = {'conv1':{'filters':96, 'size':5, 'stride':2, 'output':(96**2)*96 },   # Feature map size 884,736 - Params: 5x5x3x96    =   7,200
-                            'conv2':{'filters':128, 'size':5, 'stride':2, 'output':(48**2)*128 }, # Feature map size 294,912 - Params: 5x5x96x128  = 307,200
-                            'conv3':{'filters':128, 'size':3, 'stride':1, 'output':(48**2)*128 }, # Feature map size 294,912 - Params: 3x3x128x128 = 147,456
-                            'conv4':{'filters':128, 'size':3, 'stride':2, 'output':(24**2)*128 }, # Feature map size  73,728 - Params: 3x3x128x128 = 147,456
-                            'conv5':{'filters':128, 'size':3, 'stride':1, 'output':(24**2)*128 }, # Feature map size  73,728 - Params: 3x3x128x128 = 147,456
-                            'pad':'half'}                                                         #        TOTALS: 1'622,016 -                     = 756,768
-                inputDim = self.cnn['conv5']['output']
-            if convFilters == 3:
-                self.cnn = {'conv1':{'filters':96, 'size':5, 'stride':2, 'output':(96**2)*96 },   # Feature map size 884,736 - Params: 5x5x3x96    =   7,200
-                            'conv2':{'filters':256, 'size':5, 'stride':2, 'output':(48**2)*256 }, # Feature map size 589,824 - Params: 5x5x96x256  = 614,400
-                            'conv3':{'filters':256, 'size':3, 'stride':1, 'output':(48**2)*256 }, # Feature map size 589,824 - Params: 3x3x256x256 = 589,824
-                            'conv4':{'filters':256, 'size':3, 'stride':2, 'output':(24**2)*256 }, # Feature map size 147,456 - Params: 3x3x256x256 = 589,824
-                            'conv5':{'filters':128, 'size':3, 'stride':1, 'output':(24**2)*128 }, # Feature map size  73,728 - Params: 3x3x256x128 = 294,912
-                            'pad':'half'}                                                         #        TOTALS: 2'285,568 -                   = 2'096,160
-                inputDim = self.cnn['conv5']['output']
-            if convFilters == 4:
-                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(96**2)*64 },   # Feature map size 589,824 - Params: 5x5x3x64    =   4,800
-                            'conv2':{'filters':128, 'size':3, 'stride':2, 'output':(48**2)*128 }, # Feature map size 294,912 - Params: 3x3x64x128  =  73,728
-                            'conv3':{'filters':128, 'size':3, 'stride':1, 'output':(48**2)*128 }, # Feature map size 294,912 - Params: 3x3x128x128 = 147,456
-                            'conv4':{'filters':256, 'size':3, 'stride':2, 'output':(24**2)*256 }, # Feature map size 147,456 - Params: 3x3x128x256 = 294,912
-                            'conv5':{'filters':256, 'size':3, 'stride':2, 'output':(12**2)*256 }, # Feature map size  36,864 - Params: 3x3x256x256 = 589,824
-                            'pad':'half'}                                                         #        TOTALS: 1'363,968 -                   = 1'110,720
-                inputDim = self.cnn['conv5']['output']
-        elif self.modelArch == 'sixConvLayers':
-            if convFilters == 1:
-                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(96**2)*64 },   # Feature map size 589,824 - Params: 5x5x3x64    =   4,800
-                            'conv2':{'filters':128, 'size':3, 'stride':2, 'output':(48**2)*128 }, # Feature map size 294,912 - Params: 3x3x64x128  =  73,728
-                            'conv3':{'filters':128, 'size':3, 'stride':1, 'output':(48**2)*128 }, # Feature map size 294,912 - Params: 3x3x128x128 = 147,456
-                            'conv4':{'filters':256, 'size':3, 'stride':2, 'output':(24**2)*256 }, # Feature map size 147,456 - Params: 3x3x128x256 = 294,912
-                            'conv5':{'filters':256, 'size':3, 'stride':1, 'output':(24**2)*256 }, # Feature map size 147,456 - Params: 3x3x256x256 = 589,824
-                            'conv6':{'filters':256, 'size':3, 'stride':2, 'output':(12**2)*256 }, # Feature map size  36,864 - Params: 3x3x256x256 = 589,824
-                            'pad':'half'}                                                         #        TOTALS: 1'511,424 -                   = 1'700,544
-                inputDim = self.cnn['conv6']['output']
-        elif self.modelArch == 'fiveXConvLayers':
-            if convFilters == 1:
-                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(112**2)*64 },  # Feature map size 802,812 - Params: 5x5x3x64    =     4,800
-                            'conv2':{'filters':128, 'size':3, 'stride':2, 'output':(56**2)*128 }, # Feature map size 401,408 - Params: 3x3x64x128  =    73,728
-                            'conv3':{'filters':256, 'size':3, 'stride':2, 'output':(28**2)*256 }, # Feature map size 200,704 - Params: 3x3x128x256 =   294,912
-                            'conv4':{'filters':512, 'size':3, 'stride':2, 'output':(14**2)*512 }, # Feature map size 100,352 - Params: 3x3x256x512 = 1'179,648
-                            'conv5':{'filters':512, 'size':3, 'stride':2, 'output':(7**2)*512 },  # Feature map size  25,088 - Params: 3x3x512x512 = 2'359,296
-                            'pad':'half'}                                                         #        TOTALS: 1'530,364 -                     = 3'912,384
-                inputDim = self.cnn['conv5']['output']
-            if convFilters == 2:
-                self.cnn = {'conv1':{'filters':32, 'size':5, 'stride':2, 'output':(112**2)*32 },  # Feature map size 401,408 - Params: 5x5x3x32  =  2,400
-                            'conv2':{'filters':64, 'size':3, 'stride':2, 'output':(56**2)*64 },   # Feature map size 200,704 - Params: 3x3x32x64 = 18,432
-                            'conv3':{'filters':32, 'size':3, 'stride':1, 'output':(56**2)*32 },   # Feature map size 100,352 - Params: 3x3x64x32 = 18,432
-                            'conv4':{'filters':64, 'size':3, 'stride':2, 'output':(28**2)*64 },   # Feature map size  50,176 - Params: 3x3x32x64 = 18,432
-                            'conv5':{'filters':32, 'size':3, 'stride':1, 'output':(28**2)*32 },   # Feature map size  25,088 - Params: 3x3x64x32 = 18,432
-                            'pad':'half'}                                                         #        TOTALS:   777,728 -                   = 76,128
-                inputDim = self.cnn['conv5']['output']
-            if convFilters == 3:
-                self.cnn = {'conv1':{'filters':32, 'size':5, 'stride':2, 'output':(112**2)*32 },  # Feature map size 401,408 - Params: 5x5x3x32  =  2,400
-                            'conv2':{'filters':64, 'size':3, 'stride':2, 'output':(56**2)*64 },   # Feature map size 200,704 - Params: 3x3x32x64 = 18,432
-                            'conv3':{'filters':32, 'size':3, 'stride':1, 'output':(56**2)*32 },   # Feature map size 100,352 - Params: 3x3x64x32 = 18,432
-                            'conv4':{'filters':16, 'size':3, 'stride':1, 'output':(56**2)*16 },   # Feature map size  50,176 - Params: 3x3x32x16 =  4,608
-                            'conv5':{'filters': 8, 'size':3, 'stride':1, 'output':(56**2)*8  },   # Feature map size  25,088 - Params: 3x3x16x8  =  1,152
-                            'pad':'half'}                                                         #        TOTALS:   777,728 -                   = 45,024
-                inputDim = self.cnn['conv5']['output']
-
-
-        elif self.modelArch == 'sixXConvLayers':
-            if convFilters == 1:
-                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(112**2)*64 },  # Feature map size 802,816 - Params: 5x5x3x64    =     4,800
-                            'conv2':{'filters':128, 'size':3, 'stride':2, 'output':(56**2)*128 }, # Feature map size 401,408 - Params: 3x3x64x128  =    73,728
-                            'conv3':{'filters':256, 'size':3, 'stride':1, 'output':(28**2)*256 }, # Feature map size 200,704 - Params: 3x3x128x256 =   294,912
-                            'conv4':{'filters':256, 'size':3, 'stride':2, 'output':(28**2)*256 }, # Feature map size 200,704 - Params: 3x3x256x256 =   589,824
-                            'conv5':{'filters':512, 'size':3, 'stride':2, 'output':(14**2)*512 }, # Feature map size 100,352 - Params: 3x3x256x512 = 1'179,648
-                            'conv6':{'filters':512, 'size':3, 'stride':2, 'output':(7**2)*512 },  # Feature map size  25,088 - Params: 3x3x512x512 = 2'359,296
-                            'pad':'half'}                                                         #        TOTALS: 1'745,072 -                     = 4'502,208
-                inputDim = self.cnn['conv6']['output']
-            if convFilters == 20:
-                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(112**2)*64 },  # Feature map size 802,816 - Params: 5x5x3x64    =     4,800
-                            'conv2':{'filters':128, 'size':3, 'stride':2, 'output':(56**2)*128 }, # Feature map size 401,408 - Params: 3x3x64x128  =    73,728
-                            'conv3':{'filters':256, 'size':3, 'stride':2, 'output':(28**2)*256 }, # Feature map size 200,704 - Params: 3x3x128x256 =   294,912
-                            'conv4':{'filters':256, 'size':3, 'stride':2, 'output':(14**2)*256 }, # Feature map size 100,352 - Params: 3x3x256x256 =   589,824
-                            'conv5':{'filters':512, 'size':3, 'stride':2, 'output':(7**2)*512 },  # Feature map size  25,088 - Params: 3x3x256x512 = 1'179,648
-                            'conv6':{'filters':128, 'size':3, 'stride':1, 'output':(7**2)*128 },  # Feature map size   6,272 - Params: 3x3x512x128 =   589,824
-                            'pad':'half'}                                                         #        TOTALS: 1'543,640 -                     = 2'732,736
-                inputDim = self.cnn['conv6']['output']
-            if convFilters == 21:
-                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(112**2)*64 },  # Feature map size 802,816 - Params: 5x5x3x64    =     4,800
-                            'conv2':{'filters':128, 'size':3, 'stride':2, 'output':(56**2)*128 }, # Feature map size 401,408 - Params: 3x3x64x128  =    73,728
-                            'conv3':{'filters':256, 'size':3, 'stride':2, 'output':(28**2)*256 }, # Feature map size 200,704 - Params: 3x3x128x256 =   294,912
-                            'conv4':{'filters':256, 'size':3, 'stride':2, 'output':(14**2)*256 }, # Feature map size 100,352 - Params: 3x3x256x256 =   589,824
-                            'conv5':{'filters':512, 'size':3, 'stride':2, 'output':(7**2)*512 },  # Feature map size  25,088 - Params: 3x3x256x512 = 1'179,648
-                            'conv6':{'filters':256, 'size':3, 'stride':1, 'output':(7**2)*256 },  # Feature map size   6,272 - Params: 3x3x512x128 =   589,824
-                            'pad':'half'}                                                         #        TOTALS: 1'543,640 -                     = 2'732,736
-                inputDim = self.cnn['conv6']['output']
-            if convFilters == 22:
-                self.cnn = {'conv1':{'filters':64, 'size':5, 'stride':2, 'output':(112**2)*64 },  # Feature map size 802,816 - Params: 5x5x3x64    =     4,800
-                            'conv2':{'filters':128, 'size':3, 'stride':2, 'output':(56**2)*128 }, # Feature map size 401,408 - Params: 3x3x64x128  =    73,728
-                            'conv3':{'filters':256, 'size':3, 'stride':2, 'output':(28**2)*256 }, # Feature map size 200,704 - Params: 3x3x128x256 =   294,912
-                            'conv4':{'filters':256, 'size':3, 'stride':2, 'output':(14**2)*256 }, # Feature map size 100,352 - Params: 3x3x256x256 =   589,824
-                            'conv5':{'filters':512, 'size':3, 'stride':2, 'output':(7**2)*512 },  # Feature map size  25,088 - Params: 3x3x256x512 = 1'179,648
-                            'conv6':{'filters':512, 'size':3, 'stride':1, 'output':(7**2)*512 },  # Feature map size   6,272 - Params: 3x3x512x128 =   589,824
-                            'pad':'half'}                                                         #        TOTALS: 1'543,640 -                     = 2'732,736
-                inputDim = self.cnn['conv6']['output']
-
-            if convFilters == 3:
-                self.cnn = {'conv1':{'filters':64,  'size':5, 'stride':2, 'output':(112**2)*64 }, # Feature map size 802,816 - Params: 5x5x3x64    =     4,800
-                            'conv2':{'filters':128, 'size':3, 'stride':2, 'output':(56**2)*128 }, # Feature map size 401,408 - Params: 3x3x64x128  =    73,728
-                            'conv3':{'filters':64,  'size':3, 'stride':1, 'output':(56**2)*64  }, # Feature map size 200,704 - Params: 3x3x128x64  =    73,728
-                            'conv4':{'filters':32,  'size':3, 'stride':1, 'output':(56**2)*32  }, # Feature map size 100,352 - Params: 3x3x64x32   =    18,432
-                            'conv5':{'filters':16,  'size':3, 'stride':1, 'output':(56**2)*16  }, # Feature map size  50,176 - Params: 3x3x32x16   =     4,608
-                            'conv6':{'filters': 8,  'size':3, 'stride':1, 'output':(56**2)*8   }, # Feature map size  25,088 - Params: 3x3x16x8    =     1,152
-                            'pad':'half'}                                                         #        TOTALS: 1'580,540 -                     =   176,448
-                inputDim = self.cnn['conv6']['output']
-            if convFilters == 4:
-                self.cnn = {'conv1':{'filters':96, 'size':7, 'stride':2, 'output':(112**2)*96 },  # Feature map size 1'204,224 - Params: 7x7x3x96    =    14,112
-                            'conv2':{'filters':128, 'size':5, 'stride':2, 'output':(56**2)*128 }, # Feature map size   401,408 - Params: 5x5x96x128  =   307,200
-                            'conv3':{'filters':256, 'size':3, 'stride':2, 'output':(28**2)*256 }, # Feature map size   200,704 - Params: 3x3x128x256 =   294,912
-                            'conv4':{'filters':256, 'size':3, 'stride':2, 'output':(14**2)*256 }, # Feature map size   100,352 - Params: 3x3x256x256 =   589,824
-                            'conv5':{'filters':512, 'size':3, 'stride':2, 'output':(7**2)*512 },  # Feature map size    25,088 - Params: 3x3x256x512 = 1'179,648
-                            'conv6':{'filters':256, 'size':3, 'stride':1, 'output':(7**2)*256 },  # Feature map size    12,544 - Params: 3x3x512x256 = 1'179,648
-                            'pad':'half'}                                                         #          TOTALS: 1'944,320 -                     = 3'565,344
-                inputDim = self.cnn['conv6']['output']
 
         self.targetDim = targetDim
         self.inputDim = inputDim + self.targetDim
@@ -444,9 +219,6 @@ class TheanoGruRnn(object):
         imgs = getTensor("images", Theano.config.floatX, 5)
         starts = Tensor.matrix()
         
-        #Select conv2d implementation
-        conv2d = initializeConv2d(use_cudnn)
-
         ## Attention mask
         attention = VisualAttention.buildAttention(self.useAttention, imgSize)
 
@@ -456,7 +228,7 @@ class TheanoGruRnn(object):
             convParams = params[11:]
             def step(img, prev_bbox, state):
                 img = attention(img, prev_bbox)
-                features = buildCNN(img, self.cnn, convParams)
+                features = self.cnn.buildCNN(img, convParams)
                 return boxRegressor( gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg), W_fc2, b_fc2)
         elif self.modelArch == 'caffe':
             Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params
@@ -510,7 +282,7 @@ class TheanoGruRnn(object):
         ### NETWORK PARAMETERS END
     
         if self.modelArch.endswith('ConvLayers'):
-            convParams = initCNN(self.cnn, self.channels)
+            convParams = self.cnn.initCNN(self.channels)
             return (Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2) + tuple(convParams)
         else:
             return (Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2)
