@@ -183,7 +183,7 @@ class Tester(object):
 
 import socket
 import pickle
-import tracking.VideoSequenceData as vs
+import VideoSequenceData as vs
 import argparse as ap
 
 #Toy server that returns the initial box
@@ -262,3 +262,4 @@ if __name__ == '__main__':
         modelClient(args.serverPort, args.libvotPath)
     else:
         raise Exception('Not implemented yet')
+

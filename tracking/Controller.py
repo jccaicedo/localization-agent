@@ -10,7 +10,8 @@ from PIL import Image
 from RecurrentTracker import RecurrentTracker
 from Validation import Validation
 import Tester
-import TheanoGruRnn
+import TheanoTransformerGru as TheanoGruRnn
+#import TheanoGruRnn
 #import TheanoDoubleGruRnn as TheanoGruRnn
 #import TheanoActionsGru as TheanoGruRnn
 import GaussianGenerator
@@ -251,7 +252,7 @@ class ControllerConfig(object):
         #TODO: Evaluate specifying the level instead if more than debug is needed   
         parser.add_argument('--debug', help='Enable debug logging', default=False, action='store_true')
         parser.add_argument('--norm', help='Norm type for cost', default=TheanoGruRnn.l2.func_name, choices=[TheanoGruRnn.smooth_l1.func_name, TheanoGruRnn.l2.func_name])
-        parser.add_argument('--useAttention', help='Enable attention', type=str, default='no', choices=['no', 'gaussian', 'square','squareChannel'])
+        parser.add_argument('--useAttention', help='Enable attention', type=str, default='no', choices=['no', 'gaussian', 'square','squareChannel', 'spatialTransformer'])
         parser.add_argument('--testType', help='Run test of the specified type', type=str, default='no', choices=['no', 'trax', 'tester', 'traxServer'])
         parser.add_argument('--libvotPath', help='Path to libvot', type=str, default='/home/fmpaezri/repos/vot-toolkit/tracker/examples/native/libvot.so')
         parser.add_argument('--sequenceCount', help='Number of sequences per epoch', type=int, default=DEFAULT_SEQUENCE_COUNT)

@@ -3,7 +3,8 @@ import theano.tensor as Tensor
 import theano.tensor.nnet as NN
 import logging
 import json
-import TheanoGruRnn as tgr
+#import TheanoGruRnn as tgr
+import TheanoTransformerGru as tgr
 
 from collections import OrderedDict
 

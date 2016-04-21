@@ -2,25 +2,50 @@ import theano as Theano
 import theano.tensor as Tensor
 import numpy as NP
 import cv2
+import lasagne
 
 CONTEXT = 4
 ALPHA = 0.1
 
-def normalLabels(labels, imgSize):
-    return labels / (imgSize / 2.) - 1.
+def normalLabels(boxes, imgSize):
+    return boxes / (imgSize / 2.) - 1.
 
-def unnormedLabels(labels, imgSize):
+def unnormedBoxes(labels, imgSize):
     return (labels + 1.) * (imgSize / 2.)
 
-def centeredLabels(labels, imgSize):
-    return labels - (imgSize / 2.)
+def centeredLabels(boxes, imgSize):
+    return boxes - (imgSize / 2.)
 
-def uncenteredLabels(labels, imgSize):
+def uncenteredBoxes(labels, imgSize):
     return labels + (imgSize / 2.)
 
+def boxes2params(boxes, imgSize):
+    # Params: Sx, Sy, tx, ty
+    params = NP.zeros(boxes.shape)
+    Acs = NP.array([[0,2,-1],[2,0,-1],[0,0,1]])
+    for i in range(boxes.shape[0]):
+        normPoints = boxes[i,...].reshape((boxes.shape[1], 2, 2)) / imgSize
+        paddingOnes = NP.ones((boxes.shape[1], 2, 1))
+        normBoxPoints = NP.concatenate([normPoints, paddingOnes], axis=2).swapaxes(2,1)
+        Pc = NP.dot(Acs[NP.newaxis, ...], normBoxPoints).swapaxes(1,2)[0]
+        Cc = (Pc[...,0] + Pc[...,1])[...,:-1]/2.
+        Ss = (Pc[...,1] - Pc[...,0])[...,:-1]/2.
+        params[i,...] = NP.stack([Ss[...,0], Ss[...,1], Cc[...,0], Cc[...,1]]).T
+    return params
+
+def params2boxes(params, imgSize):
+    # Assuming equal width and height
+    side = imgSize/2.
+    H = params[...,0] * side
+    W = params[...,1] * side
+    Cy = (params[...,2] + 1) * side
+    Cx = (params[...,3] + 1) * side
+    boxes = NP.stack([Cx-W, Cy-H, Cx+W, Cy+H], axis=2)
+    return boxes
+
 # TODO: Parameterize the use of the following functions
-stdLabels = normalLabels # centeredLabels
-stdBoxes = unnormedLabels # uncenteredLabels
+stdLabels = boxes2params # centeredLabels
+stdBoxes = params2boxes # uncenteredLabels
 
 def createGaussianMasker(imgSize):
     R = Tensor.arange(imgSize, dtype=Theano.config.floatX)
@@ -67,6 +92,45 @@ def createSquareChannelMasker(imgSize):
         return Tensor.set_subtensor(img[:,-1,:,:], m)
     return mask
 
+def prediction2params(prediction):
+    Sx = prediction[:,0]
+    Sy = prediction[:,1]
+    tx = prediction[:,2]
+    ty = prediction[:,3]
+    z = Tensor.zeros_like(Sx)
+    params = Tensor.stack([Sx, z, tx, z, Sy, ty], axis=0)
+    return params.dimshuffle(1,0)
+
+def params2prediction(params):
+    Sx = params[:,0]
+    Sy = params[:,4]
+    tx = params[:,2]
+    ty = params[:,5]
+    prediction = Tensor.stack([Sx, Sy, tx, ty], axis=0)
+    return prediction.dimshuffle(1,0)
+
+def createSpatialTransformer(imgSize, channels):
+    l_in = lasagne.layers.InputLayer((1,channels,imgSize,imgSize))
+    l_loc_shape = (None, 6)
+    l_trans = lasagne.layers.TransformerLayer(l_in, l_loc_shape, downsample_factor=1)
+    def transform(imgs, params):
+        #params_with_margin = Tensor.set_subtensor(params[:,0], params[:,0]+0.1)
+        #params_with_margin = Tensor.set_subtensor(params_with_margin[:,4], params[:,4]+0.1)
+        return l_trans.get_output_for((imgs, params))
+    return transform
+
+def multAffineTransforms(A, B):
+    s = A.shape[0]
+    Z = Tensor.zeros( (s, 2) )
+    O = Tensor.ones( (s, 1) )
+    Ap = Tensor.concatenate( (prediction2params(A), Z, O), axis=1 )
+    Bp = Tensor.concatenate( (prediction2params(B), Z, O), axis=1 )
+    Cp = Theano.scan(Tensor.dot, sequences=[Ap.reshape([s, 3, 3]), Bp.reshape([s, 3, 3])])
+    R = Cp[0].reshape([s, 9])
+    R = R[:,0:6]
+    return R #prediction2params(A)*prediction2params(B)
+    
+
 # TODO: standardize the use of the term labels (for learning) and boxes (for actual usable coordinates)
 def getSquaredMasks(data, labels):
     l = labels.copy()
@@ -100,16 +164,22 @@ def getSquaredMaskChannel(data, labels):
         masks[i, l[i,1]:l[i,3], l[i,0]:l[i,2]] = 1.
     return masks
 
-def buildAttention(useAttention, imgSize):
+def buildAttention(useAttention, imgSize, channels=3):
     if useAttention == 'gaussian':
         attention = createGaussianMasker(imgSize)
     elif useAttention == 'square':
         attention = createSquareMasker(imgSize)
     elif useAttention == 'squareChannel':
         attention = createSquareChannelMasker(imgSize)
+    elif useAttention == 'spatialTransformer':
+        attention = createSpatialTransformer(imgSize, channels)
     else:
         attention = useNoMask()
     return attention
+
+###########################
+## OPTIC FLOW COMPUTATIONS
+###########################
 
 def rgb2gray(rgb):
     return NP.dot(rgb[...,:3], [0.299, 0.587, 0.114])
