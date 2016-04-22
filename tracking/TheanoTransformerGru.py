@@ -24,9 +24,8 @@ def box2cwh(boxTensor):
     return Tensor.stacklists([xc,yc,width,height]).dimshuffle(1,2,0)
 
 #TODO: turn into GRU class
-def gru(features, prev_bbox, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg):
-    flat1 = Tensor.reshape(features, (features.shape[0], Tensor.prod(features.shape[1:])))
-    gru_in = Tensor.concatenate([flat1, prev_bbox], axis=1) #TODO: Remove this thing!
+def gru(features, state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg):
+    gru_in = Tensor.reshape(features, (features.shape[0], Tensor.prod(features.shape[1:])))
     gru_z = NN.sigmoid(Tensor.dot(gru_in, Wz) + Tensor.dot(state, Uz) + bz)
     gru_r = NN.sigmoid(Tensor.dot(gru_in, Wr) + Tensor.dot(state, Ur) + br)
     gru_h_ = Tensor.tanh(Tensor.dot(gru_in, Wg) + Tensor.dot(gru_r * state, Ug) + bg)
@@ -54,8 +53,7 @@ def initRegressor(stateDim, targetDim, zeroTailFc):
         W_fcinit = glorot_uniform((stateDim, targetDim))
     else:
         W_fcinit = NP.zeros((stateDim, targetDim), dtype=Theano.config.floatX)
-    #W_fc = Theano.shared(W_fcinit, name='W_fc')
-    #b_fc = Theano.shared(NP.zeros((targetDim,), dtype=Theano.config.floatX), name='b_fc')
+    # Predict the identity transformation by default
     W_fc = Theano.shared(NP.zeros((stateDim, targetDim), dtype=Theano.config.floatX), name='W_fc')
     b_fc = Theano.shared( NP.asarray([1.,1.,0.,0.], dtype=Theano.config.floatX), name='b_fc' )
     return W_fc, b_fc
@@ -144,7 +142,7 @@ class TheanoGruRnn(object):
             inputDim = 512 * 7 * 7
 
         self.targetDim = targetDim
-        self.inputDim = inputDim + self.targetDim
+        self.inputDim = inputDim 
         self.seqLength = seqLength
         self.batchSize = batchSize
         self.norm = norm
@@ -219,20 +217,24 @@ class TheanoGruRnn(object):
         
         ## Attention mask
         attention = VisualAttention.buildAttention(self.useAttention, imgSize, channels=self.channels)
-        updateTransform = VisualAttention.multAffineTransforms
-        toParams = VisualAttention.params2prediction
-
+        applyTransform = VisualAttention.multAffineTransforms
+        toPrediction = VisualAttention.params2prediction
+        contextScale = 1.2
+        
         params = list(self.init_params(inputDim, stateDim, targetDim, zeroTailFc))
         if self.modelArch.endswith('ConvLayers'):
             Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg, W_fc2, b_fc2 = params[:11]
             convParams = params[11:]
-            def step(img, prev_params, prev_prediction, prev_state):
-                transform = updateTransform(prev_params, prev_prediction)
-                img = attention(img, transform)
-                features = self.cnn.buildCNN(img, convParams)
-                new_state = gru(features, prev_prediction, prev_state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg)
-                new_prediction = boxRegressor(new_state, W_fc2, b_fc2)
-                new_params = toParams(transform)
+            deltaScale = Tensor.zeros((batchSize, targetDim))
+            deltaScale = Tensor.set_subtensor(deltaScale[:,0:2], contextScale*Tensor.ones((batchSize, 2)))
+            def step(img, prev_params, prev_prediction, prev_state):                                     # Args in order: X_{t+1}, Theta_t, A_t, h_t
+                augmentedBox = applyTransform(deltaScale, prev_params)                                   # delta * Theta_t
+                new_params = toPrediction( applyTransform(prev_prediction, toPrediction(augmentedBox)) ) # A_t * delta * Theta_t
+                viewTransform = applyTransform(deltaScale, new_params)                                   # delta * A_t * delta * Theta_t
+                img = attention(img, viewTransform)                                                      # ST(X_{t+1}, delta * A_t * delta * Theta_t)
+                features = self.cnn.buildCNN(img, convParams)                                            # Phi( ST(X_{t+1}, ...)
+                new_state = gru(features, prev_state, Wr, Ur, br, Wz, Uz, bz, Wg, Ug, bg)                # h_{t+1}
+                new_prediction = boxRegressor(new_state, W_fc2, b_fc2)                                   # y_{t+1}
                 return new_params, new_prediction, new_state
         else:
             logging.error('Convolutional architecture not supported.')
@@ -240,9 +242,9 @@ class TheanoGruRnn(object):
         # imgs: of shape (batchSize, seq_len, nr_channels, img_rows, img_cols)
         imgs = getTensor("images", Theano.config.floatX, 5)
         start_params = Tensor.matrix()
-        # Start predictions with the identity transformation [ [Sx=1, Sy=1, tx=0, ty=0] ]
+        # Start predictions with the inverse delta-scaling transformation [ [Sx=1/context, Sy=1/context, tx=0, ty=0] ]
         start_prediction = Tensor.zeros((batchSize, targetDim))
-        start_prediction = Tensor.set_subtensor(start_prediction[:,0:2], Tensor.ones((batchSize, 2)))
+        start_prediction = Tensor.set_subtensor(start_prediction[:,0:2], (1./contextScale)*Tensor.ones((batchSize, 2)))
         # Start state with zeros
         state = Tensor.zeros((batchSize, stateDim))
         # Move the time axis to the top

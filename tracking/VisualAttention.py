@@ -128,7 +128,7 @@ def multAffineTransforms(A, B):
     Cp = Theano.scan(Tensor.dot, sequences=[Ap.reshape([s, 3, 3]), Bp.reshape([s, 3, 3])])
     R = Cp[0].reshape([s, 9])
     R = R[:,0:6]
-    return R #prediction2params(A)*prediction2params(B)
+    return R 
     
 
 # TODO: standardize the use of the term labels (for learning) and boxes (for actual usable coordinates)
