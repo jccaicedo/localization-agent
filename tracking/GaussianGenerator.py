@@ -61,9 +61,12 @@ class GaussianGenerator(object):
         self.grayscale = grayscale
         self.computeFlow = computeFlow
 
+#    def getSimulator(self):
+#        simulator = self.factory.createInstance(camSize=(self.imageSize, self.imageSize))
+#        return simulator
     def getSimulator(self):
-        simulator = self.factory.createInstance(camSize=(self.imageSize, self.imageSize))
-        return simulator
+       simulator = self.factory.createInstance(camSize=(self.imageSize, self.imageSize), maxSteps=self.seqLength)
+       return simulator
 
     def initResults(self, batchSize):
         if self.grayscale:
@@ -104,7 +107,10 @@ class GaussianGenerator(object):
             #Distribute work for the first time
             self.results = self.distribute(batchSize, start, end)
         #Wait for results and collect them
-        data, label, flow = self.collect(batchSize, self.results.get(9999), start, end)
+        #import IPython
+        #IPython.embed()
+        auxResultsData = self.results.get(9999)
+        data, label, flow = self.collect(batchSize, auxResultsData, start, end)
         #Distribute work
         self.results = self.distribute(batchSize, start, end)
         #Return previous results
@@ -117,12 +123,13 @@ class GaussianGenerator(object):
 
     def distribute(self, batchSize, start, end):
         self.initPool()
-
         # Process simulations in parallel
-        try:
+        #try:
+        if True:
             results = self.pool.map_async(wrapped_simulate, [(self.getSimulator(), self.grayscale, self.computeFlow, start, end) for i in range(batchSize)])
             return results
-        except Exception as e:
+        #except Exception as e:
+        else:
             print 'Exception raised during map_async: {}'.format(e)
             self.pool.terminate()
             sys.exit()
@@ -143,6 +150,8 @@ class GaussianGenerator(object):
                 flow[index,:,:,:,:] = of
             label[index,:,:] = targets
             index += 1
+            if index >= batchSize:
+                break
         
         return data, label, flow
 

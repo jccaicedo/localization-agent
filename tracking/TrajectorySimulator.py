@@ -266,13 +266,9 @@ class TrajectorySimulator():
     if maxSteps is None:
         maxSteps = len(RANGE)
     self.maxSteps = maxSteps
-    # Load images
-    self.scene = Image.open(sceneFile)
-    if self.scene.mode == 'L':
-        self.scene = self.scene.convert('RGB')
-    self.obj = Image.open(objectFile)
-    if self.obj.mode == 'L':
-        self.obj = self.obj.convert('RGB')
+    # Keep paths of images
+    self.sceneFile = sceneFile
+    self.objectFile = objectFile
     # Use scene as camera
     if camSize is None:
         camSize = self.scene.size
@@ -299,6 +295,13 @@ class TrajectorySimulator():
     logging.debug('Scene: %s Object: %s', sceneFile, objectFile)
 
   def start(self):
+    # Load images
+    self.scene = Image.open(self.sceneFile)
+    if self.scene.mode == 'L':
+        self.scene = self.scene.convert('RGB')
+    self.obj = Image.open(self.objectFile)
+    if self.obj.mode == 'L':
+        self.obj = self.obj.convert('RGB')
     #Segment the object using the polygon and crop to the resulting axes-aligned bounding box
     self.obj = segmentCrop(self.obj, self.polygon)
     # Draw coordinate axes for each source
