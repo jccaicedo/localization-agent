@@ -132,7 +132,6 @@ class GaussianGenerator(object):
             while not self.memory.dataAvailable(batchSize):
                 if self.results is None:
                     self.distributeAndCollect(batchSize, start, end)
-                print "Wating for data"
                 time.sleep(10)
         if self.memory.dataAvailable(batchSize) and self.results is None:
             self.distributeAndCollect(batchSize, start, end)
@@ -144,10 +143,12 @@ class GaussianGenerator(object):
         self.results = "waiting"
         # Process simulations in parallel
         try:
+            s = time.time()
             def callBack(result):
                 data, label, flow = self.collect(batchSize, result, start, end)
                 self.memory.add(data, label, flow)
                 self.results = None
+                print 'Elapsed:',(time.time()-s),'seg'
             results = self.pool.map_async(wrapped_simulate, [(self.getSimulator(), self.grayscale, self.computeFlow, start, end) for i in range(batchSize)], callback=callBack)
         except Exception as e:
             print 'Exception raised during map_async: {}'.format(e)
