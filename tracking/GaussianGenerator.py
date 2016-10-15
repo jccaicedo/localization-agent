@@ -12,6 +12,7 @@ SEQUENCE_LENGTH = 60
 IMG_HEIGHT = 100
 IMG_WIDTH = 100
 TARGET_DIM = 4
+MEMORY_SIZE = 4096 # Examples
 
 # FUNCTION
 # Make simulation of a single sequence given the simulator
@@ -47,7 +48,8 @@ class GaussianGenerator(object):
         self.parallel = parallel
         if self.parallel:
             #Use maximum number of cores by default
-            self.numProcs =  multiprocessing.cpu_count() if numProcs is None or numProcs > multiprocessing.cpu_count() or numProcs < 1 else numProcs
+            #self.numProcs =  multiprocessing.cpu_count() if numProcs is None or numProcs > multiprocessing.cpu_count() or numProcs < 1 else numProcs
+            self.numProcs = numProcs
             self.results = None
             self.pool = None
         self.factory = trsim.SimulatorFactory(
@@ -60,6 +62,11 @@ class GaussianGenerator(object):
             )
         self.grayscale = grayscale
         self.computeFlow = computeFlow
+        # Setup replay memory
+        channels = 3
+        if self.grayscale: channels = 1
+        if self.computeFlow: channels += 2
+        self.memory = ReplayMemory(MEMORY_SIZE, seqLength, imageSize, channels)
 
 #    def getSimulator(self):
 #        simulator = self.factory.createInstance(camSize=(self.imageSize, self.imageSize))
@@ -101,7 +108,7 @@ class GaussianGenerator(object):
                     flow = VisualAttention.computeFlowFromBatch(data)
                 return data, label, flow
 
-    def getBatchInParallel(self, batchSize, start, end):
+    def getBatchInParallelV0(self, batchSize, start, end):
         #TODO: avoid this condition by distributing and init end, but batchSize is needed and not available
         if self.results is None:
             #Distribute work for the first time
@@ -111,10 +118,41 @@ class GaussianGenerator(object):
         #IPython.embed()
         auxResultsData = self.results.get(9999)
         data, label, flow = self.collect(batchSize, auxResultsData, start, end)
+        self.memory.add(data, label, flow)
         #Distribute work
         self.results = self.distribute(batchSize, start, end)
         #Return previous results
         return data, label, flow
+
+    def getBatchInParallel(self, batchSize, start, end):
+        return self.getBatchFromMemory(batchSize, start, end)
+
+    def getBatchFromMemory(self, batchSize, start, end):
+        if not self.memory.dataAvailable(batchSize):
+            while not self.memory.dataAvailable(batchSize):
+                if self.results is None:
+                    self.distributeAndCollect(batchSize, start, end)
+                print "Wating for data"
+                time.sleep(10)
+        if self.memory.dataAvailable(batchSize) and self.results is None:
+            self.distributeAndCollect(batchSize, start, end)
+        return self.memory.getSample(batchSize)
+
+
+    def distributeAndCollect(self, batchSize, start, end):
+        self.initPool()
+        self.results = "waiting"
+        # Process simulations in parallel
+        try:
+            def callBack(result):
+                data, label, flow = self.collect(batchSize, result, start, end)
+                self.memory.add(data, label, flow)
+                self.results = None
+            results = self.pool.map_async(wrapped_simulate, [(self.getSimulator(), self.grayscale, self.computeFlow, start, end) for i in range(batchSize)], callback=callBack)
+        except Exception as e:
+            print 'Exception raised during map_async: {}'.format(e)
+            self.pool.terminate()
+            sys.exit()
 
     def initPool(self):
         # Lazy initialization
@@ -169,3 +207,42 @@ class GaussianGenerator(object):
                 videoSeq.exportBoxes(os.path.join(outputDir, str(i), gtFilename), 'green')
                 #TODO: check ending empty line
                 listFile.write('{}\n'.format(i))
+
+class ReplayMemory():
+
+    def __init__(self, memorySize, frames, imageSize, channels):
+        self.O = np.zeros( (memorySize, frames, imageSize, imageSize, channels), np.float32 )
+        self.L = np.zeros( (memorySize, frames, 4), np.int )
+        self.F = None
+        self.pointer = 0
+        self.usableRecords = 0
+
+    def add(self, data, label, flow):
+        batchSize = data.shape[0]
+        if self.pointer < self.O.shape[0]-batchSize:
+            self.pointer += batchSize
+        else:
+            self.pointer = 0
+
+        self.O[self.pointer:self.pointer+batchSize,...] = data
+        self.L[self.pointer:self.pointer+batchSize,...] = label
+
+        if self.usableRecords < self.O.shape[0]:
+            self.usableRecords += batchSize
+        print "Added to memory:",self.pointer,self.usableRecords
+
+    def getSample(self, batchSize):
+        idx = np.arange(self.usableRecords)
+        np.random.shuffle(idx)
+        idx = idx[0:batchSize]
+        O = self.O[idx,...]
+        L = self.L[idx,...]
+        F = self.F
+        return O,L,F
+
+    def dataAvailable(self, batchSize):
+        if self.usableRecords >= 2*batchSize:
+            return True
+        else:
+            return False
+
