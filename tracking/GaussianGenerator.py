@@ -213,20 +213,19 @@ class ReplayMemory():
 
     def __init__(self, memorySize, frames, imageSize, channels):
         self.O = np.zeros( (memorySize, frames, imageSize, imageSize, channels), np.float32 )
-        self.L = np.zeros( (memorySize, frames, 4), np.int )
+        self.L = np.zeros( (memorySize, frames, 4), np.float32 )
         self.F = None
         self.pointer = 0
         self.usableRecords = 0
 
     def add(self, data, label, flow):
         batchSize = data.shape[0]
+        self.O[self.pointer:self.pointer+batchSize,...] = data
+        self.L[self.pointer:self.pointer+batchSize,...] = label
         if self.pointer < self.O.shape[0]-batchSize:
             self.pointer += batchSize
         else:
             self.pointer = 0
-
-        self.O[self.pointer:self.pointer+batchSize,...] = data
-        self.L[self.pointer:self.pointer+batchSize,...] = label
 
         if self.usableRecords < self.O.shape[0]:
             self.usableRecords += batchSize
@@ -242,7 +241,7 @@ class ReplayMemory():
         return O,L,F
 
     def dataAvailable(self, batchSize):
-        if self.usableRecords >= 2*batchSize:
+        if self.usableRecords >= 1*batchSize:
             return True
         else:
             return False
