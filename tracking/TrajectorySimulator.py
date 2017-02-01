@@ -760,6 +760,12 @@ class TrajectoryModel(object):
                 newModel = StretchedSineTrajectoryModel(self.length)
             elif spec == 'random':
                 newModel = RandomTrajectoryModel(self.length)
+            elif spec == 'random0050':
+                newModel = RandomTrajectoryModel(self.length, step_length_=0.050)
+            elif spec == 'random0025':
+                newModel = RandomTrajectoryModel(self.length, step_length_=0.025)
+            elif spec == 'random0010':
+                newModel = RandomTrajectoryModel(self.length, step_length_=0.010)
             elif spec == 'still':
                 newModel = StillTrajectoryModel(self.length)
             else:
